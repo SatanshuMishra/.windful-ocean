@@ -294,9 +294,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship the frozen 24-unit whole solution, waves 3 through 9, closing all thirteen boundary root causes.",
-    "next_step": "Read the release-engineer's reopen table (six new PRs vs main from the original head branches) and the M8a lead's report; rule blocks in one exchange. Human then merges the six reopened PRs; DELETE no branch until M8a is retargeted off feat/mitosis-append-only-journal (0519). Then serial: wave 5 M5, M8b, M9 (+parked-not-in-specs per 0603), M12b-3; wave 6 M6; wave 7 M11, M13; wave 8 M17 (isParked non-lattice token) then M15 (harness reset, ask user); wave 9 M16. Rules 0602, 0604.",
-    "last_session": "2026-08-19: wave 3 shipped (#226 M4, #227 M3, #228 M4b, #230 M12b-2); rulings 0602-0605. Human merged all ten PRs but 223, 224, 226-228, 230 merged into DEAD parent branches, content not on main; reopens against main dispatched. M8a in flight, outage interrupted its mutation step, lead resumed.",
+    "active_goal": "Ship the frozen 24-unit whole solution, waves 4 through 9, closing all thirteen boundary root causes.",
+    "next_step": "AWAIT the user's specific go. Then: re-derive M8a from git (ws-m8a, feat/mitosis-gate-own-tree; check gh pr list --head for a PR the resumed lead may have opened) and finish it to a PR on base feat/mitosis-append-only-journal. Human merges #232-#237 then M8a; delete no branch until M8a is retargeted to main. Then serial: wave 5 M5, M8b, M9 (+parked-not-in-specs per 0603), M12b-3; wave 6 M6; wave 7 M11, M13; wave 8 M17 then M15 (harness reset, ask user); wave 9 M16.",
+    "last_session": "2026-08-19: wave 3 shipped by four leads (#226 M4, #227 M3, #228 M4b, #230 M12b-2); rulings 0602-0605, 0612. Six PRs merged into dead bases were reopened as #232-#237 against main. M8a built and proven; its lead was mid-remediation at close.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -502,21 +502,63 @@
         ]
       },
       {
+        "text": "Re-derive M8a's state from git before touching it — its lead was resumed mid-remediation at session close and may have pushed or opened a PR after the ledger was written",
+        "scope": "c28",
+        "refs": [
+          "ws-m8a",
+          "feat/mitosis-gate-own-tree",
+          "f5547344",
+          "gh pr list --head feat/mitosis-gate-own-tree"
+        ]
+      },
+      {
+        "text": "Merge the six reopened pull requests and delete no branch until M8a is retargeted onto main — M8a stacks on M3's head branch, and deleting a base branch closes its children instead of moving them",
+        "scope": "c28",
+        "refs": [
+          "#232-#237",
+          "feat/mitosis-append-only-journal",
+          "0519"
+        ]
+      },
+      {
+        "text": "Merge parent, delete parent branch, confirm the ref is gone, then merge child — six pull requests reported MERGED this session while their content never reached main because the parent branch was still alive",
+        "scope": "c28",
+        "refs": [
+          "0445",
+          "0519",
+          "#223 #224 #226 #227 #228 #230"
+        ]
+      },
+      {
+        "text": "Enter a second open parent by merge commit and never wait on a human merge — the wave keeps moving and the pull request diff narrows once the parents land",
+        "scope": "c28",
+        "refs": [
+          "0602",
+          "0604"
+        ]
+      },
+      {
+        "text": "Read G14 survivors by file ownership on a stacked unit — the enforcer diffs two-dot from the base sha, so a parent's equivalent mutants appear in the child's verdict",
+        "scope": "c28",
+        "refs": [
+          "0604"
+        ]
+      },
+      {
+        "text": "Expect G11 to block any unit that deletes test files — the pr-create tool renders every value as a bullet so the enforcer never sees a bare test-removal line; the deletion is recorded as a tracked downgrade and M12b-3 inherits the ruling",
+        "scope": "c28",
+        "refs": [
+          "#230",
+          "M12b-3"
+        ]
+      },
+      {
         "text": "Keep all four ladder tags out of every PR body — the enforcer matches them as text and short-circuits all eight re-run gates, so an honest disclosure suppresses the check that would have caught it",
         "scope": "c28",
         "refs": [
           "PR 215 at 129ms",
           "PR 221 at 67s",
           "0594"
-        ]
-      },
-      {
-        "text": "Merge 221 before 223 and confirm its ref is gone — 223 stacks on it, and a child merged into a live-but-dead base reports MERGED without reaching the trunk",
-        "scope": "c28",
-        "refs": [
-          "PR 221",
-          "PR 223",
-          "0519"
         ]
       },
       {
@@ -528,11 +570,12 @@
         ]
       },
       {
-        "text": "Treat any hand-built reference inventory as a hypothesis — three in a row came back short because the search could not see raw-text pins, reader-side references or multi-line imports",
+        "text": "Treat any hand-built reference inventory as a hypothesis — three in a row came back short because the search could not see raw-text pins, reader-side references or multi-line imports; A8's sweep also excluded tests/",
         "scope": "c28",
         "refs": [
           "0585",
-          "A16"
+          "A16",
+          "0603"
         ]
       },
       {
@@ -544,15 +587,6 @@
         ]
       },
       {
-        "text": "Give M8a the refusal, its three removed tests and the two vacuous assertions — boundary-gate coverage is genuinely absent from wave 1 until M8a restores it",
-        "scope": "c28",
-        "refs": [
-          "0596",
-          "PR 224",
-          "boundary-gate.test.mjs:207"
-        ]
-      },
-      {
         "text": "Rebase a stacked branch with --onto and its old parent — merged branches are not deleted here, so a bare rebase replays commits already on main",
         "scope": "c28",
         "refs": [
@@ -561,11 +595,20 @@
         ]
       },
       {
-        "text": "Reset the live harness before M15 — its journal demoted a shipped unit to parked and can never reconcile its open pull request, so branches alone are not enough",
+        "text": "Reset the live harness before M15 and ask the user first — its journal demoted a shipped unit to parked and can never reconcile its open pull request, so branches alone are not enough",
         "scope": "c28",
         "refs": [
           "mitosis-live-pr-harness",
           "0576"
+        ]
+      },
+      {
+        "text": "Tell M17 that isParked reads a token outside the lattice and that the progress-token census file does not exist yet — the mirror deletion is a modelling gap, not a mechanical repoint",
+        "scope": "c28",
+        "refs": [
+          "parking.mjs:115",
+          "tests/progress-token-census.mjs",
+          "M4b report"
         ]
       }
     ],
@@ -1185,5 +1228,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T02:24:29.018Z"
+  "updated_at": "2026-08-19T02:28:48.059Z"
 }
