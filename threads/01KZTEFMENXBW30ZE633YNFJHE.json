@@ -302,8 +302,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Ship the frozen 24-unit whole solution, waves 4 through 9, closing all thirteen boundary root causes.",
-    "next_step": "AWAIT the user's specific go. Then: re-derive M8a from git (ws-m8a, feat/mitosis-gate-own-tree; check gh pr list --head for a PR the resumed lead may have opened) and finish it to a PR on base feat/mitosis-append-only-journal. Human merges #232-#237 then M8a; delete no branch until M8a is retargeted to main. Then serial: wave 5 M5, M8b, M9 (+parked-not-in-specs per 0603), M12b-3; wave 6 M6; wave 7 M11, M13; wave 8 M17 then M15 (harness reset, ask user); wave 9 M16.",
-    "last_session": "2026-08-19: wave 3 shipped by four leads (#226 M4, #227 M3, #228 M4b, #230 M12b-2); rulings 0602-0605, 0612. Six PRs merged into dead bases were reopened as #232-#237 against main. M8a built and proven; its lead was mid-remediation at close.",
+    "next_step": "START HERE. Read RUNBOOK.md AMENDMENT 2026-08-19 (A-G) before the Standing Brief; it overrides it. Session 1: clear the stale ws-m12b2 worktree (a push from it reverts the fix), merge #237 (MERGEABLE; its G11 BLOCK is the already-ruled downgrade, not a new decision), re-derive M8a from git and retarget it to main, then M8b, then M5 + M9 + M12b-3 in parallel. Every unit branches off origin/main - stacking is retired. Touch no test: cleanup is c41, after M16.",
+    "last_session": "2026-08-19: documentation session, no code by intent. Rulings 0615-0619 - SPEC is a ceiling, two-tier testing, stacking retired, four user rulings, cleanup as c41. SPEC gained Part 8, RUNBOOK gained the 2026-08-19 amendment. PR #237 rebased clean to MERGEABLE; no real conflict existed.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -1260,5 +1260,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T02:58:07.961Z"
+  "updated_at": "2026-08-19T03:03:04.168Z"
 }
