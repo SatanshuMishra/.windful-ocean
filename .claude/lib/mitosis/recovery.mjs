@@ -1,4 +1,5 @@
 import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
+import { legacyStatusOf, mergeProgress, startingProgressOf, PROGRESS_ORDER } from './unit-state.mjs';
 
 const MAX_TITLE_LEN = 200;
 const MAX_RATIONALE_LEN = 1000;
@@ -140,9 +141,11 @@ export function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoo
 
 export function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, rationale, changeType, scope }) {
   const exists = manifest.msps.some((msp) => msp.id === mspId);
-  const updated = manifest.msps.map((msp) =>
-    msp.id === mspId ? { ...msp, status: 'shipped', prUrl, mergedAt } : msp,
-  );
+  const updated = manifest.msps.map((msp) => {
+    if (msp.id !== mspId) return msp;
+    const progress = mergeProgress(startingProgressOf(msp), 'pr-open');
+    return { ...msp, progress, status: legacyStatusOf(progress), prUrl, mergedAt };
+  });
   const msps = exists
     ? updated
     : [
@@ -177,12 +180,18 @@ export function resolveResumeTarget(manifest, runId) {
   return { found: false, reason: 'no such run' };
 }
 
+function progressAtOrAbove(progress, threshold) {
+  return PROGRESS_ORDER.indexOf(progress) >= PROGRESS_ORDER.indexOf(threshold);
+}
+
 export function applyBuiltTransition(manifest, { unitId, checkpointRef, sha, green, builtAgainst }) {
   const exists = manifest.msps.some((msp) => msp.id === unitId);
   const updated = manifest.msps.map((msp) => {
     if (msp.id !== unitId) return msp;
-    if (msp.status === 'shipped') return msp;
-    return { ...msp, status: 'built', checkpointRef, builtSha: sha, green: green ?? false, builtAgainst: builtAgainst ?? {}, resumePoint: null };
+    const currentProgress = startingProgressOf(msp);
+    if (progressAtOrAbove(currentProgress, 'pr-open')) return msp;
+    const progress = mergeProgress(currentProgress, 'built');
+    return { ...msp, progress, status: legacyStatusOf(progress), checkpointRef, builtSha: sha, green: green ?? false, builtAgainst: builtAgainst ?? {}, resumePoint: null };
   });
   const msps = exists
     ? updated

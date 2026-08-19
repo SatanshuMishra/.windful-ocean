@@ -1,0 +1,60 @@
+{
+  "capturedAtCommit": "f9f22255",
+  "resumeUnits": [
+    {
+      "unitId": "p1",
+      "stage": "ship",
+      "resumePoint": {
+        "branch": "mit2/p1-integration",
+        "ref": "aaaaaaa",
+        "stage": "ship"
+      },
+      "triedSet": [
+        "ci-probe:rerun"
+      ]
+    },
+    {
+      "unitId": "p2",
+      "stage": null,
+      "resumePoint": {
+        "branch": null,
+        "ref": null,
+        "stage": null
+      },
+      "triedSet": []
+    }
+  ],
+  "resumeBuilt": [
+    {
+      "unitId": "b1",
+      "stage": "ship",
+      "resumePoint": {
+        "branch": "mit2/b1-integration",
+        "ref": "refs/mitosis/deadbeef/b1",
+        "stage": "ship"
+      }
+    }
+  ],
+  "statusById": [
+    {
+      "id": "p1",
+      "status": "parked"
+    },
+    {
+      "id": "p2",
+      "status": "parked"
+    },
+    {
+      "id": "b1",
+      "status": "built"
+    },
+    {
+      "id": "s1",
+      "status": "shipped"
+    },
+    {
+      "id": "pl1",
+      "status": "planned"
+    }
+  ]
+}

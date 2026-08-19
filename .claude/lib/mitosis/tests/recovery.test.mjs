@@ -19,6 +19,7 @@ import {
   PUBLISHED_MSP_FIELDS,
 } from '../recovery.mjs';
 import { park } from '../parking.mjs';
+import { legacyStatusOf } from '../unit-state.mjs';
 import { pack } from './file-scope-fixtures.mjs';
 
 test('computeLogicalRunId: deterministic for identical inputs', () => {
@@ -293,9 +294,12 @@ test('applyBuiltTransition: idempotent — applying twice equals applying once',
 
 test('applyBuiltTransition: terminal-status guard — a shipped unit is NEVER downgraded to built', () => {
   const before = builtBase();
-  const shipped = applyShipTransition(before, { mspId: 'a', prUrl: 'http://pr/a', mergedAt: '2026-07-08T00:00:00Z' });
-  const after = applyBuiltTransition(shipped, { unitId: 'a', checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234' });
-  assert.equal(after.msps.find((m) => m.id === 'a').status, 'shipped');
+  const built = applyBuiltTransition(before, { unitId: 'a', checkpointRef: 'refs/mitosis/x/a/a', sha: 'aaaaaaa', green: true, builtAgainst: { z: 'deadbee' } });
+  const shipped = applyShipTransition(built, { mspId: 'a', prUrl: 'http://pr/a', mergedAt: '2026-07-08T00:00:00Z' });
+  const priorA = shipped.msps.find((m) => m.id === 'a');
+  const after = applyBuiltTransition(shipped, { unitId: 'a', checkpointRef: 'refs/mitosis/x/OTHER', sha: 'bbbbbbb', green: false, builtAgainst: {} });
+  const a = after.msps.find((m) => m.id === 'a');
+  assert.deepEqual(a, priorA, 'a later built delta must leave the entire shipped msp unchanged, including checkpointRef, builtSha, green and builtAgainst');
 });
 
 test('applyBuiltTransition: parked/planned units are promoted to built', () => {
@@ -337,7 +341,9 @@ test('applyBuiltTransition: clears the resumePoint, so a rebuilt unit re-parked 
   const cascaded = park(rebuilt, { unitId: 'a', stage: 'execute', diagnosis: 'ancestor failed', triedSet: [] });
 
   const b = cascaded.msps.find((m) => m.id === 'b');
-  assert.equal(b.status, 'parked', 'the ancestor cascade parks the dependent');
+  assert.notStrictEqual(b.disposition, null, 'the ancestor cascade still records a disposition for the dependent');
+  assert.notStrictEqual(b.disposition, undefined, 'the ancestor cascade still records a disposition for the dependent');
+  assert.strictEqual(b.status, legacyStatusOf(b.progress), 'the legacy status mirror stays exact — the cascade no longer clobbers the built record down to parked');
   assert.notEqual(
     b.resumePoint && b.resumePoint.stage,
     'plan',
