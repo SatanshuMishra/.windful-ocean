@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pack } from './file-scope-fixtures.mjs';
 import { CLI_USAGE, exitCodeOf, parseCliArgv, realPorts, runCli } from '../cli.mjs';
+import { runVerdictOf } from '../run-verdict.mjs';
 import { Done, NeedsHuman } from '../boundary.mjs';
 
 function fullArgv(extra = [], root = '/repo') {
@@ -150,42 +151,65 @@ test('EXIT 3: a run that built every unit and opened no pull request is never re
 function drivenRun(ship, integrateOutcomes = [], execute = {}) {
   return {
     phases: {
+      Probe: { handle: { runKey: 'r1', attempt: 1 } },
+      Resume: { restarted: true },
       Execute: { result: { quiescent: true, units: [{ id: 'alpha', state: 'done' }], ...execute } },
       Integrate: { outcomes: integrateOutcomes },
-      Ship: ship,
+      Ship: { ci: { unwatched: [] }, ...ship },
     },
   };
+}
+
+function codeOf(ship, integrateOutcomes = [], execute = {}) {
+  return exitCodeOf(runVerdictOf(drivenRun(ship, integrateOutcomes, execute)));
 }
 
 const BUILT_UNIT_OUTCOME = Object.freeze([Object.freeze({ unitId: 'alpha', state: 'parked' })]);
 
 test('EXIT MAPPING: shipping decides the code once the build is clean, and a hand-off awaiting a human merge is a success', () => {
-  assert.equal(exitCodeOf(drivenRun({ status: 'all-shipped', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME)), 0);
+  assert.equal(codeOf({ status: 'all-integrated-opened', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME), 0);
   assert.equal(
-    exitCodeOf(drivenRun({ status: 'awaiting-approval', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME)),
+    codeOf({ status: 'awaiting-approval', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME),
     0,
     'the engine never merges by design, so a run that opened its pull requests and waits on a human is the healthy terminal state; a red code here would train the operator to ignore the code',
   );
   assert.equal(
-    exitCodeOf(drivenRun({ status: 'partial', outcomes: [] }, [])),
+    codeOf({ status: 'nothing-pending', outcomes: [] }, []),
     0,
-    'nothing was pending to integrate and nothing was pending to ship, so the unconditional partial a zero total produces is not a failure',
+    'nothing was pending to integrate and nothing was pending to ship, so a run that held no work is not a failure',
   );
 
   assert.equal(
-    exitCodeOf(drivenRun({ status: 'partial', outcomes: [] }, BUILT_UNIT_OUTCOME)),
+    codeOf({ status: 'nothing-pending', outcomes: [] }, BUILT_UNIT_OUTCOME),
     3,
     'a unit was built and carried into Integrate, and no pull request came out of it',
   );
-  assert.equal(exitCodeOf(drivenRun({ status: 'partial', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME)), 3);
-  assert.equal(exitCodeOf(drivenRun({ status: 'blocked', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME)), 3);
-  assert.equal(exitCodeOf(drivenRun({ status: 'ci-red-exhausted', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME)), 3);
+  assert.equal(codeOf({ status: 'partial', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME), 3);
+  assert.equal(codeOf({ status: 'blocked', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME), 3);
+  assert.equal(codeOf({ status: 'ci-red-exhausted', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME), 3);
+  assert.equal(
+    codeOf({ status: 'all-integrated-opened', outcomes: BUILT_UNIT_OUTCOME, ci: { unwatched: BUILT_UNIT_OUTCOME } }, BUILT_UNIT_OUTCOME),
+    0,
+    'the pull requests are open and their checks went unread; the withheld status word reports that, and the code still reports the hand-off the run completed',
+  );
 });
 
 test('EXIT MAPPING: an unfinished build is still short-circuited before shipping is consulted', () => {
-  const shipped = { status: 'all-shipped', outcomes: BUILT_UNIT_OUTCOME };
-  assert.equal(exitCodeOf(drivenRun(shipped, BUILT_UNIT_OUTCOME, { quiescent: false })), 3);
-  assert.equal(exitCodeOf(drivenRun(shipped, BUILT_UNIT_OUTCOME, { units: [{ id: 'alpha', state: 'parked' }] })), 3);
+  const shipped = { status: 'all-integrated-opened', outcomes: BUILT_UNIT_OUTCOME };
+  assert.equal(codeOf(shipped, BUILT_UNIT_OUTCOME, { quiescent: false }), 3);
+  assert.equal(codeOf(shipped, BUILT_UNIT_OUTCOME, { units: [{ id: 'alpha', state: 'parked' }] }), 3);
+});
+
+test('SUMMARY: the verdict is the first key an operator reads, and it names every top-level field the skill relays', async (t) => {
+  const io = stubIo(specDocument());
+  const stub = stubPorts(async () => Done({ sha: 'sha-alpha' }));
+  const code = await runCli(tempArgv(t), io, () => stub.ports);
+  const summary = JSON.parse(io.out.join(''));
+  assert.equal(Object.keys(summary)[0], 'verdict', 'the terminal state is what the operator reads first, not a field buried under the phase reports');
+  assert.deepEqual(Object.keys(summary), ['verdict', 'runKey', 'attempt', 'quiescent', 'aborted', 'ticks', 'units', 'prep', 'resume', 'integrate', 'ship']);
+  assert.equal(summary.verdict.status, 'nothing-pending');
+  assert.equal(summary.verdict.ciUnwatchedCount, 0);
+  assert.equal(code, 3);
 });
 
 test('EXIT 1: a throw from the engine is reported on stderr rather than crashing the process', async (t) => {

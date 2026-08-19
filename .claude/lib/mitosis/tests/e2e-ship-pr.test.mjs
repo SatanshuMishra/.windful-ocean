@@ -92,7 +92,7 @@ test('Ship opens a pull request for every msp it published, stacking the depende
     assert.deepEqual(created.map((argv) => flagValue(argv, '--base')), [BASE_BRANCH, BASE_BRANCH, integrationBranchOf('alpha')]);
     assert.deepEqual(created.map((argv) => flagValue(argv, '--head')), [integrationBranchOf('alpha'), integrationBranchOf('gamma'), integrationBranchOf('beta')]);
     assert.deepEqual(created.map((argv) => flagValue(argv, '--title')), ['feat(alpha): unit alpha', 'feat(gamma): unit gamma', 'feat(beta): unit beta']);
-    assert.equal(ship.summary.ship.status, 'all-shipped');
+    assert.equal(ship.summary.ship.status, 'all-integrated-opened');
     assert.deepEqual(ship.summary.ship.opened, ['alpha', 'gamma', 'beta']);
     assert.deepEqual(ship.summary.ship.parked, []);
     assert.deepEqual(ship.summary.ship.blocked, []);
@@ -122,7 +122,7 @@ test('the dependent ships in the same walk once the merged-pull-request probe re
     const created = ghArgvsMatching(sandbox, PR_CREATE_PREFIX);
     assert.equal(created.length, 3, 'a merged prerequisite clears the gate, so the dependent joins the two units that never needed it');
     assert.deepEqual(created.map((argv) => flagValue(argv, '--head')), [integrationBranchOf('alpha'), integrationBranchOf('gamma'), integrationBranchOf('beta')]);
-    assert.equal(ship.summary.ship.status, 'all-shipped');
+    assert.equal(ship.summary.ship.status, 'all-integrated-opened');
     assert.deepEqual(ship.summary.ship.opened, ['alpha', 'gamma', 'beta']);
     assert.deepEqual(ship.summary.ship.parked, []);
     assert.deepEqual(ship.summary.ship.blocked, []);
@@ -414,7 +414,7 @@ test('the ship summary names the units, their actions and the pull requests they
     parked: [],
     prUrls: { beta: 'https://github.com/acme/widgets/pull/5' },
     outcomes: [{ id: 'beta', state: 'shipped', action: 'created' }],
-    status: 'all-shipped',
+    status: 'all-integrated-opened',
     ci: [],
     mergeOrder: [{
       position: 1,
@@ -500,7 +500,7 @@ test('a prerequisite this walk published is what its dependent stacks on, rather
     ['mitosis/gamma-integration', ['mitosis/beta-integration']],
   ]);
   assert.deepEqual([...plan.awaiting], []);
-  assert.equal(plan.status, 'all-shipped');
+  assert.equal(plan.status, 'all-integrated-opened');
 });
 
 test('the pull request this run just opened for a prerequisite is what the awaiting record names as the one to merge', async () => {
@@ -573,7 +573,7 @@ test('the ship config is refused at the boundary, and the refusal names what arr
   await assert.rejects(() => shipIntegrated({ ...SHIP_CONFIG, journalPath: undefined }, SHIP_PORTS), /non-empty journalPath.*received undefined$/);
   assert.deepEqual(
     await shipIntegrated({ ...SHIP_CONFIG, journalPath: 'j' }, SHIP_PORTS),
-    { opened: [], parked: [], outcomes: [], awaiting: [], blocked: [], retired: [], ci: NO_CI_WATCH, status: 'partial' },
+    { opened: [], parked: [], outcomes: [], awaiting: [], blocked: [], retired: [], ci: NO_CI_WATCH, status: 'nothing-pending' },
     'a one-character path is a path; the boundary refuses what is empty, never what is short',
   );
 });

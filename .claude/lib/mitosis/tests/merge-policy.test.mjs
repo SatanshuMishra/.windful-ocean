@@ -31,9 +31,9 @@ test('awaitingApprovalOutcome carries the distinct kind and the PR url', () => {
   assert.deepEqual(entry, { kind: 'awaiting-approval', mspId: 'msp-a', prUrl: 'https://example/pr/1', receiptsPass: true, d6Pass: true });
 });
 
-test('all shipped with zero faults and zero awaiting is all-shipped (autonomous regression)', () => {
+test('all shipped with zero faults and zero awaiting is all-integrated-opened (autonomous regression)', () => {
   const status = computeMergePolicyStatus({ shippedCount: 3, awaitingApprovalCount: 0, blockedPendingApprovalCount: 0, genuineParkedCount: 0, haltedCount: 0, crashedCount: 0, total: 3 });
-  assert.equal(status, 'all-shipped');
+  assert.equal(status, 'all-integrated-opened');
 });
 
 test('foundational awaiting plus blocked-pending-approval dependents with zero faults is awaiting-approval', () => {
@@ -69,7 +69,7 @@ test('an exhausted CI-to-green loop reports ci-red-exhausted and outranks the aw
   const withAwaiting = computeMergePolicyStatus({ shippedCount: 0, awaitingApprovalCount: 2, blockedPendingApprovalCount: 1, genuineParkedCount: 0, haltedCount: 0, crashedCount: 0, ciRedExhaustedCount: 1, total: 4 });
   assert.equal(withAwaiting, 'ci-red-exhausted', 'waiting work must not mask a unit whose CI-to-green loop gave up');
   const everythingElseShipped = computeMergePolicyStatus({ shippedCount: 3, awaitingApprovalCount: 0, blockedPendingApprovalCount: 0, genuineParkedCount: 0, haltedCount: 0, crashedCount: 0, ciRedExhaustedCount: 1, total: 3 });
-  assert.equal(everythingElseShipped, 'ci-red-exhausted', 'an exhausted CI loop is never reported as all-shipped');
+  assert.equal(everythingElseShipped, 'ci-red-exhausted', 'an exhausted CI loop is never reported as all-integrated-opened');
 });
 
 test('a genuine fault OUTRANKS an exhausted CI loop, because an exhausted loop is an expected bounded outcome and a crash or halt is not', () => {
@@ -90,9 +90,41 @@ test('a genuine fault OUTRANKS an exhausted CI loop, because an exhausted loop i
   );
 });
 
-test('partial survives only as the residual: no fault, no exhausted CI loop, nothing awaiting, and not every MSP accounted for', () => {
+test('partial survives only as the residual: no fault, no exhausted CI loop, nothing awaiting, and some but not every MSP opened', () => {
   const status = computeMergePolicyStatus({ shippedCount: 1, awaitingApprovalCount: 0, blockedPendingApprovalCount: 0, genuineParkedCount: 0, haltedCount: 0, crashedCount: 0, ciRedExhaustedCount: 0, total: 3 });
   assert.equal(status, 'partial');
+});
+
+test('a run with nothing pending at all is nothing-pending, never the partial the fallthrough produced', () => {
+  assert.equal(computeMergePolicyStatus({ shippedCount: 0, total: 0 }), 'nothing-pending');
+  assert.equal(
+    computeMergePolicyStatus({ shippedCount: 0, awaitingApprovalCount: 0, blockedPendingApprovalCount: 0, genuineParkedCount: 0, haltedCount: 0, crashedCount: 0, ciRedExhaustedCount: 0, total: 0 }),
+    'nothing-pending',
+    'a zero total is the run that had nothing to open, and reporting it as partial told the operator work was left behind',
+  );
+});
+
+test('a count set no branch classifies throws rather than resolving to a word by fallthrough', () => {
+  assert.throws(
+    () => computeMergePolicyStatus({ shippedCount: 2, total: 1 }),
+    (error) => error instanceof TypeError && /shippedCount/.test(error.message),
+    'more opened than accounted for is not a run state, and a fallthrough word would name it one',
+  );
+});
+
+test('a count that is not a non-negative integer throws rather than being compared as one', () => {
+  for (const bad of [undefined, null, '3', Number.NaN, Infinity, -1, 1.5, {}, []]) {
+    assert.throws(
+      () => computeMergePolicyStatus({ shippedCount: 0, total: bad }),
+      (error) => error instanceof TypeError && /total/.test(error.message),
+      `expected a throw for total ${JSON.stringify(bad) ?? String(bad)}`,
+    );
+    assert.throws(
+      () => computeMergePolicyStatus({ shippedCount: bad, total: 1 }),
+      (error) => error instanceof TypeError && /shippedCount/.test(error.message),
+      `expected a throw for shippedCount ${JSON.stringify(bad) ?? String(bad)}`,
+    );
+  }
 });
 
 test('blocked-pending-approval records are excluded from the fault count by their distinct kind', () => {

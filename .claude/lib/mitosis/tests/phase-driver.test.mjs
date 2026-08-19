@@ -122,7 +122,7 @@ test('every phase a later change fills in returns its own empty result, so a bod
     blocked: [],
     retired: [],
     ci: { outcomes: [], green: [], unwatched: [], exhausted: [] },
-    status: 'partial',
+    status: 'nothing-pending',
   });
   assert.deepEqual(
     driven.phases.Remediate,
