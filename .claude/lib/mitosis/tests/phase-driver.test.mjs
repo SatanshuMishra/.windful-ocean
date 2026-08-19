@@ -124,7 +124,11 @@ test('every phase a later change fills in returns its own empty result, so a bod
     ci: { outcomes: [], green: [], unwatched: [], exhausted: [] },
     status: 'partial',
   });
-  assert.deepEqual(driven.phases.Remediate, { remediated: [], parked: [] });
+  assert.deepEqual(
+    driven.phases.Remediate,
+    { remediated: [], parked: [], budget: { max: 3, used: 0 } },
+    'a run carrying no parked unit remediates nothing and parks nothing, and it reports the per-run remediation cap unspent; asserting only the two empty lists would pass while the phase silently spent children against a cap nobody could read',
+  );
 });
 
 function shippableJournal() {
@@ -616,4 +620,119 @@ test('a run request missing a field the phases read is refused before the run st
     (error) => error instanceof TypeError && /repoSlug/.test(error.message),
   );
   assert.deepEqual(stub.released, [], 'the request is validated before Probe opens the run store, so a rejected request leaves no lock to release');
+});
+
+const APPROACH_FIXABLE_JOURNAL = Object.freeze({
+  logicalRunId: 'r1',
+  clusters: [],
+  msps: [{
+    id: 'alpha',
+    status: 'parked',
+    triedSet: ['worktree:reset-clean'],
+    resumePoint: { branch: null, ref: null, stage: 'execute' },
+    disposition: {
+      class: 'ApproachFixable',
+      diagnosis: 'the first attempt died on a dirty worktree',
+      stage: 'execute',
+      resumePoint: { branch: null, ref: null, stage: 'execute' },
+      triedSet: ['worktree:reset-clean'],
+      remediation: null,
+    },
+  }],
+});
+
+function parkedUnitRequest(remediate) {
+  const base = runRequest();
+  return {
+    ...base,
+    spec: {
+      manifest: { logicalRunId: 'r1', clusters: [], msps: [{ id: 'alpha' }] },
+      specs: [{ id: 'alpha', fileScope: pack(['alpha.mjs']), request: { prompt: 'do alpha' }, task: 'add the ship phase' }],
+      ...(remediate === undefined ? {} : { remediate }),
+    },
+  };
+}
+
+const DIAGNOSE_PROMPT_FOR_ALPHA = composePrompt('diagnose', {
+  unitId: 'alpha',
+  stage: 'execute',
+  task: 'add the ship phase',
+  evidence: { cause: { mechanism: null, diagnosis: 'the first attempt died on a dirty worktree' } },
+  triedSet: ['worktree:reset-clean'],
+  rejectedMechanism: null,
+});
+
+test('a unit parked ApproachFixable reaches the remediation loop exactly once, carrying the tried set that unit recorded', async () => {
+  const stub = stubbedPorts({ readJournal: () => APPROACH_FIXABLE_JOURNAL });
+  await runPhases(parkedUnitRequest(), stub.ports);
+  assert.deepEqual(
+    stub.dispatched.map((request) => request.prompt),
+    [DIAGNOSE_PROMPT_FOR_ALPHA],
+    'the Remediate phase must enter the remediation loop once for the ApproachFixable park and hand the diagnostician the mechanisms that unit already spent; a count assertion alone would pass while the loop ran twice or was handed an empty tried set and re-proposed worktree:reset-clean',
+  );
+});
+
+function needsHumanJournal() {
+  const [msp] = APPROACH_FIXABLE_JOURNAL.msps;
+  return {
+    ...APPROACH_FIXABLE_JOURNAL,
+    msps: [{ ...msp, disposition: { ...msp.disposition, class: 'NeedsHuman' } }],
+  };
+}
+
+test('a unit parked NeedsHuman never reaches the remediation loop, and reaches it only when the operator override names that unit id', async () => {
+  const held = stubbedPorts({ readJournal: needsHumanJournal });
+  const withoutOverride = await runPhases(parkedUnitRequest(), held.ports);
+  assert.deepEqual(
+    held.dispatched,
+    [],
+    'a park nothing judged machine-correctable must spend no diagnosis child at all; the deny case is the assertion, because an override that always fires would leave this phase remediating every park',
+  );
+  assert.deepEqual(withoutOverride.phases.Remediate.remediated, [], 'a NeedsHuman park is never reported remediated when no child ever ran');
+  assert.deepEqual(withoutOverride.phases.Remediate.parked.map((entry) => [entry.unitId, entry.outcome, entry.disposition.remediation.attempted, entry.disposition.remediation.mechanisms]), [
+    ['alpha', 'skipped', false, []],
+  ]);
+  assert.deepEqual(withoutOverride.phases.Remediate.budget, { max: 3, used: 0 }, 'a park the phase declined to attempt spends none of the per-run cap');
+
+  const named = stubbedPorts({ readJournal: needsHumanJournal });
+  const withOverride = await runPhases(parkedUnitRequest(['alpha']), named.ports);
+  assert.deepEqual(
+    named.dispatched.map((request) => request.prompt),
+    [DIAGNOSE_PROMPT_FOR_ALPHA],
+    'the run document naming alpha under remediate is the operator override, and it must carry that one unit into the loop rather than reopening every NeedsHuman park',
+  );
+  assert.deepEqual(withOverride.phases.Remediate.parked.map((entry) => [entry.unitId, entry.outcome]), [['alpha', 'NeedsHuman']]);
+});
+
+const CORRECTING_MECHANISM = 'worktree:clean-checkout';
+
+function correctingPorts() {
+  const stub = stubbedPorts({
+    readJournal: () => APPROACH_FIXABLE_JOURNAL,
+    dispatchPrompt: (request) => {
+      stub.dispatched.push(request);
+      if (request.schema !== undefined) {
+        return { ok: true, structured: { verdict: 'remediable', mechanism: CORRECTING_MECHANISM, correctedTask: 'reset the worktree before building' } };
+      }
+      return { ok: true, outcome: 'success' };
+    },
+  });
+  return stub;
+}
+
+test('an attempt the remediation loop spends appends exactly one ci-attempt line naming the mechanism it spent', async () => {
+  const stub = correctingPorts();
+  const driven = await runPhases(parkedUnitRequest(), stub.ports);
+  assert.deepEqual(
+    stub.journalled,
+    [{
+      repoRoot: '/repo',
+      path: '.mitosis/run.jsonl',
+      line: `{"kind":"ci-attempt","unitId":"alpha","fingerprint":"${CORRECTING_MECHANISM}"}\n`,
+    }],
+    'the fold appends the fingerprint of a ci-attempt line to the unit tried set, so an attempt written under any other shape, or under a token that is not a "<category>:<mechanism>" fingerprint, is dropped in silence and proposed again as untried by the next run',
+  );
+  assert.deepEqual(driven.phases.Remediate.remediated, [{ unitId: 'alpha', outcome: 'Done', mechanisms: [CORRECTING_MECHANISM] }]);
+  assert.deepEqual(driven.phases.Remediate.parked, [], 'a corrected unit is not also parked');
+  assert.deepEqual(driven.phases.Remediate.budget, { max: 3, used: 1 }, 'one corrected unit spends exactly one of the three remediations this run may spend');
 });

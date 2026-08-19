@@ -9,6 +9,7 @@ import {
   legacyParkedDisposition,
   mergeProgress,
   startingProgressOf,
+  withRemediation,
 } from '../unit-state.mjs';
 
 test('PROGRESS ORDER: the exported lattice is frozen and exactly the four tokens in order', () => {
@@ -235,4 +236,48 @@ test('LEGACY PARKED DISPOSITION: a missing or malformed triedSet/resumePoint deg
   assert.strictEqual(disposition.class, 'Unknown');
   assert.deepStrictEqual(disposition.triedSet, []);
   assert.deepStrictEqual(disposition.resumePoint, { branch: null, ref: null, stage: null });
+});
+
+function fillableDisposition() {
+  return createDisposition({
+    class: 'ApproachFixable',
+    diagnosis: 'the child exited nonzero on a dirty worktree',
+    stage: 'execute',
+    resumePoint: { branch: 'work/unit-a', ref: null, stage: 'execute' },
+    triedSet: ['worktree:reset-clean'],
+  });
+}
+
+test('WITH REMEDIATION: every shape that is not a record is refused by name, so no one disjunct of the guard can lapse while the others still fire', () => {
+  const refused = [
+    [null, 'null'],
+    [undefined, 'undefined'],
+    [['probe:rerun'], '["probe:rerun"]'],
+    ['probe:rerun', '"probe:rerun"'],
+    [42, '42'],
+  ];
+  for (const [remediation, rendered] of refused) {
+    assert.throws(
+      () => withRemediation(fillableDisposition(), remediation),
+      { name: 'TypeError', message: `disposition remediation must be a non-null, non-array record: ${rendered}` },
+      `a guard that stops refusing ${rendered} spreads it into an empty or character-indexed object, and the park would carry a remediation naming no attempt, no outcome and no mechanism while reading as though one had been recorded`,
+    );
+  }
+});
+
+test('WITH REMEDIATION: a valid record is carried onto a new frozen disposition and the disposition it was read from keeps its null remediation', () => {
+  const disposition = fillableDisposition();
+  const record = { attempted: true, outcome: 'NeedsHuman', reason: 'a human must choose between the two schemas', mechanisms: ['probe:rerun'] };
+  const filled = withRemediation(disposition, record);
+  assert.deepStrictEqual(filled, {
+    class: 'ApproachFixable',
+    diagnosis: 'the child exited nonzero on a dirty worktree',
+    stage: 'execute',
+    resumePoint: { branch: 'work/unit-a', ref: null, stage: 'execute' },
+    triedSet: ['worktree:reset-clean'],
+    remediation: { attempted: true, outcome: 'NeedsHuman', reason: 'a human must choose between the two schemas', mechanisms: ['probe:rerun'] },
+  }, 'a guard that refused the one shape it exists to accept would park every unit the phase had just corrected, so the accepted case pins the whole carried record rather than only that it did not throw');
+  assert.equal(Object.isFrozen(filled), true, 'the filled disposition is handed to a caller that folds it into a manifest, and an unfrozen one could be rewritten under that reader');
+  assert.equal(Object.isFrozen(filled.remediation), true, 'the remediation is copied and frozen rather than aliased, so a later edit to the caller record cannot rewrite what the park recorded');
+  assert.strictEqual(disposition.remediation, null, 'the disposition read from is left exactly as it was, so filling a remediation never mutates the manifest entry the run folded');
 });

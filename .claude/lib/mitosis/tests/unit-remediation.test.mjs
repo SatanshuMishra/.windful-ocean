@@ -7,6 +7,7 @@ import {
   planRemediatedAttempt,
   readDiagnosis,
   redispatchRequest,
+  remediationDeps,
   requireRemediationInput,
 } from '../unit-remediation.mjs';
 
@@ -53,6 +54,30 @@ test('DIAGNOSE REQUEST: the request carries the composed prompt, the diagnosis s
   assert.equal(request.prompt.includes('Original objective for this stage: add the ship phase'), true);
   assert.equal(request.prompt.includes('Mechanisms already tried and excluded (do NOT repeat any of these): (none)'), true);
   assert.deepStrictEqual(Object.keys(diagnoseRequest(INPUT, undefined)).sort(), ['prompt', 'schema']);
+});
+
+test('DIAGNOSE REQUEST: the tried set the caller supplies reaches the prompt, and only real fingerprints reach it', () => {
+  const supplied = diagnoseRequest({ ...INPUT, triedSet: ['worktree:reset-clean', 'dependency:pin'] }, undefined);
+  assert.equal(
+    supplied.prompt.includes('Mechanisms already tried and excluded (do NOT repeat any of these): worktree:reset-clean, dependency:pin'),
+    true,
+    'the diagnostician excludes only what it is told was spent, so a request that pins the tried set empty asks it to re-propose the mechanism that just failed',
+  );
+  assert.equal(
+    diagnoseRequest({ ...INPUT, triedSet: new Set(['worktree:reset-clean']) }, undefined).prompt.includes('Mechanisms already tried and excluded (do NOT repeat any of these): worktree:reset-clean'),
+    true,
+    'the supervisor carries its tried set as a Set, and it must render the same as the array form rather than as no exclusions at all',
+  );
+  assert.equal(
+    diagnoseRequest({ ...INPUT, triedSet: ['worktree:reset-clean', '', 7] }, undefined).prompt.includes('Mechanisms already tried and excluded (do NOT repeat any of these): worktree:reset-clean'),
+    true,
+  );
+  assert.equal(diagnoseRequest({ ...INPUT, triedSet: 'worktree:reset-clean' }, undefined).prompt.includes('(do NOT repeat any of these): (none)'), true);
+  assert.equal(
+    diagnoseRequest({ ...INPUT, triedSet: ['worktree:reset-clean'], rejectedMechanism: 'dependency:pin' }, undefined).prompt.includes('Mechanisms already tried and excluded (do NOT repeat any of these): worktree:reset-clean, dependency:pin'),
+    true,
+    'a mechanism the diagnostician proposed and had rejected within this cycle is excluded alongside the recorded set, or it is proposed a second time',
+  );
 });
 
 test('DIAGNOSE REQUEST: a non-record evidence value reaches the prompt named by what it is rather than dropped', () => {
@@ -171,6 +196,56 @@ test('PLAN REMEDIATED ATTEMPT: a remediable diagnosis produces the corrected req
   assert.equal(refused.kind, 'diagnose');
 
   await assert.rejects(planRemediatedAttempt({ ...INPUT, task: '' }, BASE, dispatch), {
+    name: 'TypeError',
+    message: 'unit-remediation: unit "beta" carries no task text to remediate against, received string; the diagnosis prompt names the objective the failed attempt was pursuing, and an empty one asks the diagnostician to correct an approach to nothing',
+  });
+});
+
+test('REMEDIATION DEPS: the diagnosis carries the tried set the loop probed with, and an unreadable verdict escalates rather than proposing nothing', async () => {
+  const seen = [];
+  const deps = remediationDeps(INPUT, BASE, async (request) => {
+    seen.push(request.prompt);
+    return { ok: true, structured: { verdict: 'remediable', mechanism: 'worktree:reset-clean', correctedTask: 'reset first' } };
+  });
+  assert.deepStrictEqual(
+    await deps.diagnose({ evidence: { cause: { mechanism: null, diagnosis: 'died dirty' } }, triedSet: ['dependency:pin'], task: INPUT.task, stage: INPUT.stage }),
+    { mechanism: 'worktree:reset-clean', correctedTask: 'reset first' },
+  );
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].includes('Mechanisms already tried and excluded (do NOT repeat any of these): dependency:pin'), true);
+  assert.equal(seen[0].includes('Failure evidence: {"mechanism":null,"diagnosis":"died dirty"}'), true);
+
+  const refusing = remediationDeps(INPUT, BASE, async () => ({ ok: true, structured: null }));
+  const escalated = await refusing.diagnose({ evidence: {}, triedSet: [], task: INPUT.task, stage: INPUT.stage });
+  assert.equal(escalated.verdict, 'needs-human', 'a diagnosis the loop cannot read is escalated, never returned as a proposal carrying no mechanism');
+  assert.equal(escalated.request.kind, 'diagnose');
+  assert.equal(escalated.request.what, 'diagnosis-missing');
+});
+
+test('REMEDIATION DEPS: each corrected re-attempt is numbered and its answer is classified as a boundary outcome', async () => {
+  const seen = [];
+  const answers = [{ fault: { kind: 'approach-fixable', mechanism: 'a:b', diagnosis: 'still dirty' } }, { sha: 'abc' }];
+  const deps = remediationDeps(INPUT, BASE, async (request) => {
+    seen.push(request.prompt);
+    return answers[seen.length - 1];
+  });
+  assert.deepStrictEqual(await deps.redispatch({ mechanism: 'worktree:reset-clean', correctedTask: 'reset first' }), {
+    tag: 'ApproachFixable',
+    cause: { mechanism: 'a:b', diagnosis: 'still dirty', evidence: answers[0] },
+  });
+  assert.deepStrictEqual(await deps.redispatch({ mechanism: 'dependency:pin', correctedTask: null }), { tag: 'Done', value: answers[1] });
+  assert.equal(seen[0].includes('correction attempt 1'), true);
+  assert.equal(seen[0].includes('sleep 5'), true);
+  assert.equal(seen[1].includes('correction attempt 2'), true);
+  assert.equal(seen[1].includes('sleep 10'), true, 'the backoff grows with the attempt, so a re-attempt numbered from a counter that never advances would retry a rate limit immediately');
+});
+
+test('REMEDIATION DEPS: an adapter with no dispatch function and an input with no task are each refused by what they were handed', () => {
+  assert.throws(() => remediationDeps(INPUT, BASE, null), {
+    name: 'TypeError',
+    message: 'unit-remediation: the remediation adapter needs a dispatchPrompt function, because every diagnosis and every corrected re-attempt is a child this module composes and never runs itself, received null',
+  });
+  assert.throws(() => remediationDeps({ ...INPUT, task: '' }, BASE, async () => ({})), {
     name: 'TypeError',
     message: 'unit-remediation: unit "beta" carries no task text to remediate against, received string; the diagnosis prompt names the objective the failed attempt was pursuing, and an empty one asks the diagnostician to correct an approach to nothing',
   });

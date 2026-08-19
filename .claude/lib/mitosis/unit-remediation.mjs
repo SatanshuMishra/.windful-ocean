@@ -1,3 +1,4 @@
+import { runStage } from './boundary.mjs';
 import { composePrompt } from './prompt-registry.mjs';
 import { isValidFingerprint, remediationBackoff } from './remediation.mjs';
 
@@ -55,6 +56,16 @@ export function requireRemediationInput(input) {
   return input;
 }
 
+function triedList(triedSet) {
+  const declared = triedSet instanceof Set ? [...triedSet] : triedSet;
+  if (!Array.isArray(declared)) return NOTHING_TRIED;
+  return Object.freeze(declared.filter((mechanism) => typeof mechanism === 'string' && mechanism.length > 0));
+}
+
+function rejectedMechanismOf(value) {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
 export function diagnoseRequest(input, base) {
   return Object.freeze({
     prompt: composePrompt(DIAGNOSE, {
@@ -62,8 +73,8 @@ export function diagnoseRequest(input, base) {
       stage: input.stage,
       task: input.task,
       evidence: evidenceRecord(input.evidence),
-      triedSet: NOTHING_TRIED,
-      rejectedMechanism: null,
+      triedSet: triedList(input.triedSet),
+      rejectedMechanism: rejectedMechanismOf(input.rejectedMechanism),
     }),
     schema: DIAGNOSIS_SCHEMA,
     ...inheritedFields(base),
@@ -133,4 +144,47 @@ export async function planRemediatedAttempt(input, base, dispatchPrompt) {
   const diagnosis = readDiagnosis(await dispatchPrompt(diagnoseRequest(validated, base)));
   if (!diagnosis.ok) return diagnosis;
   return Object.freeze({ ok: true, request: redispatchRequest(validated, diagnosis, base), envelope: diagnosis.envelope });
+}
+
+function requireDispatchPrompt(dispatchPrompt) {
+  if (typeof dispatchPrompt !== 'function') {
+    throw new TypeError(`${MODULE}: the remediation adapter needs a dispatchPrompt function, because every diagnosis and every corrected re-attempt is a child this module composes and never runs itself, received ${describe(dispatchPrompt)}`);
+  }
+  return dispatchPrompt;
+}
+
+function unreadableDiagnosis(refusal) {
+  return Object.freeze({
+    verdict: NEEDS_HUMAN,
+    request: Object.freeze({ kind: refusal.kind, what: refusal.what, detail: refusal.detail }),
+  });
+}
+
+export function remediationDeps(input, base, dispatchPrompt) {
+  const validated = requireRemediationInput(input);
+  const dispatch = requireDispatchPrompt(dispatchPrompt);
+  let attempt = 0;
+  return Object.freeze({
+    diagnose: async (probe) => {
+      const asked = isRecord(probe) ? probe : {};
+      const diagnosis = readDiagnosis(await dispatch(diagnoseRequest({
+        ...validated,
+        evidence: asked.evidence === undefined ? validated.evidence : asked.evidence,
+        triedSet: asked.triedSet,
+        rejectedMechanism: asked.rejectedMechanism,
+      }, base)));
+      if (!diagnosis.ok) return unreadableDiagnosis(diagnosis);
+      return Object.freeze({ mechanism: diagnosis.mechanism, correctedTask: diagnosis.correctedTask });
+    },
+    redispatch: async (correction) => {
+      const asked = isRecord(correction) ? correction : {};
+      attempt += 1;
+      const request = redispatchRequest(
+        { ...validated, attempt },
+        { mechanism: asked.mechanism, correctedTask: asked.correctedTask ?? null },
+        base,
+      );
+      return runStage(() => dispatch(request), { attemptNo: attempt });
+    },
+  });
 }

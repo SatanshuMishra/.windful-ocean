@@ -90,6 +90,39 @@ export function createDisposition({ class: dispositionClass, diagnosis, stage, r
   });
 }
 
+function requireRemediationRecord(remediation) {
+  if (remediation === null || remediation === undefined || typeof remediation !== 'object' || Array.isArray(remediation)) {
+    throw new TypeError(`disposition remediation must be a non-null, non-array record: ${JSON.stringify(remediation)}`);
+  }
+  return Object.freeze({ ...remediation });
+}
+
+function requireFillableDisposition(disposition) {
+  if (disposition === null || disposition === undefined || typeof disposition !== 'object' || Array.isArray(disposition)) {
+    throw new TypeError(`disposition to carry a remediation must be a non-null, non-array object: ${JSON.stringify(disposition)}`);
+  }
+  if (!DISPOSITION_CLASSES.includes(disposition.class)) {
+    throw new TypeError(`unrecognized disposition class: ${JSON.stringify(disposition.class)}`);
+  }
+  return disposition;
+}
+
+function absentAsUndefined(value) {
+  return value === null || value === undefined ? undefined : value;
+}
+
+export function withRemediation(disposition, remediation) {
+  const carried = requireFillableDisposition(disposition);
+  return Object.freeze({
+    class: carried.class,
+    diagnosis: requireDiagnosis(carried.diagnosis),
+    stage: requireStage(carried.stage),
+    resumePoint: requireResumePoint(carried.resumePoint),
+    triedSet: requireTriedSet(absentAsUndefined(carried.triedSet)),
+    remediation: requireRemediationRecord(remediation),
+  });
+}
+
 export function startingProgressOf(msp) {
   if (msp && typeof msp.progress === 'string') return msp.progress;
   const status = msp && typeof msp.status === 'string' ? msp.status : null;
