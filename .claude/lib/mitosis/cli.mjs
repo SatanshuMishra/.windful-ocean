@@ -532,7 +532,6 @@ function summaryOf(driven) {
     resume: resumeSummary(driven.phases.Resume),
     integrate: integrateSummary(driven.phases.Integrate),
     ship: shipSummary(driven.phases.Ship),
-    prState: result.prState === undefined ? null : result.prState,
   };
 }
 

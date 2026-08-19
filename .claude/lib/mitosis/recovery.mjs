@@ -184,14 +184,14 @@ function progressAtOrAbove(progress, threshold) {
   return PROGRESS_ORDER.indexOf(progress) >= PROGRESS_ORDER.indexOf(threshold);
 }
 
-export function applyBuiltTransition(manifest, { unitId, checkpointRef, sha, green, builtAgainst }) {
+export function applyBuiltTransition(manifest, { unitId, checkpointRef, sha, builtAgainst }) {
   const exists = manifest.msps.some((msp) => msp.id === unitId);
   const updated = manifest.msps.map((msp) => {
     if (msp.id !== unitId) return msp;
     const currentProgress = startingProgressOf(msp);
     if (progressAtOrAbove(currentProgress, 'pr-open')) return msp;
     const progress = mergeProgress(currentProgress, 'built');
-    return { ...msp, progress, status: legacyStatusOf(progress), checkpointRef, builtSha: sha, green: green ?? false, builtAgainst: builtAgainst ?? {}, resumePoint: null };
+    return { ...msp, progress, status: legacyStatusOf(progress), checkpointRef, builtSha: sha, builtAgainst: builtAgainst ?? {}, resumePoint: null };
   });
   const msps = exists
     ? updated
@@ -207,7 +207,6 @@ export function applyBuiltTransition(manifest, { unitId, checkpointRef, sha, gre
           mergedAt: null,
           checkpointRef,
           builtSha: sha,
-          green: green ?? false,
           builtAgainst: builtAgainst ?? {},
           dependsOn: [],
           fileScope: emptyFileScopePack(),
@@ -222,7 +221,7 @@ export const PUBLISHED_RUN_FIELDS = Object.freeze(['schemaVersion', 'logicalRunI
 
 export const PUBLISHED_MSP_FIELDS = Object.freeze(['id', 'dependsOn', 'fileScope', 'changeType', 'scope', 'title', 'rationale']);
 
-const IDENTITY_OVERLAY_FIELDS = Object.freeze(['status', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'green', 'builtAgainst', 'resumePoint', 'triedSet', 'ciAttempts']);
+export const IDENTITY_OVERLAY_FIELDS = Object.freeze(['status', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'builtAgainst', 'resumePoint', 'triedSet', 'ciAttempts']);
 
 const WINDOWS_DRIVE_PREFIX = /^[A-Za-z]:/;
 

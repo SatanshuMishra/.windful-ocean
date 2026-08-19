@@ -15,7 +15,7 @@ import {
 import { buildInitialManifest } from '../recovery.mjs';
 import { builtDelta, ciAttemptDelta, foldRunManifest, parkDelta, quiescentExitDelta, shipDelta } from '../run-log.mjs';
 import { at, halt, previousCodeIndex, scanJsStructure, wordEndingAt } from '../js-scan.mjs';
-import { GENESIS_INPUTS_AT_FB195E47, GENESIS_LINE_AT_FB195E47, GENESIS_MANIFEST_AT_FB195E47, JOURNAL_BYTE_CASES_AT_FB195E47 } from './journal-fixtures.mjs';
+import { GENESIS_INPUTS_AT_FB195E47, GENESIS_LINE_AT_FB195E47, GENESIS_MANIFEST_AT_FB195E47, JOURNAL_BYTE_CASES } from './journal-fixtures.mjs';
 
 const LIB = new URL('..', import.meta.url).pathname;
 const WHOLE_FILE_REPLACE_SYMBOLS = Object.freeze(['replaceFileAtomically']);
@@ -34,8 +34,8 @@ after(() => {
   scratchDirs.length = 0;
 });
 
-for (const byteCase of JOURNAL_BYTE_CASES_AT_FB195E47) {
-  test(`composeJournalLine reproduces the ${byteCase.id} bytes transcribed from fb195e47`, () => {
+for (const byteCase of JOURNAL_BYTE_CASES) {
+  test(`composeJournalLine reproduces the pinned ${byteCase.id} journal bytes`, () => {
     assert.equal(composeJournalLine(byteCase.kind, byteCase.fields), byteCase.line);
   });
 }
@@ -48,7 +48,7 @@ test('composeJournalLine delegates every delta shape to run-log rather than rest
     'ci-attempt': ciAttemptDelta,
     'quiescent-exit': quiescentExitDelta,
   });
-  const delegated = JOURNAL_BYTE_CASES_AT_FB195E47.filter((byteCase) => byteCase.kind !== 'genesis');
+  const delegated = JOURNAL_BYTE_CASES.filter((byteCase) => byteCase.kind !== 'genesis');
   assert.ok(delegated.length > 0);
   for (const byteCase of delegated) {
     assert.equal(
@@ -60,7 +60,7 @@ test('composeJournalLine delegates every delta shape to run-log rather than rest
 });
 
 test('the transcribed byte cases cover every declared journal kind', () => {
-  const covered = new Set(JOURNAL_BYTE_CASES_AT_FB195E47.map((byteCase) => byteCase.kind));
+  const covered = new Set(JOURNAL_BYTE_CASES.map((byteCase) => byteCase.kind));
   const uncovered = JOURNAL_KINDS.filter((kind) => !covered.has(kind));
   assert.deepEqual(uncovered, [], `these journal kinds have no transcribed byte case: ${uncovered.join(', ')}`);
   const undeclared = [...covered].filter((kind) => !JOURNAL_KINDS.includes(kind));
@@ -112,7 +112,7 @@ test('composeJournalLine refuses a genesis manifest the fold reader would reject
 });
 
 test('every composed line terminates in exactly one newline and carries no interior newline', () => {
-  for (const byteCase of JOURNAL_BYTE_CASES_AT_FB195E47) {
+  for (const byteCase of JOURNAL_BYTE_CASES) {
     const line = composeJournalLine(byteCase.kind, byteCase.fields);
     assert.equal(line.endsWith('\n'), true, `${byteCase.id} does not end in a newline`);
     assert.equal(line.slice(0, -1).includes('\n'), false, `${byteCase.id} carries an interior newline`);

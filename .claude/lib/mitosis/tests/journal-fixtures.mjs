@@ -12,26 +12,26 @@ export const SHIP_BARE_FIELDS_AT_FB195E47 = Object.freeze({ mspId: 'fx-unit' });
 
 export const SHIP_BARE_LINE_AT_FB195E47 = '{"kind":"ship","mspId":"fx-unit","prUrl":null,"mergedAt":null,"title":null,"rationale":null}\n';
 
-export const BUILT_FIELDS_AT_FB195E47 = Object.freeze({
+export const BUILT_FIELDS = Object.freeze({
   unitId: 'fx-unit',
   checkpointRef: 'refs/mitosis/checkpoint/fx01run7/fx-unit',
   sha: 'fx00000000000000000000000000000000000001',
   builtAgainst: Object.freeze({ 'fx-dep': 'fx00000000000000000000000000000000000002' }),
 });
 
-export const BUILT_LINE_AT_FB195E47 = '{"kind":"built","unitId":"fx-unit","checkpointRef":"refs/mitosis/checkpoint/fx01run7/fx-unit","sha":"fx00000000000000000000000000000000000001","green":false,"builtAgainst":{"fx-dep":"fx00000000000000000000000000000000000002"}}\n';
+export const BUILT_LINE = '{"kind":"built","unitId":"fx-unit","checkpointRef":"refs/mitosis/checkpoint/fx01run7/fx-unit","sha":"fx00000000000000000000000000000000000001","builtAgainst":{"fx-dep":"fx00000000000000000000000000000000000002"}}\n';
 
-export const BUILT_GREEN_FIELDS_AT_FB195E47 = Object.freeze({
+export const BUILT_UNRECOGNISED_FIELDS = Object.freeze({
   unitId: 'fx-unit',
   green: true,
   builtAgainst: Object.freeze({}),
 });
 
-export const BUILT_GREEN_LINE_AT_FB195E47 = '{"kind":"built","unitId":"fx-unit","checkpointRef":null,"sha":null,"green":true,"builtAgainst":{}}\n';
+export const BUILT_UNRECOGNISED_LINE = '{"kind":"built","unitId":"fx-unit","checkpointRef":null,"sha":null,"builtAgainst":{}}\n';
 
-export const BUILT_BARE_FIELDS_AT_FB195E47 = Object.freeze({ unitId: 'fx-unit' });
+export const BUILT_BARE_FIELDS = Object.freeze({ unitId: 'fx-unit' });
 
-export const BUILT_BARE_LINE_AT_FB195E47 = '{"kind":"built","unitId":"fx-unit","checkpointRef":null,"sha":null,"green":false,"builtAgainst":{}}\n';
+export const BUILT_BARE_LINE = '{"kind":"built","unitId":"fx-unit","checkpointRef":null,"sha":null,"builtAgainst":{}}\n';
 
 export const PARK_FIELDS_AT_FB195E47 = Object.freeze({
   unitId: 'fx-unit',
@@ -114,12 +114,12 @@ export const GENESIS_MANIFEST_AT_FB195E47 = Object.freeze({
 
 export const GENESIS_LINE_AT_FB195E47 = '{"logicalRunId":"fx01run7","harnessRunId":null,"spec":"/fx/repo/spec.md","repoRoot":"/fx/repo","baseBranch":"fx-base","sourcePrefix":"fx","specContentHash":"fx00spec","phase":"Decompose","clusters":[["fx-unit"]],"msps":[{"id":"fx-unit","title":"fx unit title","rationale":"fx unit rationale","changeType":"feat","scope":"fx","status":"planned","integrationBranch":"fx/fx-unit-integration","prUrl":null,"mergedAt":null,"dependsOn":[],"fileScope":{"edit":["fx/alpha.mjs"],"read":[],"truncated":null},"contentHash":"1d8ede95"}],"parked":[]}\n';
 
-export const JOURNAL_BYTE_CASES_AT_FB195E47 = Object.freeze([
+export const JOURNAL_BYTE_CASES = Object.freeze([
   Object.freeze({ id: 'ship-full', kind: 'ship', fields: SHIP_FIELDS_AT_FB195E47, line: SHIP_LINE_AT_FB195E47 }),
   Object.freeze({ id: 'ship-bare', kind: 'ship', fields: SHIP_BARE_FIELDS_AT_FB195E47, line: SHIP_BARE_LINE_AT_FB195E47 }),
-  Object.freeze({ id: 'built-engine-omits-green', kind: 'built', fields: BUILT_FIELDS_AT_FB195E47, line: BUILT_LINE_AT_FB195E47 }),
-  Object.freeze({ id: 'built-green', kind: 'built', fields: BUILT_GREEN_FIELDS_AT_FB195E47, line: BUILT_GREEN_LINE_AT_FB195E47 }),
-  Object.freeze({ id: 'built-bare', kind: 'built', fields: BUILT_BARE_FIELDS_AT_FB195E47, line: BUILT_BARE_LINE_AT_FB195E47 }),
+  Object.freeze({ id: 'built-full', kind: 'built', fields: BUILT_FIELDS, line: BUILT_LINE }),
+  Object.freeze({ id: 'built-unrecognised-field', kind: 'built', fields: BUILT_UNRECOGNISED_FIELDS, line: BUILT_UNRECOGNISED_LINE }),
+  Object.freeze({ id: 'built-bare', kind: 'built', fields: BUILT_BARE_FIELDS, line: BUILT_BARE_LINE }),
   Object.freeze({ id: 'park-full', kind: 'park', fields: PARK_FIELDS_AT_FB195E47, line: PARK_LINE_AT_FB195E47 }),
   Object.freeze({ id: 'park-untried', kind: 'park', fields: PARK_UNTRIED_FIELDS_AT_FB195E47, line: PARK_UNTRIED_LINE_AT_FB195E47 }),
   Object.freeze({ id: 'ci-attempt-full', kind: 'ci-attempt', fields: CI_ATTEMPT_FIELDS_AT_FB195E47, line: CI_ATTEMPT_LINE_AT_FB195E47 }),

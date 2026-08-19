@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { pack } from './file-scope-fixtures.mjs';
 import { CLI_USAGE, exitCodeOf, parseCliArgv, realPorts, runCli } from '../cli.mjs';
 import { Done, NeedsHuman } from '../boundary.mjs';
@@ -312,4 +313,182 @@ test('REAL PORTS: the pull request probe runs the gh argv it is handed inside th
   assert.deepEqual(argv, ['pr', 'view']);
   assert.equal(options.cwd, '/repo');
   assert.ok(Number.isInteger(options.deadlineMs) && options.deadlineMs > 0);
+});
+
+const MITOSIS_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
+const ORACLE_SITE = 'ship';
+const ORACLE_STEP = 'done-oracle';
+const BUILD_CALL = 'buildGhCommand(';
+const STRING_LITERAL = /^(['"])([^'"]*)\1$/;
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+const MEMBER_EXPRESSION = /^([A-Za-z_$][\w$]*)\.[\w$]+$/;
+const CONST_STRING = /^const\s+([A-Za-z_$][\w$]*)\s*=\s*'([^']*)'\s*;/gm;
+const IMPORT_CLAUSE = /^import\s+([^;]*?)\s+from\s+['"][^'"]+['"]\s*;/gm;
+const PR_STATE_CALL = /\b[A-Za-z_$][\w$]*\.prState\s*\(/;
+
+const ORACLE_CLASSIFIERS = Object.freeze([
+  ['construction-site', (o, lines) => lines.has(o.line)],
+  ['constant-declaration', (o) => /^\s*const\s+[A-Za-z_$][\w$]*\s*=\s*'done-oracle'\s*;\s*$/.test(o.text)],
+  ['gh-command-table-definition', (o) => /^\s*'done-oracle'\s*:\s*\([^)]*\)\s*=>/.test(o.text)],
+  ['site-fixture-row', (o) => /^\s*step:\s*'done-oracle',?\s*$/.test(o.text)],
+  ['command-separation-schema', (o) => /^\s*'(?:gh|git)\s+[a-z0-9-]+\/done-oracle'\s*:/.test(o.text) || /\bsite:\s*'[a-z0-9-]+',\s*step:\s*'done-oracle'/.test(o.text)],
+  ['error-message-text', (o) => /'[^']*\sdone-oracle\s[^']*'/.test(o.text)],
+]);
+
+function productionModules() {
+  return readdirSync(MITOSIS_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs'))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+function lineOf(text, index) {
+  return text.slice(0, index).split('\n').length;
+}
+
+function argumentExpressions(text, openIndex) {
+  const args = [];
+  let depth = 0;
+  let quote = null;
+  let start = openIndex + 1;
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i];
+    if (quote !== null) {
+      if (ch === '\\') i += 1;
+      else if (ch === quote) quote = null;
+    } else if (ch === "'" || ch === '"' || ch === '`') quote = ch;
+    else if (ch === '(' || ch === '[' || ch === '{') depth += 1;
+    else if (ch === ')' && depth === 0) return { args: [...args, text.slice(start, i)], end: i };
+    else if (ch === ')' || ch === ']' || ch === '}') depth -= 1;
+    else if (ch === ',' && depth === 0) {
+      args.push(text.slice(start, i));
+      start = i + 1;
+    }
+  }
+  return null;
+}
+
+function moduleBindings(text) {
+  const constants = new Map();
+  for (const match of text.matchAll(CONST_STRING)) constants.set(match[1], match[2]);
+  const imported = new Set();
+  for (const match of text.matchAll(IMPORT_CLAUSE)) {
+    for (const token of match[1].replace(/[{}]/g, ' ').split(',')) {
+      const parts = token.trim().split(/\s+as\s+/);
+      const bound = parts[parts.length - 1].trim();
+      if (IDENTIFIER.test(bound)) imported.add(bound);
+    }
+  }
+  return { constants, imported };
+}
+
+function resolveSpecifier(expression, bindings) {
+  const trimmed = expression.trim();
+  const literal = STRING_LITERAL.exec(trimmed);
+  if (literal !== null) return { kind: 'static', value: literal[2] };
+  const member = MEMBER_EXPRESSION.exec(trimmed);
+  const base = IDENTIFIER.test(trimmed) ? trimmed : (member === null ? null : member[1]);
+  if (base === null) return { kind: 'unresolvable', value: trimmed };
+  if (bindings.imported.has(base)) return { kind: 'unresolvable', value: trimmed };
+  if (member !== null) return bindings.constants.has(base) ? { kind: 'unresolvable', value: trimmed } : { kind: 'forwarded', value: trimmed };
+  return bindings.constants.has(base) ? { kind: 'static', value: bindings.constants.get(base) } : { kind: 'forwarded', value: trimmed };
+}
+
+function siteKindOf(site, step) {
+  if (site.kind === 'unresolvable' || step.kind === 'unresolvable') return 'unresolvable';
+  return site.kind === 'static' && step.kind === 'static' ? 'static' : 'forwarded';
+}
+
+function ghConstructionSites(name, text) {
+  const bindings = moduleBindings(text);
+  const sites = [];
+  let index = text.indexOf(BUILD_CALL);
+  while (index !== -1) {
+    const parsed = /\bfunction\s+$/.test(text.slice(0, index)) ? undefined : argumentExpressions(text, index + BUILD_CALL.length - 1);
+    if (parsed === null || (parsed !== undefined && parsed.args.length < 2)) {
+      sites.push({ file: name, line: lineOf(text, index), endLine: lineOf(text, index), kind: 'unresolvable', site: null, step: null, text: text.slice(index, index + 100) });
+    } else if (parsed !== undefined) {
+      const site = resolveSpecifier(parsed.args[0], bindings);
+      const step = resolveSpecifier(parsed.args[1], bindings);
+      sites.push({ file: name, line: lineOf(text, index), endLine: lineOf(text, parsed.end), kind: siteKindOf(site, step), site: site.value, step: step.value, text: text.slice(index, parsed.end + 1) });
+    }
+    index = text.indexOf(BUILD_CALL, index + BUILD_CALL.length);
+  }
+  return sites;
+}
+
+function oracleOccurrences(name, text) {
+  const found = [];
+  text.split('\n').forEach((line, index) => {
+    let at = line.indexOf(ORACLE_STEP);
+    while (at !== -1) {
+      found.push({ file: name, line: index + 1, text: line });
+      at = line.indexOf(ORACLE_STEP, at + ORACLE_STEP.length);
+    }
+  });
+  return found;
+}
+
+function oracleConstructionLines(sites) {
+  const lines = new Set();
+  for (const site of sites) {
+    if (site.kind !== 'static' || site.site !== ORACLE_SITE || site.step !== ORACLE_STEP) continue;
+    for (let line = site.line; line <= site.endLine; line += 1) lines.add(line);
+  }
+  return lines;
+}
+
+function oracleCensus() {
+  const modules = productionModules();
+  const sources = new Map(modules.map((name) => [name, readFileSync(join(MITOSIS_DIR, name), 'utf8')]));
+  const sites = modules.flatMap((name) => ghConstructionSites(name, sources.get(name)));
+  const linesByFile = new Map(modules.map((name) => [name, oracleConstructionLines(sites.filter((s) => s.file === name))]));
+  const occurrences = modules.flatMap((name) => oracleOccurrences(name, sources.get(name)));
+  const classified = occurrences.map((occurrence) => ({
+    ...occurrence,
+    labels: ORACLE_CLASSIFIERS.filter(([, matches]) => matches(occurrence, linesByFile.get(occurrence.file))).map(([label]) => label),
+  }));
+  return { modules, sources, sites, classified };
+}
+
+function located(entries) {
+  return entries.map((entry) => `${entry.file}:${entry.line}: ${entry.text.trim()}`);
+}
+
+test('CLOSED CENSUS: exactly one production construction site builds the ship/done-oracle gh command, and every done-oracle token in the tree classifies', () => {
+  const census = oracleCensus();
+  assert.ok(census.modules.length > 0, 'the census domain is empty, which would make every claim below vacuous');
+  assert.ok(census.sites.length > 0, 'the census found no buildGhCommand call at all, which would make the construction-site claim vacuous');
+  assert.ok(census.classified.length > 0, 'the census found no done-oracle token at all, which would make the classification claim vacuous');
+
+  assert.deepEqual(
+    located(census.sites.filter((site) => site.kind === 'unresolvable')),
+    [],
+    'a buildGhCommand call whose site or step cannot be resolved from this module alone leaves the construction-site claim open',
+  );
+
+  const constructionSites = census.sites.filter((site) => site.kind === 'static' && site.site === ORACLE_SITE && site.step === ORACLE_STEP);
+  assert.deepEqual(
+    constructionSites.map((site) => site.file),
+    ['cli.mjs'],
+    'exactly one production site constructs the ship/done-oracle command, and it is cli.mjs prStatePort',
+  );
+
+  assert.deepEqual(
+    located(census.classified.filter((entry) => entry.labels.length !== 1)),
+    [],
+    'every done-oracle token must carry exactly one classification; an unclassified or ambiguous one halts the census',
+  );
+
+  assert.deepEqual(
+    located(census.classified.filter((entry) => entry.labels[0] === 'construction-site')),
+    [],
+    'no done-oracle token sits on a construction line: the one surviving site names both specifier halves through constants',
+  );
+
+  assert.deepEqual(
+    census.modules.filter((name) => PR_STATE_CALL.test(census.sources.get(name))),
+    ['ship-publish.mjs'],
+    'ship-publish.mjs is the sole production consumer of the done-oracle port; cli.mjs constructs the command and supplies the port',
+  );
 });

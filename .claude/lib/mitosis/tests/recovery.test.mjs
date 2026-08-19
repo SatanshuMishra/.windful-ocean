@@ -18,6 +18,7 @@ import {
   PUBLISHED_RUN_FIELDS,
   PUBLISHED_MSP_FIELDS,
 } from '../recovery.mjs';
+import * as recovery from '../recovery.mjs';
 import { park } from '../parking.mjs';
 import { legacyStatusOf } from '../unit-state.mjs';
 import { pack } from './file-scope-fixtures.mjs';
@@ -271,18 +272,45 @@ test('applyBuiltTransition: marks the unit built with checkpointRef/builtSha, re
   assert.equal(a.status, 'built');
   assert.equal(a.checkpointRef, 'refs/mitosis/x/a');
   assert.equal(a.builtSha, 'abc1234');
-  assert.equal(a.green, false, 'green defaults false when omitted (field plumbing; value wired later)');
   assert.deepEqual(a.builtAgainst, {}, 'builtAgainst defaults to an empty map when omitted');
   assert.deepEqual(after.msps.find((m) => m.id === 'b'), snapshot.msps.find((m) => m.id === 'b'));
   assert.deepEqual(before, snapshot);
 });
 
-test('applyBuiltTransition: persists an explicit green + builtAgainst provenance record', () => {
+test('applyBuiltTransition: persists an explicit builtAgainst provenance record', () => {
   const before = builtBase();
-  const after = applyBuiltTransition(before, { unitId: 'a', checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234', green: true, builtAgainst: { b: 'cafe123' } });
+  const after = applyBuiltTransition(before, { unitId: 'a', checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234', builtAgainst: { b: 'cafe123' } });
   const a = after.msps.find((m) => m.id === 'a');
-  assert.equal(a.green, true);
   assert.deepEqual(a.builtAgainst, { b: 'cafe123' });
+});
+
+const BUILT_MSP_KEYS = Object.freeze([
+  'builtAgainst', 'builtSha', 'changeType', 'checkpointRef', 'contentHash', 'dependsOn', 'fileScope',
+  'id', 'integrationBranch', 'mergedAt', 'prUrl', 'progress', 'rationale', 'resumePoint', 'scope', 'status', 'title',
+]);
+const APPENDED_MSP_KEYS = Object.freeze([
+  'builtAgainst', 'builtSha', 'checkpointRef', 'dependsOn', 'fileScope',
+  'id', 'integrationBranch', 'mergedAt', 'prUrl', 'rationale', 'status', 'title',
+]);
+const IDENTITY_OVERLAY_EXPECTED = Object.freeze([
+  'status', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'builtAgainst', 'resumePoint', 'triedSet', 'ciAttempts',
+]);
+
+test('applyBuiltTransition writes no green field on the update branch or the append branch, and the identity overlay carries none either', () => {
+  const before = builtBase();
+  const updated = applyBuiltTransition(before, { unitId: 'a', checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234', builtAgainst: { b: 'cafe123' } });
+  const a = updated.msps.find((m) => m.id === 'a');
+  assert.equal(Object.hasOwn(a, 'green'), false, 'the updated msp must carry no green key');
+  assert.deepEqual(Object.keys(a).sort(), [...BUILT_MSP_KEYS], 'the updated msp carries exactly these fields');
+
+  const appended = applyBuiltTransition(before, { unitId: 'zz', checkpointRef: 'refs/mitosis/x/zz', sha: 'abc1234' });
+  const zz = appended.msps.find((m) => m.id === 'zz');
+  assert.equal(Object.hasOwn(zz, 'green'), false, 'the appended msp must carry no green key');
+  assert.deepEqual(Object.keys(zz).sort(), [...APPENDED_MSP_KEYS], 'the appended msp carries exactly these fields');
+
+  const overlay = recovery.IDENTITY_OVERLAY_FIELDS;
+  assert.equal(Array.isArray(overlay), true, 'recovery.mjs must export IDENTITY_OVERLAY_FIELDS so the identity overlay set is assertable');
+  assert.deepEqual([...overlay], [...IDENTITY_OVERLAY_EXPECTED], 'the identity overlay must not carry green');
 });
 
 test('applyBuiltTransition: idempotent — applying twice equals applying once', () => {
@@ -294,12 +322,12 @@ test('applyBuiltTransition: idempotent — applying twice equals applying once',
 
 test('applyBuiltTransition: terminal-status guard — a shipped unit is NEVER downgraded to built', () => {
   const before = builtBase();
-  const built = applyBuiltTransition(before, { unitId: 'a', checkpointRef: 'refs/mitosis/x/a/a', sha: 'aaaaaaa', green: true, builtAgainst: { z: 'deadbee' } });
+  const built = applyBuiltTransition(before, { unitId: 'a', checkpointRef: 'refs/mitosis/x/a/a', sha: 'aaaaaaa', builtAgainst: { z: 'deadbee' } });
   const shipped = applyShipTransition(built, { mspId: 'a', prUrl: 'http://pr/a', mergedAt: '2026-07-08T00:00:00Z' });
   const priorA = shipped.msps.find((m) => m.id === 'a');
-  const after = applyBuiltTransition(shipped, { unitId: 'a', checkpointRef: 'refs/mitosis/x/OTHER', sha: 'bbbbbbb', green: false, builtAgainst: {} });
+  const after = applyBuiltTransition(shipped, { unitId: 'a', checkpointRef: 'refs/mitosis/x/OTHER', sha: 'bbbbbbb', builtAgainst: {} });
   const a = after.msps.find((m) => m.id === 'a');
-  assert.deepEqual(a, priorA, 'a later built delta must leave the entire shipped msp unchanged, including checkpointRef, builtSha, green and builtAgainst');
+  assert.deepEqual(a, priorA, 'a later built delta must leave the entire shipped msp unchanged, including checkpointRef, builtSha and builtAgainst');
 });
 
 test('applyBuiltTransition: parked/planned units are promoted to built', () => {

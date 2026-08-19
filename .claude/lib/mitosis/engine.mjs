@@ -1,5 +1,4 @@
 import { checkpointRef } from './checkpoint.mjs';
-import { buildGhCommand } from './gh-commands.mjs';
 import { composeJournalLine } from './journal-store.mjs';
 import { SCOPE_FENCE_ISOLATION, buildUnitTable, dispositionOf, indexUnits, planTick } from './leases.mjs';
 import { park } from './parking.mjs';
@@ -172,7 +171,7 @@ export async function runSchedule(specs, runUnit, opts, ...rest) {
 }
 
 const ENGINE = 'engine';
-const REQUIRED_PORTS = Object.freeze(['runUnit', 'writeGenesis', 'appendJournal', 'writeRef', 'gh']);
+const REQUIRED_PORTS = Object.freeze(['runUnit', 'writeGenesis', 'appendJournal', 'writeRef']);
 const REQUIRED_TEXT_FIELDS = Object.freeze(['runId', 'repoRoot', 'journalPath', 'repoSlug', 'integrationBranch']);
 const CHECKPOINTED = Object.freeze(['done', 'built']);
 
@@ -219,11 +218,6 @@ function shaOf(outcome) {
   return payload !== null && typeof payload.sha === 'string' ? payload.sha : null;
 }
 
-function greenOf(outcome) {
-  const payload = payloadOf(outcome);
-  return payload !== null && payload.green === true;
-}
-
 function parkFields(unitId, outcome) {
   const tagged = outcome !== null && outcome !== undefined && typeof outcome.tag === 'string' ? outcome : null;
   return {
@@ -263,7 +257,7 @@ function journalRecorder(request, ports, attempts) {
   const recordBuilt = async (unit, outcome) => {
     const ref = checkpointRefFor(unit, request.runId);
     if (ref !== null) await ports.writeRef({ ref, unitId: unit.id, sha: shaOf(outcome) });
-    const delta = Object.freeze({ unitId: unit.id, checkpointRef: ref, sha: shaOf(outcome), green: greenOf(outcome), builtAgainst: {} });
+    const delta = Object.freeze({ unitId: unit.id, checkpointRef: ref, sha: shaOf(outcome), builtAgainst: {} });
     await append(unit.id, composeJournalLine('built', delta));
     builtDeltas.set(unit.id, delta);
   };
@@ -314,13 +308,12 @@ export async function runEngine(request, ports) {
     blocked: recorder.blocked,
     attempts,
   });
-  if (!result.quiescent) return Object.freeze({ ...result, prState: null, recorded: recorder.recorded() });
+  if (!result.quiescent) return Object.freeze({ ...result, recorded: recorder.recorded() });
   const outstanding = result.units.some((unit) => unit.state !== 'done');
   await ports.appendJournal({
     repoRoot: request.repoRoot,
     path: request.journalPath,
     line: composeJournalLine('quiescent-exit', { at: request.at, outstanding }),
   });
-  const prState = await ports.gh(buildGhCommand('ship', 'done-oracle', { repoSlug: request.repoSlug, integrationBranch: request.integrationBranch }));
-  return Object.freeze({ ...result, prState, recorded: recorder.recorded() });
+  return Object.freeze({ ...result, recorded: recorder.recorded() });
 }
