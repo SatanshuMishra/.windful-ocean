@@ -9,7 +9,6 @@ import {
   isPlainObject,
   readCappedFile,
   releaseExclusiveLock,
-  replaceFileAtomically,
   requireConfinedPath,
   requireExistingDirectory,
   requireGuardedPath,
@@ -150,14 +149,14 @@ function serializeRecord(kind, record) {
 
 function genesisRecord(fields) {
   if (!Object.hasOwn(fields, 'manifest') || !isPlainObject(fields.manifest)) {
-    throw new TypeError(`journal-store: the genesis record needs a manifest that is a plain object, because it is written as the entire file body and read back as line one of the run journal, received ${fields.manifest === undefined ? 'nothing' : JSON.stringify(fields.manifest)}`);
+    throw new TypeError(`journal-store: the genesis record needs a manifest that is a plain object, because it is appended as a genesis line and the fold rebuilds the run manifest from the last genesis line that parses, received ${fields.manifest === undefined ? 'nothing' : JSON.stringify(fields.manifest)}`);
   }
   return fields.manifest;
 }
 
 function requireFoldableManifest(text) {
   if (parseRunManifest(text) === null) {
-    throw new TypeError('journal-store: the genesis manifest does not parse back through parseRunManifest, which reads line one of the journal and needs a non-empty logicalRunId, a clusters array and a non-empty msps array; writing it would leave foldRunManifest returning null and every relaunch unable to recover this run');
+    throw new TypeError('journal-store: the genesis manifest does not parse back through parseRunManifest, which the fold applies to the last genesis line in the journal and needs a non-empty logicalRunId, a clusters array and a non-empty msps array; writing it would leave foldRunManifest returning null and every relaunch unable to recover this run');
   }
   return text;
 }
@@ -235,14 +234,7 @@ export function writeGenesis(request) {
   const target = requireJournalTarget(request);
   const line = composeJournalLine(GENESIS_KIND, { manifest: request.manifest });
   ensureGitignored({ repoRoot: target.repoRoot, entry: ignoreEntryFor(target) });
-  const action = 'replace the run journal at';
-  ensureDirectory(target, action);
-  try {
-    replaceFileAtomically(MODULE, target.path, line, OWNER_ONLY_MODE);
-  } catch (error) {
-    throw writeFailure(action, target.path, error);
-  }
-  return Object.freeze({ path: target.path, line });
+  return appendLine(target, line, 'append the genesis record to');
 }
 
 export function appendJournalLine(request) {
