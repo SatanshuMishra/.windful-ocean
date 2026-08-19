@@ -6,7 +6,9 @@ import { evaluate } from '../boundary-gate.mjs';
 
 const ROOT = '/repo';
 const BASE = '/tmp/base-wt';
-const REQUEST = Object.freeze({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null });
+const CHECKOUT = '/checkout';
+const HEAD_REF = 'refs/mitosis/msp';
+const REQUEST = Object.freeze({ repoRoot: CHECKOUT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: ROOT, cachedBaseCensus: null });
 
 const STRICT_EXPANDED = Object.freeze({
   strict: true,

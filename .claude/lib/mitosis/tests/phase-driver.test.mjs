@@ -165,7 +165,7 @@ test('the provenance names the model the unit request declares, and says unspeci
 });
 
 test('an integrated unit whose manifest names no change type parks rather than guessing a pull-request title', async () => {
-  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built' }] };
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
   const stub = stubbedPorts({ readJournal: () => journal });
   const driven = await runPhases(runRequest(), stub.ports);
   assert.deepEqual(driven.phases.Integrate.integrated.map((entry) => entry.unitId), ['alpha']);
@@ -349,7 +349,7 @@ test('a built unit whose run declares no base branch parks rather than gating ag
 });
 
 test('a built unit is gated once against the declared base branch, and integrates when the gate is clean', async () => {
-  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built' }] };
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
   const stub = stubbedPorts({ readJournal: () => journal });
   const driven = await runPhases(runRequest(), stub.ports);
   assert.deepEqual(stub.gated, [{
@@ -382,7 +382,7 @@ const DIGIT_LED_JOURNAL = Object.freeze({
   logicalRunId: '9f0',
   baseBranch: '0main',
   clusters: [],
-  msps: [{ id: '9delta', status: 'built' }],
+  msps: [{ id: '9delta', status: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/9delta' }],
 });
 
 test('a run, a unit and a base branch a digit opens are keyed into the gate exactly as written', async () => {
@@ -399,7 +399,10 @@ test('a run, a unit and a base branch a digit opens are keyed into the gate exac
 
 test('a manifest whose declared run identity is empty keys the gate path on the harness run id, which Integrate accepts as a run id', async () => {
   const request = digitLedRequest();
-  const spec = { ...request.spec, manifest: { ...request.spec.manifest, logicalRunId: '', baseBranch: '0main' } };
+  const spec = {
+    manifest: { ...request.spec.manifest, logicalRunId: '', baseBranch: '0main' },
+    specs: request.spec.specs.map((entry) => ({ ...entry, isolation: 'worktree' })),
+  };
   const stub = stubbedPorts();
   const driven = await runPhases({ ...request, spec }, stub.ports);
   assert.deepEqual(stub.gated, [{

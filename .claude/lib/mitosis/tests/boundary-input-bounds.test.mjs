@@ -10,7 +10,9 @@ import { MAX_SCANNED_FILES, MAX_SCANNED_FILE_BYTES, MAX_SCANNED_TOTAL_BYTES, mea
 const ROOT = '/repo';
 const BASE = '/tmp/base-wt';
 const NESTED_BASE = `${ROOT}/.claude/worktrees/msp`;
-const REQUEST = Object.freeze({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null });
+const CHECKOUT = '/checkout';
+const HEAD_REF = 'refs/mitosis/msp';
+const REQUEST = Object.freeze({ repoRoot: CHECKOUT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: ROOT, cachedBaseCensus: null });
 const CLEAN_SOURCE = 'export const a = 1;\n';
 const SUPPRESSED_SOURCE = `// @ts-ignore\n${CLEAN_SOURCE}`;
 const SUPPRESSION_KEY = suppressionKey('a.ts', '@ts-ignore');
