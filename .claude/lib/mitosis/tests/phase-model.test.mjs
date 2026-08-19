@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { lineOf, scanJsStructure } from '../js-scan.mjs';
 import { PHASE_TITLES } from '../phases.mjs';
@@ -29,6 +29,7 @@ const RETIRED_PHASE_TITLES = Object.freeze([
 ]);
 
 function filesIn(directory, extension) {
+  if (!existsSync(directory)) return [];
   return readdirSync(directory, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith(extension))
     .map((entry) => join(directory, entry.name));
@@ -134,6 +135,15 @@ test('the census sees every workflow file, not one pinned path, so a second work
     unseen,
     [],
     `these workflow files are not censused: ${unseen.join(', ')} — the census enumerates the workflow directory rather than naming one file, so a workflow added later is swept by construction rather than by remembering to widen a list`,
+  );
+});
+
+test('the workflow directory is absent or holds no workflow file, leaving the census leg over it dormant rather than deleted', () => {
+  const workflows = filesIn(WORKFLOW_DIR, WORKFLOW_EXTENSION);
+  assert.deepEqual(
+    workflows,
+    [],
+    `${WORKFLOW_DIR} now holds a workflow file again; the census leg over .claude/workflows must be restored the moment any workflow file returns, not left silently empty`,
   );
 });
 
