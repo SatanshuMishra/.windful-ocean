@@ -101,20 +101,24 @@ Every value above is an example of the required shape, not a default: substitute
 
 The CLI prints one JSON object to stdout and sets an exit code. Relay both.
 
-The object carries `quiescent`, `aborted`, `ticks`, `units` (each an `id` and a `state`), `ship` (`status`, `opened`, `prUrls`, `parked`, `awaiting`, `ci`, `mergeOrder`), and `prState` — the done-oracle's `gh pr view` result, or `null` when the run never reached quiescence.
+The object carries exactly these top-level fields, in this order: `verdict`, `runKey`, `attempt`, `quiescent`, `aborted`, `ticks`, `units`, `prep`, `resume`, `integrate`, `ship`.
+
+`verdict` is the run's terminal state and the only field the exit code is drawn from: `status`, `shipStatus`, `quiescent`, `unitsAllDone`, `unitCount`, `integrateOutcomeCount`, `shipOutcomeCount`, `ciUnwatchedCount`, `foldRefusalCount`. `units` names an `id` and a `state` per unit. `ship` carries `status`, `opened`, `prUrls`, `outcomes`, `ci`, `mergeOrder`, `retired`, `awaiting`, `blocked`, `parked`.
 
 The exit code reads the build AND the shipping. Building every unit is not a successful run; opening the pull requests is.
 
 | Exit | Meaning |
 |---|---|
-| 0 | quiescent, every unit reached `done`, and shipping handed off: `ship.status` is `all-shipped` or `awaiting-approval` — or the run had nothing to hand off at all, nothing reaching either Integrate or Ship |
-| 3 | the run stopped short: not quiescent, or a unit short of `done`, or work was pending and shipping did not hand it off — `ship.status` `blocked`, `ci-red-exhausted`, or `partial` over units that reached Integrate or Ship |
+| 0 | quiescent, every unit reached `done`, and shipping handed off: `verdict.status` is `all-integrated-opened` or `awaiting-approval` — or it is `nothing-pending` and nothing reached Integrate either, the run having held no work at all |
+| 3 | the run stopped short: not quiescent, or a unit short of `done`, or work was pending and shipping did not hand it off — `verdict.status` `blocked`, `ci-red-exhausted`, `ci-unwatched`, `partial`, or `nothing-pending` over units that reached Integrate |
 | 2 | the arguments were rejected; nothing ran |
 | 1 | the run threw; the message names the field or the step |
 
 0 never means merged. This engine opens pull requests and never merges, so `awaiting-approval` — pull requests open, waiting on a human — is the healthy terminal state and exits 0. A run that built every unit and opened no pull request exits 3, because there is nothing for the human to merge.
 
-Name the units that are not `done` and the state each stopped in, and name `ship.status` with the pull requests in `ship.prUrls`. Do not re-run or "continue" the loop in main.
+`ci-unwatched` is the pull requests being open while this run never managed to read their checks. `verdict.ciUnwatchedCount` names how many, and it withholds `all-integrated-opened`: unread checks are not green checks, so the run exits 3 and the human reads the checks on the forge. `ship.status` still reports what the ship phase's merge policy alone saw, which is why it can read `all-integrated-opened` while the verdict does not.
+
+Name the units that are not `done` and the state each stopped in, and name `verdict.status` with the pull requests in `ship.prUrls`. Do not re-run or "continue" the loop in main.
 
 The `identity` reporting described below has no counterpart in the CLI's summary on this base: it documents the run-identity mechanism, not a field this entry point receives.
 

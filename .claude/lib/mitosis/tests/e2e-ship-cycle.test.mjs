@@ -131,7 +131,7 @@ test('one cycle carries a spec from the real decomposer through execute and inte
     assert.deepEqual(created.map((argv) => flagValue(argv, '--base')), [BASE_BRANCH, BASE_BRANCH]);
     assert.deepEqual(created.map((argv) => flagValue(argv, '--title')), ['feat(alpha): unit alpha', 'feat(beta): unit beta']);
 
-    assert.equal(ship.summary.ship.status, 'all-shipped');
+    assert.equal(ship.summary.ship.status, 'all-integrated-opened');
     assert.deepEqual(ship.summary.ship.opened, ['alpha', 'beta']);
     assert.deepEqual(ship.summary.ship.parked, []);
     assert.deepEqual(ship.summary.ship.outcomes, [
