@@ -50,29 +50,29 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Answered. A share statistic is not diagnostic of routing quality, and the routing fix is agent description text rather than measurement.",
-    "next_step": "Only c1 remains and it is a single read: open decision 0579 and state, in its own words, what the retired bar was trying to detect - that concern may still be real even though its instrument was wrong. Do NOT propose a replacement metric, a dispatch-counting hook, a validator or a Lead budget; 0613 rules all of them out.",
-    "last_session": "User stopped the measurement Lead mid-flight and ruled the whole approach out. c2, c4 and c5 struck. An implementer is shipping the actual fix: a stopping condition on architect plus when-NOT-to-use clauses on the Leads.",
+    "next_step": "TWO ITEMS IN FLIGHT, neither in this thread's scope but recorded here so compaction does not lose them. (1) PR 238 is OPEN - architect stopping condition plus when-NOT-to-use clauses on the four Leads, edited in agent-specs/*.spec.json and regenerated. (2) A delivery-lead is diagnosing the ledger pointer and store question. This thread's own c1 remains a single read of 0579.",
+    "last_session": "Measurement dropped by user ruling; c2, c4, c5 struck. The routing fix shipped as text in PR 238, with a drift-check red-then-green receipt and 97 pass 0 fail. Ledger pointer divergence under investigation.",
     "open_risks": [
       {
-        "text": "Never let this thread's conclusion reach back into the struck c5 — re-examining a bar after seeing the number that failed it is post-hoc grading, and c5's negative stands whatever is concluded here",
+        "text": "Never clear the stale logbook pointer by churning the thread through active — the record is already paused and transition refuses paused to paused, so churning is the hack the running investigation exists to replace",
+        "scope": "thread",
+        "refs": [
+          "transition_thread contract: pointer release is best-effort"
+        ]
+      },
+      {
+        "text": "Merge PR 238 to make the new agent definitions durable — they are in force only while the checkout sits on its branch, because ~/.claude/agents symlinks into this working tree",
+        "scope": "thread",
+        "refs": [
+          "memory: merged-config-is-not-in-force-until-pull"
+        ]
+      },
+      {
+        "text": "Never let this thread's conclusion reach back into the struck c5 — re-examining a target after seeing the number that failed it is post-hoc grading",
         "scope": "thread",
         "refs": [
           "decision 0610",
           "decision 0608"
-        ]
-      },
-      {
-        "text": "Note that a Lead outnumbering its makers may be the unhealthy shape, not the healthy one — a fan-out tree implies makers exceed Leads by construction, so a greater-than-50-percent target may have inverted the sign it meant to test",
-        "scope": "thread",
-        "refs": [
-          "decision 0579"
-        ]
-      },
-      {
-        "text": "Point every observer query at ~/.claude/observer/events and never at ~/.claude/agent-ledger — the retired store has a different schema and answers plausibly",
-        "scope": "thread",
-        "refs": [
-          "memory: observer-store-is-not-the-agent-ledger-store"
         ]
       }
     ],
@@ -94,5 +94,5 @@
     ]
   },
   "created_at": "2026-08-19T01:45:24.496Z",
-  "updated_at": "2026-08-19T02:30:27.389Z"
+  "updated_at": "2026-08-19T02:37:45.653Z"
 }
