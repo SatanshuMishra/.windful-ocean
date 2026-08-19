@@ -1294,6 +1294,11 @@
         "ref": "0629-pre-rename-journal-recovery-loss-accepted-as-specified",
         "title": "M17's pre-rename journal recovery loss is accepted as specified, not treated as a defect",
         "scope": "thread"
+      },
+      {
+        "ref": "0630-the-live-run-is-human-triggered-by-construction",
+        "title": "The live run cannot be started by any agent, so M15's trigger is human by construction",
+        "scope": "c30"
       }
     ],
     "out_of_scope": [
@@ -1305,5 +1310,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T22:31:46.541Z"
+  "updated_at": "2026-08-19T23:42:49.908Z"
 }
