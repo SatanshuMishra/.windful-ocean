@@ -1274,6 +1274,11 @@
         "ref": "0625-m6-g14-remediation-lands-rather-than-downgrades",
         "title": "M6's G14 remediation lands as its own pull request rather than a downgrade",
         "scope": "thread"
+      },
+      {
+        "ref": "0626-m15-substrate-reset-and-the-human-merge-half",
+        "title": "The M15 substrate is the reset harness, and its merge half clears by human merge",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1285,5 +1290,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T19:34:08.165Z"
+  "updated_at": "2026-08-19T19:34:16.594Z"
 }
