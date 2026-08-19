@@ -76,12 +76,18 @@
         ]
       }
     ],
-    "key_decisions": [],
+    "key_decisions": [
+      {
+        "ref": "0611-share-is-a-marginal-statistic-routing-quality-is-conditional",
+        "title": "Retire Lead share as the target: it is a marginal statistic and routing appropriateness is conditional",
+        "scope": "c3"
+      }
+    ],
     "out_of_scope": [
       "Re-measuring Lead share at a new grain, a new Lead set or a new corpus in order to obtain a different number - the measurement is settled and the instrument is shipped.",
       "The filed observer-audit findings - unpaired_stops, the NULL-blind mixed-type halt, the built-ins classification gap that guarantees a halt on any corpus containing one. They are instrument work, not target-design work."
     ]
   },
   "created_at": "2026-08-19T01:45:24.496Z",
-  "updated_at": "2026-08-19T01:45:39.751Z"
+  "updated_at": "2026-08-19T02:23:08.101Z"
 }
