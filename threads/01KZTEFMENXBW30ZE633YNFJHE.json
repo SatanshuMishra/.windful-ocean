@@ -1222,6 +1222,11 @@
         "ref": "0615-the-spec-is-the-ceiling-and-a-review-question-is-not-a-reopener",
         "title": "The SPEC is the ceiling; a design review's own open question is not a licence to reopen it",
         "scope": "thread"
+      },
+      {
+        "ref": "0616-what-makes-a-green-suite-load-bearing",
+        "title": "Why 37,647 lines of tests caught none of the thirteen root causes, and the two-tier rule that fixes it",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -1233,5 +1238,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T02:56:54.137Z"
+  "updated_at": "2026-08-19T02:57:14.885Z"
 }
