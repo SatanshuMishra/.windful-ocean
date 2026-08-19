@@ -41,6 +41,10 @@ const CONFORMING = Object.freeze({
   ],
 });
 
+const NO_WORK_REASON = 'The spec asks for behaviour this repository already ships, so this run has no unit to schedule.';
+
+const NO_WORK_REFUSAL = 'the decomposition names no unit and carries no noWorkReason, so a run that schedules nothing cannot be told apart from a decomposer that returned nothing';
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -88,9 +92,18 @@ test('a decomposition carrying a top-level key beyond msps is refused', () => {
   assert.match(reported, /the decomposition declares "clusters"/);
 });
 
-test('an empty msps array is refused, because a document naming no unit schedules nothing', () => {
-  const reported = refusedBy({ msps: [] });
-  assert.match(reported, /carries 0 entries, fewer than the 1/);
+test('an empty msps array carrying no reason is refused, because a run that schedules nothing must name why', () => {
+  assert.equal(refusedBy({ msps: [] }), NO_WORK_REFUSAL);
+  const blank = refusedBy({ msps: [], noWorkReason: '   ' });
+  assert.equal(blank.includes(NO_WORK_REFUSAL), true, blank);
+  assert.match(blank, /the decomposition\.noWorkReason is " {3}", which does not match/);
+});
+
+test('an empty msps array carrying a noWorkReason validates as the legal no-work verdict', () => {
+  const verdict = validateDecomposition({ msps: [], noWorkReason: NO_WORK_REASON });
+  assert.deepEqual(verdict.failures, [], verdict.failures.join('; '));
+  assert.equal(verdict.ok, true);
+  assert.deepEqual(verdict.decomposition, { msps: [], noWorkReason: NO_WORK_REASON });
 });
 
 test('a changeType outside the conventional-commits set is refused', () => {
