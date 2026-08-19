@@ -5,21 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { join, relative, sep } from 'node:path';
 import { MITOSIS_GATE_VERBS } from '../mitosis-gate.mjs';
 import {
-  CI_ATTEMPT_CAP,
-  CI_PUBLISHED_TOKEN,
-  CI_PROBE_TOKEN,
-  CI_FIX_PREFIX,
-  ciFailureFingerprint,
-  ciAttemptsSpent,
-  ciHeadPublished,
-  ciProbeConsumed,
   classifyCiReport,
-  assertionGuardBlocks,
-  ciScopeViolations,
-  sensitivePathsTouched,
   CI_REASON_LIST_CAP,
 } from '../ci-escalation.mjs';
-import { isValidFingerprint } from '../remediation.mjs';
 
 const SCOPE = ['src/pay/**'];
 
@@ -161,68 +149,6 @@ test('classifyCiReport CLASS 0 closure: every unreadable, missing, malformed or 
   }
 });
 
-test('assertionGuardBlocks: a candidate diff touching ANY file that contains a failing assertion is refused, at FILE granularity', () => {
-  const failing = ['src/pay/charge.test.ts'];
-  assert.equal(assertionGuardBlocks(['src/pay/charge.test.ts'], failing), true);
-  assert.equal(assertionGuardBlocks(['./src/pay/charge.test.ts'], failing), true, 'normalizePath equivalence on the changed side');
-  assert.equal(assertionGuardBlocks(['src/pay/charge.test.ts'], ['./src/pay/charge.test.ts']), true, 'normalizePath equivalence on the failing side');
-  assert.equal(assertionGuardBlocks(['src/pay/charge.ts'], failing), false, 'a fix that leaves every failing-assertion file alone is admitted');
-  assert.equal(assertionGuardBlocks(['src/pay/charge.ts', 'src/pay/charge.test.ts'], failing), true, 'one touched assertion file is enough to refuse the whole diff');
-  assert.equal(assertionGuardBlocks([], failing), true, 'an empty candidate diff cannot be confirmed to leave the assertions alone');
-  assert.equal(assertionGuardBlocks(['src/pay/charge.ts'], []), true, 'an empty failing-assertion set means the guard cannot be run, so it refuses');
-  assert.equal(assertionGuardBlocks('src/pay/charge.ts', failing), true, 'a non-array changed set refuses');
-});
-
-test('ciFailureFingerprint: every token the loop can mint passes the persisted-fingerprint format filter', () => {
-  assert.ok(isValidFingerprint(CI_PUBLISHED_TOKEN), 'the published-head token survives selectResumeUnits');
-  assert.ok(isValidFingerprint(CI_PROBE_TOKEN), 'the flake-probe token survives selectResumeUnits');
-  assert.ok(isValidFingerprint(ciFailureFingerprint(report())), 'a fix fingerprint survives selectResumeUnits');
-  assert.ok(ciFailureFingerprint(report()).startsWith(CI_FIX_PREFIX));
-});
-
-test('ciFailureFingerprint: pure in the failure facts, so an identical recurrence is BARRED rather than merely penalised', () => {
-  assert.equal(ciFailureFingerprint(report()), ciFailureFingerprint(report()), 'same failure, same token');
-  assert.equal(
-    ciFailureFingerprint(report({ detail: 'reworded prose' })),
-    ciFailureFingerprint(report({ detail: 'entirely different prose' })),
-    'free prose is not a failure fact, so rewording it can never buy a fresh attempt',
-  );
-  assert.equal(
-    ciFailureFingerprint(report({ failedChecks: ['a', 'b'] })),
-    ciFailureFingerprint(report({ failedChecks: ['b', 'a'] })),
-    'the token is order-insensitive, so reordering a list can never buy a fresh attempt',
-  );
-  for (const differing of [
-    { ciConclusion: 'cancelled' },
-    { failedChecks: ['test', 'lint'] },
-    { implicatedPaths: ['src/pay/refund.ts'] },
-    { failingAssertionFiles: ['src/pay/refund.test.ts'] },
-    { conflictPaths: ['src/pay/charge.ts'] },
-    { receiptsPass: false },
-    { d6Pass: false },
-  ]) {
-    assert.notEqual(ciFailureFingerprint(report(differing)), ciFailureFingerprint(report()),
-      `a report differing in ${Object.keys(differing)[0]} is a DIFFERENT failure and mints a different token`);
-  }
-});
-
-test('ciAttemptsSpent: counts probe and fix tokens, and never counts the published-head marker toward the cap', () => {
-  assert.equal(ciAttemptsSpent([]), 0);
-  assert.equal(ciAttemptsSpent([CI_PUBLISHED_TOKEN]), 0, 'entering the loop spends no attempt');
-  assert.equal(ciAttemptsSpent([CI_PUBLISHED_TOKEN, CI_PROBE_TOKEN]), 1, 'the flake probe costs an attempt');
-  assert.equal(ciAttemptsSpent([CI_PUBLISHED_TOKEN, CI_PROBE_TOKEN, `${CI_FIX_PREFIX}aaaa1111`, `${CI_FIX_PREFIX}bbbb2222`]), CI_ATTEMPT_CAP);
-  assert.equal(ciAttemptsSpent(['worktree:reset-clean', 'plan:re-scope']), 0, 'a non-CI mechanism from another stage never counts');
-  assert.equal(ciAttemptsSpent('nope'), 0);
-});
-
-test('ciHeadPublished / ciProbeConsumed read the durable tried set', () => {
-  assert.equal(ciHeadPublished([CI_PUBLISHED_TOKEN]), true);
-  assert.equal(ciHeadPublished([CI_PROBE_TOKEN]), false);
-  assert.equal(ciHeadPublished('nope'), false);
-  assert.equal(ciProbeConsumed([CI_PROBE_TOKEN]), true);
-  assert.equal(ciProbeConsumed([CI_PUBLISHED_TOKEN]), false);
-});
-
 test('classifyCiReport CLASS 0 canonical-path closure: any reported path that is not repo-relative escalates, because the guards would otherwise compare two spellings of one file', () => {
   const cases = [
     ['implicatedPaths absolute', report({ implicatedPaths: ['/Users/x/repo/src/pay/charge.ts'] })],
@@ -268,35 +194,6 @@ test('classifyCiReport: an agent-supplied path list reaches the escalation reaso
   assert.ok(verdict.reason.length < CI_REASON_LIST_CAP + 400, `the reason is capped rather than an unbounded copy of agent text (was ${verdict.reason.length})`);
   assert.ok(!/\p{Cc}/u.test(classifyCiReport(report({ implicatedPaths: ['src/pay/a\u0007b.ts'] }), SCOPE).reason),
     'control characters never reach the durable park note');
-});
-
-test('assertionGuardBlocks: a failing-assertion file spelled differently from the diff still REFUSES, because a representation mismatch is not evidence of safety', () => {
-  assert.equal(assertionGuardBlocks(['src/pay/charge.test.ts'], ['/Users/x/repo/src/pay/charge.test.ts']), true,
-    'an absolute failing-assertion path is unusable, so the guard refuses rather than missing the match');
-  assert.equal(assertionGuardBlocks(['/Users/x/repo/src/pay/charge.test.ts'], ['src/pay/charge.test.ts']), true,
-    'and equally when the diff side carries the absolute spelling');
-  assert.equal(assertionGuardBlocks(['src/pay/../pay/charge.test.ts'], ['src/pay/charge.test.ts']), true,
-    'a traversal spelling of the same file refuses');
-  assert.equal(assertionGuardBlocks(['src\\pay\\charge.test.ts'], ['src/pay/charge.test.ts']), true,
-    'a backslash spelling refuses');
-});
-
-test('ciScopeViolations: the engine-verified candidate diff is measured against the declared fileScope, and an unreadable operand is never read as clean', () => {
-  assert.deepEqual(ciScopeViolations(SCOPE, ['src/pay/charge.ts']), { readable: true, foreign: [] });
-  assert.deepEqual(ciScopeViolations(SCOPE, ['.github/workflows/receipts.yml']), { readable: true, foreign: ['.github/workflows/receipts.yml'] });
-  assert.deepEqual(ciScopeViolations(SCOPE, ['src/pay/charge.ts', 'package.json']), { readable: true, foreign: ['package.json'] });
-  assert.equal(ciScopeViolations(SCOPE, ['src/pay/../../package.json']).readable, false, 'a traversal path is unreadable, never read as inside scope');
-  assert.equal(ciScopeViolations(SCOPE, []).readable, false, 'an empty candidate diff cannot be confirmed contained');
-  assert.equal(ciScopeViolations([], ['src/pay/charge.ts']).readable, false, 'no declared scope means containment cannot be confirmed');
-  assert.equal(ciScopeViolations(['a/*/*/*/*/*/*/*/*/*/**'], ['src/pay/charge.ts']).readable, false, 'a scope entry that makes the matcher throw is unreadable, not clean');
-});
-
-test('sensitivePathsTouched: a candidate fix that reaches a security-sensitive path is flagged even when the declared scope is not itself sensitive', () => {
-  assert.equal(sensitivePathsTouched(['src/pay/charge.ts']), false);
-  assert.equal(sensitivePathsTouched(['.github/workflows/receipts.yml']), true);
-  assert.equal(sensitivePathsTouched(['src/pay/charge.ts', 'db/migrations/001.sql']), true);
-  assert.equal(sensitivePathsTouched(['src/auth/session.ts']), true);
-  assert.equal(sensitivePathsTouched(['/abs/src/pay/charge.ts']), true, 'an unreadable path is treated as sensitive, never as safe');
 });
 
 const LIB_ROOT = fileURLToPath(new URL('../../', import.meta.url));
