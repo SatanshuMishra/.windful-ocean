@@ -77,7 +77,9 @@ export function projectSkillNames(skillsRoot) {
 
 export function pluginSkillInventory() {
   const manifestPath = join(homedir(), '.claude', 'plugins', 'installed_plugins.json');
-  if (!existsSync(manifestPath)) return { qualified: [], shortNames: new Map(), unresolved: [] };
+  if (!existsSync(manifestPath)) {
+    return { available: false, manifestPath, qualified: [], shortNames: new Map(), unresolved: [] };
+  }
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   const keys = Object.keys((manifest && manifest.plugins) || {}).sort();
   const resolutions = keys.map((key) => {
@@ -113,6 +115,8 @@ export function pluginSkillInventory() {
     return new Map(acc).set(pair.short, existing.concat([pair.qualified]));
   }, new Map());
   return {
+    available: true,
+    manifestPath,
     qualified: pairs.map((pair) => pair.qualified).sort(),
     shortNames,
     unresolved: resolutions.filter((entry) => entry.skillsDir === null).map((entry) => entry.plugin),
@@ -121,6 +125,7 @@ export function pluginSkillInventory() {
 
 export function classifyToken(token, inventory, projectSkills) {
   if (QUALIFIED_SHAPE.test(token)) {
+    if (!inventory.available) return { branch: 'qualified-liveness-unavailable', token };
     return inventory.qualified.includes(token)
       ? { branch: 'qualified-resolves', token }
       : { branch: 'qualified-unresolved', token };
@@ -138,6 +143,15 @@ const SKILL_DIR = targetSkillDir();
 const SKILL_MD = join(SKILL_DIR, 'SKILL.md');
 const INVENTORY = pluginSkillInventory();
 const PROJECT_SKILLS = projectSkillNames(dirname(SKILL_DIR));
+const FILES = markdownFiles(SKILL_DIR);
+const CLASSIFIED = FILES.flatMap((file) =>
+  codeSpans(readFileSync(file, 'utf8')).map((token) => ({
+    file: relative(SKILL_DIR, file),
+    ...classifyToken(token, INVENTORY, PROJECT_SKILLS),
+  })),
+);
+const MODE = INVENTORY.available ? 'AVAILABLE' : 'UNAVAILABLE';
+const UNEVALUATED = CLASSIFIED.filter((entry) => entry.branch === 'qualified-liveness-unavailable');
 
 test('SKILL.md exists and parses', () => {
   assert.ok(existsSync(SKILL_MD), `SKILL.md missing at ${SKILL_MD}`);
@@ -181,25 +195,18 @@ test('every side file the router names exists', () => {
 });
 
 test('every skill reference is fully qualified', () => {
-  const files = markdownFiles(SKILL_DIR);
-  assert.ok(files.length > 0, `no markdown found under ${SKILL_DIR}`);
-  const classified = files.flatMap((file) =>
-    codeSpans(readFileSync(file, 'utf8')).map((token) => ({
-      file: relative(SKILL_DIR, file),
-      ...classifyToken(token, INVENTORY, PROJECT_SKILLS),
-    })),
-  );
-  const branches = classified.reduce(
+  assert.ok(FILES.length > 0, `no markdown found under ${SKILL_DIR}`);
+  const branches = CLASSIFIED.reduce(
     (acc, entry) => ({ ...acc, [entry.branch]: (acc[entry.branch] || 0) + 1 }),
     {},
   );
   assert.equal(
     Object.values(branches).reduce((a, b) => a + b, 0),
-    classified.length,
+    CLASSIFIED.length,
     'the census dropped a token; every token must land in exactly one branch',
   );
 
-  const underQualified = classified.filter((entry) => entry.branch === 'bare-plugin-skill');
+  const underQualified = CLASSIFIED.filter((entry) => entry.branch === 'bare-plugin-skill');
   assert.deepEqual(
     underQualified.map((entry) => `${entry.file}: ${entry.token}`),
     [],
@@ -208,16 +215,54 @@ test('every skill reference is fully qualified', () => {
       .join(', ')}`,
   );
 
-  const unresolved = classified.filter((entry) => entry.branch === 'qualified-unresolved');
-  assert.deepEqual(
-    unresolved.map((entry) => `${entry.file}: ${entry.token}`),
-    [],
-    `qualified-shaped tokens that resolve to no live skill - the census halts rather than guessing. ` +
-      `Plugins with no resolvable skills directory here: ${INVENTORY.unresolved.join(', ') || 'none'}`,
+  console.log(
+    MODE === 'AVAILABLE'
+      ? `skill-shape census (${MODE} mode) over ${FILES.length} files: ${JSON.stringify(branches)}`
+      : `skill-shape census (${MODE} mode) over ${FILES.length} files: ${JSON.stringify(branches)}; ` +
+          `manifest not found at ${INVENTORY.manifestPath}; liveness unevaluated for: ` +
+          `${UNEVALUATED.map((entry) => `${entry.file}: ${entry.token}`).join(', ') || 'none'}`,
   );
+});
+
+test('every qualified skill reference resolves to a live skill', () => {
+  const unresolved = CLASSIFIED.filter((entry) => entry.branch === 'qualified-unresolved');
+
+  if (INVENTORY.available) {
+    assert.deepEqual(
+      unresolved.map((entry) => `${entry.file}: ${entry.token}`),
+      [],
+      `qualified-shaped tokens that resolve to no live skill - the census halts rather than guessing. ` +
+        `Plugins with no resolvable skills directory here: ${INVENTORY.unresolved.join(', ') || 'none'}`,
+    );
+    assert.ok(
+      INVENTORY.qualified.length > 0,
+      `plugin skill manifest at ${INVENTORY.manifestPath} resolved to zero live skills, so the liveness ` +
+        `assertion above would pass vacuously over an empty universe`,
+    );
+  } else {
+    assert.equal(
+      INVENTORY.available,
+      false,
+      'the inventory must report itself unavailable when the manifest cannot be read, not silently empty',
+    );
+    assert.ok(
+      typeof INVENTORY.manifestPath === 'string' && INVENTORY.manifestPath.length > 0,
+      'an unavailable inventory must name the manifest path it could not read, or a CI reader cannot tell why liveness went unevaluated',
+    );
+    assert.ok(
+      UNEVALUATED.length > 0,
+      `liveness went unevaluated for zero tokens under ${SKILL_DIR}, so the unavailable-manifest path is ` +
+        `untested here; the census must halt on at least one unevaluated token rather than pass over nothing`,
+    );
+  }
 
   console.log(
-    `skill-reference census over ${files.length} files: ${JSON.stringify(branches)}; ` +
-      `${INVENTORY.qualified.length} live plugin skills, ${PROJECT_SKILLS.length} live project skills`,
+    MODE === 'AVAILABLE'
+      ? `skill-reference liveness census (${MODE} mode) over ${FILES.length} files against ` +
+          `${INVENTORY.qualified.length} live plugin skills, ${PROJECT_SKILLS.length} live project skills: ` +
+          `manifest ${INVENTORY.manifestPath}`
+      : `skill-reference liveness census (${MODE} mode) over ${FILES.length} files: manifest not found at ` +
+          `${INVENTORY.manifestPath}; liveness unevaluated for: ` +
+          `${UNEVALUATED.map((entry) => `${entry.file}: ${entry.token}`).join(', ') || 'none'}`,
   );
 });
