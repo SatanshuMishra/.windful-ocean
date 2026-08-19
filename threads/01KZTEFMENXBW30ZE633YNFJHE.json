@@ -1284,6 +1284,11 @@
         "ref": "0627-m17-acceptance-retargets-to-the-read-census",
         "title": "User-ratified: M17's acceptance retargets from the literal census to the read census",
         "scope": "thread"
+      },
+      {
+        "ref": "0628-m15-three-rulings-before-the-live-run",
+        "title": "Three rulings before M15's live run: the retry half, the engine pin, and the disarmed sentinel",
+        "scope": "c30"
       }
     ],
     "out_of_scope": [
@@ -1295,5 +1300,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T20:23:06.721Z"
+  "updated_at": "2026-08-19T22:28:49.627Z"
 }
