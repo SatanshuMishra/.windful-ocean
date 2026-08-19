@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import { foldRunManifest, shipDelta, builtDelta, parkDelta, quiescentExitDelta, isIsoInstant, ciAttemptDelta } from '../run-log.mjs';
 import { buildInitialManifest } from '../recovery.mjs';
 import { park, selectResumeUnits, selectResumeBuilt } from '../parking.mjs';
-import * as unitState from '../unit-state.mjs';
+import { startingProgressOf } from '../unit-state.mjs';
+import { censusOfFile, reportLegacyStatusReads } from './property-read-census.mjs';
 
 const SPEC_CONTENT_HASH = 'a'.repeat(64);
 
@@ -39,7 +40,7 @@ test('foldRunManifest accepts a compact genesis-only log (single line, no deltas
   const folded = foldRunManifest(JSON.stringify(manifest));
   assert.equal(folded.logicalRunId, 'a1b2c3d4');
   assert.deepEqual(folded.msps.map((m) => m.id), ['a', 'b']);
-  assert.ok(folded.msps.every((m) => m.status === 'planned'));
+  assert.ok(folded.msps.every((m) => startingProgressOf(m) === 'planned'), 'a single-object genesis folds verbatim, so every unit carries no progress field of its own and reads as planned');
 });
 
 test('foldRunManifest folds a compact genesis followed by a ship delta into a shipped entry', () => {
@@ -50,11 +51,11 @@ test('foldRunManifest folds a compact genesis followed by a ship delta into a sh
   ].join('\n');
   const folded = foldRunManifest(log);
   const a = folded.msps.find((m) => m.id === 'a');
-  assert.equal(a.status, 'shipped');
+  assert.equal(a.progress, 'pr-open');
   assert.equal(a.prUrl, 'https://x/pr/a');
   assert.equal(a.mergedAt, '2026-07-15T00:00:00Z');
   const b = folded.msps.find((m) => m.id === 'b');
-  assert.equal(b.status, 'planned', 'an unaffected sibling keeps its genesis status');
+  assert.equal(b.progress, 'planned', 'an unaffected sibling keeps its genesis progress');
 });
 
 test('foldRunManifest folds a park delta and preserves the persisted triedSet for resume', () => {
@@ -71,7 +72,6 @@ test('foldRunManifest folds a park delta and preserves the persisted triedSet fo
   const folded = foldRunManifest([JSON.stringify(manifest), JSON.stringify(delta)].join('\n'));
   const a = folded.msps.find((m) => m.id === 'a');
   assert.notStrictEqual(a.disposition, null, 'the park still records a disposition');
-  assert.strictEqual(a.status, unitState.legacyStatusOf(a.progress), 'the legacy status mirror stays exact');
   assert.deepEqual(a.triedSet, ['worktree:reset-one', 'worktree:reset-clean']);
   assert.equal(a.resumePoint.stage, 'plan');
 });
@@ -87,10 +87,10 @@ test('foldRunManifest folds a ci-attempt delta onto triedSet WITHOUT parking the
   ].join('\n');
   const folded = foldRunManifest(log);
   const a = folded.msps.find((m) => m.id === 'a');
-  assert.equal(a.status, 'built', 'recording an attempt never parks the unit; only a park does that');
+  assert.equal(a.progress, 'built', 'recording an attempt never parks the unit; only a park does that');
   assert.deepEqual(a.triedSet, ['ci-published:pr', 'ci-probe:rerun'], 'attempts accumulate and deduplicate');
   const b = folded.msps.find((m) => m.id === 'b');
-  assert.equal(b.status, 'planned', 'an unaffected sibling is untouched');
+  assert.equal(b.progress, 'planned', 'an unaffected sibling is untouched');
 });
 
 test('foldRunManifest records every ci attempt in a park-immune field, so a LATER park that carries an empty triedSet cannot erase the published-head marker', () => {
@@ -114,7 +114,6 @@ test('foldRunManifest records every ci attempt in a park-immune field, so a LATE
   const folded = foldRunManifest(log);
   const b = folded.msps.find((m) => m.id === 'b');
   assert.notStrictEqual(b.disposition, null, 'the divergent-invalidation park lands on the unit that already spent ci attempts, and it is still recorded as parked');
-  assert.strictEqual(b.status, unitState.legacyStatusOf(b.progress), 'the legacy status mirror stays exact — the earlier built record is not clobbered by the later park');
   assert.deepEqual(b.triedSet, [], 'park owns triedSet and replaces it wholesale, which is why the marker cannot live there alone');
   assert.deepEqual(b.ciAttempts, ['ci-published:pr', 'ci-fix:abcd1234'],
     'the attempt record survives, so a relaunch still sees that this head was published and does not spend a fresh cap on it');
@@ -154,7 +153,7 @@ test('foldRunManifest is fail-safe: a malformed delta line is skipped, well-form
     JSON.stringify(shipDelta({ mspId: 'b', prUrl: 'https://x/pr/b', mergedAt: '2026-07-15T00:00:00Z', title: 'Bravo', rationale: 'bravo rationale' })),
   ].join('\n');
   const folded = foldRunManifest(log);
-  assert.equal(folded.msps.find((m) => m.id === 'b').status, 'shipped', 'the well-formed delta after a corrupt line still folds');
+  assert.equal(folded.msps.find((m) => m.id === 'b').progress, 'pr-open', 'the well-formed delta after a corrupt line still folds');
 });
 
 test('foldRunManifest folds sequential deltas so a later ship never clobbers an earlier one', () => {
@@ -165,8 +164,8 @@ test('foldRunManifest folds sequential deltas so a later ship never clobbers an 
     JSON.stringify(shipDelta({ mspId: 'b', prUrl: 'https://x/pr/b', mergedAt: '2026-07-15T01:00:00Z', title: 'Bravo', rationale: 'bravo rationale' })),
   ].join('\n');
   const folded = foldRunManifest(log);
-  assert.equal(folded.msps.find((m) => m.id === 'a').status, 'shipped', 'the earlier ship survives the later ship');
-  assert.equal(folded.msps.find((m) => m.id === 'b').status, 'shipped');
+  assert.equal(folded.msps.find((m) => m.id === 'a').progress, 'pr-open', 'the earlier ship survives the later ship');
+  assert.equal(folded.msps.find((m) => m.id === 'b').progress, 'pr-open');
 });
 
 test('foldRunManifest degrades to null on a malformed or absent genesis (fresh decompose fallback)', () => {
@@ -252,7 +251,7 @@ test('foldRunManifest carries builtAgainst from a built delta onto the msp and f
     JSON.stringify(builtDelta({ unitId: 'a', checkpointRef: 'refs/mitosis/a1b2c3d4/a', sha: 'abc1234', builtAgainst: { seed: 'f00ba12' } })),
   ].join('\n'));
   const a = folded.msps.find((m) => m.id === 'a');
-  assert.equal(a.status, 'built');
+  assert.equal(a.progress, 'built');
   assert.equal(Object.hasOwn(a, 'green'), false, 'the fold must carry no green field onto the msp');
   assert.deepEqual(a.builtAgainst, { seed: 'f00ba12' });
 });
@@ -336,26 +335,6 @@ test('foldRunManifest: parking then shipping the same unit reaches the identical
   assert.deepStrictEqual(a1, a2, 'the two delta orders must fold to the identical msp record');
 });
 
-test('foldRunManifest: after any fold, every msp status is exactly legacyStatusOf(progress) — the legacy mirror never goes stale', () => {
-  const THREE = [
-    { id: 'x', title: 'Xray', rationale: 'x rationale', changeType: 'feat', scope: 'x', dependsOn: [], fileScope: ['x/**'] },
-    { id: 'y', title: 'Yankee', rationale: 'y rationale', changeType: 'feat', scope: 'y', dependsOn: [], fileScope: ['y/**'] },
-    { id: 'z', title: 'Zulu', rationale: 'z rationale', changeType: 'feat', scope: 'z', dependsOn: [], fileScope: ['z/**'] },
-  ];
-  const manifest = genesisManifest(THREE);
-  const log = [
-    JSON.stringify(manifest),
-    JSON.stringify(builtDelta({ unitId: 'x', checkpointRef: 'refs/mitosis/a1b2c3d4/x', sha: 'x'.repeat(7), builtAgainst: {} })),
-    JSON.stringify(shipDelta({ mspId: 'y', prUrl: 'https://x/pr/y', mergedAt: '2026-07-15T00:00:00Z', title: 'Yankee', rationale: 'y rationale' })),
-    JSON.stringify(parkDelta({ unitId: 'z', stage: 'plan', diagnosis: 'z stalled on a plan decision', request: null, remediation: null, resumePoint: null, triedSet: [] })),
-  ].join('\n');
-  const folded = foldRunManifest(log);
-  assert.strictEqual(folded.msps.length, 3);
-  for (const msp of folded.msps) {
-    assert.strictEqual(msp.status, unitState.legacyStatusOf(msp.progress), `msp ${msp.id}: status must mirror legacyStatusOf(progress) exactly`);
-  }
-});
-
 test('foldRunManifest: a park delta createDisposition rejects is recorded as a visible foldRefusal carrying the line and a reason, never silently dropped', () => {
   const manifest = genesisManifest(TWO);
   const badDelta = JSON.stringify({
@@ -393,74 +372,10 @@ test('foldRunManifest: folding the risk-1 legacy journal with the new progress/d
   assert.deepStrictEqual(resumeBuilt, snapshot.resumeBuilt, 'selectResumeBuilt must settle to the exact set the parent commit produced — the redesign must not lose or gain a single resumable unit');
 });
 
-test('foldRunManifest: folding the risk-1 legacy journal, the legacy status mirror changes EXACTLY where the single-axis clobber the parent commit committed is undone, and nowhere else (leg 6b)', () => {
-  const raw = readFileSync(new URL('./legacy-journal-fixture.ndjson', import.meta.url), 'utf8');
-  const snapshot = JSON.parse(readFileSync(new URL('./legacy-journal-fixture-snapshot.json', import.meta.url), 'utf8'));
-  const folded = foldRunManifest(raw);
-  const priorStatusById = new Map(snapshot.statusById.map((m) => [m.id, m.status]));
-  const changed = folded.msps
-    .map((m) => ({ id: m.id, from: priorStatusById.get(m.id), to: m.status }))
-    .filter((entry) => entry.from !== entry.to)
-    .sort((a, b) => (a.id < b.id ? -1 : 1));
-  assert.deepStrictEqual(
-    changed,
-    [
-      { id: 'a', from: 'parked', to: 'shipped' },
-      { id: 'b', from: 'parked', to: 'built' },
-      { id: 'c', from: 'parked', to: 'planned' },
-      { id: 'd', from: 'parked', to: 'planned' },
-    ],
-    'only units the parent commit had clobbered to parked may change, and each must move to exactly what the phased rename recovers, never anywhere else',
-  );
-  for (const msp of folded.msps) {
-    assert.strictEqual(msp.status, unitState.legacyStatusOf(msp.progress), `msp ${msp.id}: status must equal legacyStatusOf(progress) exactly`);
-  }
-});
+test('run-log.mjs reads no legacy status field, by a closed property census that halts on what it cannot decide', () => {
+  const census = censusOfFile('run-log.mjs', new URL('../run-log.mjs', import.meta.url));
+  const verdict = reportLegacyStatusReads('run-log.mjs', census);
 
-test('foldRunManifest: a legacy genesis line carrying status "parked" is not clobbered to planned and dropped — it floors progress honestly and synthesizes an Unknown disposition so selectResumeUnits matches origin/main exactly (Task 1, the reported blocker)', () => {
-  const base = {
-    logicalRunId: 'a1b2c3d4',
-    clusters: [['p']],
-    msps: [{
-      id: 'p',
-      status: 'parked',
-      triedSet: ['worktree:reset-clean'],
-      resumePoint: { branch: 'mit/p-integration', ref: null, stage: 'execute' },
-    }],
-  };
-  const nd = [JSON.stringify(base), JSON.stringify({ kind: 'quiescent-exit', at: '2026-07-15T00:00:00Z' })].join('\n');
-  const folded = foldRunManifest(nd);
-  const resumeUnits = selectResumeUnits(folded, new Map());
-  assert.deepStrictEqual(
-    resumeUnits,
-    [{
-      unitId: 'p',
-      stage: 'execute',
-      resumePoint: { branch: 'mit/p-integration', ref: null, stage: 'execute' },
-      triedSet: ['worktree:reset-clean'],
-    }],
-    'selectResumeUnits must recover exactly the one unit origin/main produced for this legacy-parked genesis; the M2 rewrite must not silently drop it',
-  );
-  const p = folded.msps.find((m) => m.id === 'p');
-  assert.strictEqual(p.progress, 'planned', 'a legacy parked token carries no progress information; the honest floor is planned');
-  assert.notStrictEqual(p.disposition, null, 'parkedness must survive onto the disposition axis rather than being discarded with the overwritten status');
-  assert.notStrictEqual(p.disposition, undefined, 'parkedness must survive onto the disposition axis rather than being discarded with the overwritten status');
-  assert.strictEqual(p.disposition.class, 'Unknown', 'a legacy record does not say why it parked, so the class is the honest negative Unknown');
-  assert.deepStrictEqual(p.disposition.triedSet, ['worktree:reset-clean']);
-  assert.deepStrictEqual(p.disposition.resumePoint, { branch: 'mit/p-integration', ref: null, stage: 'execute' });
-});
-
-test('foldRunManifest: folding the legacy-2 fixture, whose genesis carries literal parked/built/shipped status tokens with no deltas at all, settles to the identical resume sets origin/main produced (the risk-1 falsifier, second fixture, closing the all-planned genesis gap)', () => {
-  const raw = readFileSync(new URL('./legacy-journal-fixture-2.ndjson', import.meta.url), 'utf8');
-  const snapshot = JSON.parse(readFileSync(new URL('./legacy-journal-fixture-2-snapshot.json', import.meta.url), 'utf8'));
-  const folded = foldRunManifest(raw);
-  const shippedSet = new Map();
-  const builtUnits = null;
-  const resumeUnits = selectResumeUnits(folded, shippedSet);
-  const resumeBuilt = selectResumeBuilt(folded, shippedSet, builtUnits);
-  assert.deepStrictEqual(resumeUnits, snapshot.resumeUnits, 'selectResumeUnits must settle to the exact set origin/main produced for a genesis whose parked units carry no disposition of their own');
-  assert.deepStrictEqual(resumeBuilt, snapshot.resumeBuilt, 'selectResumeBuilt must settle to the exact set origin/main produced');
-  for (const msp of folded.msps) {
-    assert.strictEqual(msp.status, unitState.legacyStatusOf(msp.progress), `msp ${msp.id}: status must equal legacyStatusOf(progress) exactly`);
-  }
+  assert.equal(verdict.clean, true, verdict.report);
+  assert.ok(census.ok && census.propertyReads.length > 0, verdict.report);
 });

@@ -1,5 +1,5 @@
 import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
-import { legacyStatusOf, mergeProgress, startingProgressOf, PROGRESS_ORDER } from './unit-state.mjs';
+import { mergeProgress, startingProgressOf, PROGRESS_ORDER } from './unit-state.mjs';
 
 const MAX_TITLE_LEN = 200;
 const MAX_RATIONALE_LEN = 1000;
@@ -128,7 +128,6 @@ export function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoo
       rationale: typeof msp.rationale === 'string' ? msp.rationale.slice(0, MAX_RATIONALE_LEN) : msp.rationale,
       changeType: msp.changeType,
       scope: msp.scope,
-      status: 'planned',
       integrationBranch: `${sourcePrefix}/${msp.id}-integration`,
       prUrl: null,
       mergedAt: null,
@@ -144,7 +143,7 @@ export function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, r
   const updated = manifest.msps.map((msp) => {
     if (msp.id !== mspId) return msp;
     const progress = mergeProgress(startingProgressOf(msp), 'pr-open');
-    return { ...msp, progress, status: legacyStatusOf(progress), prUrl, mergedAt };
+    return { ...msp, progress, prUrl, mergedAt };
   });
   const msps = exists
     ? updated
@@ -156,7 +155,7 @@ export function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, r
           rationale,
           changeType,
           scope,
-          status: 'shipped',
+          progress: 'pr-open',
           integrationBranch: `${manifest.sourcePrefix}/${mspId}-integration`,
           prUrl,
           mergedAt,
@@ -191,7 +190,7 @@ export function applyBuiltTransition(manifest, { unitId, checkpointRef, sha, bui
     const currentProgress = startingProgressOf(msp);
     if (progressAtOrAbove(currentProgress, 'pr-open')) return msp;
     const progress = mergeProgress(currentProgress, 'built');
-    return { ...msp, progress, status: legacyStatusOf(progress), checkpointRef, builtSha: sha, builtAgainst: builtAgainst ?? {}, resumePoint: null };
+    return { ...msp, progress, checkpointRef, builtSha: sha, builtAgainst: builtAgainst ?? {}, resumePoint: null };
   });
   const msps = exists
     ? updated
@@ -201,7 +200,7 @@ export function applyBuiltTransition(manifest, { unitId, checkpointRef, sha, bui
           id: unitId,
           title: null,
           rationale: null,
-          status: 'built',
+          progress: 'built',
           integrationBranch: `${manifest.sourcePrefix}/${unitId}-integration`,
           prUrl: null,
           mergedAt: null,
@@ -221,7 +220,7 @@ export const PUBLISHED_RUN_FIELDS = Object.freeze(['schemaVersion', 'logicalRunI
 
 export const PUBLISHED_MSP_FIELDS = Object.freeze(['id', 'dependsOn', 'fileScope', 'changeType', 'scope', 'title', 'rationale']);
 
-export const IDENTITY_OVERLAY_FIELDS = Object.freeze(['status', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'builtAgainst', 'resumePoint', 'triedSet', 'ciAttempts']);
+export const IDENTITY_OVERLAY_FIELDS = Object.freeze(['progress', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'builtAgainst', 'resumePoint', 'triedSet', 'ciAttempts']);
 
 const WINDOWS_DRIVE_PREFIX = /^[A-Za-z]:/;
 

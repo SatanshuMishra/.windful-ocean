@@ -139,7 +139,7 @@ function shippableJournal() {
     clusters: [],
     msps: [{
       id: 'alpha',
-      status: 'built',
+      progress: 'built',
       title: 'unit alpha',
       rationale: 'because the run needs alpha',
       changeType: 'feat',
@@ -171,7 +171,7 @@ test('the provenance names the model the unit request declares, and says unspeci
 });
 
 test('an integrated unit whose manifest names no change type parks rather than guessing a pull-request title', async () => {
-  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', progress: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
   const stub = stubbedPorts({ readJournal: () => journal });
   const driven = await runPhases(runRequest(), stub.ports);
   assert.deepEqual(driven.phases.Integrate.integrated.map((entry) => entry.unitId), ['alpha']);
@@ -195,7 +195,7 @@ const FRESH_JOURNAL_WITH_BASE = Object.freeze({
   baseBranch: 'main',
   sourcePrefix: 'mitosis',
   clusters: [],
-  msps: [{ id: 'alpha', status: 'planned', integrationBranch: 'mitosis/alpha-integration' }],
+  msps: [{ id: 'alpha', progress: 'planned', integrationBranch: 'mitosis/alpha-integration' }],
 });
 
 test('a unit built during this invocation is gated against the base the run declares, carrying the ref Execute wrote', async () => {
@@ -245,8 +245,8 @@ const PRIOR_BUILD_JOURNAL = Object.freeze({
   sourcePrefix: 'mitosis',
   clusters: [],
   msps: [
-    { id: 'alpha', status: 'planned', integrationBranch: 'mitosis/alpha-integration' },
-    { id: 'beta', status: 'built', integrationBranch: 'mitosis/beta-integration', checkpointRef: 'refs/mitosis/9e8d7c6b/beta' },
+    { id: 'alpha', progress: 'planned', integrationBranch: 'mitosis/alpha-integration' },
+    { id: 'beta', progress: 'built', integrationBranch: 'mitosis/beta-integration', checkpointRef: 'refs/mitosis/9e8d7c6b/beta' },
   ],
 });
 
@@ -284,8 +284,8 @@ const SHIPPED_PARENT_JOURNAL = Object.freeze({
   sourcePrefix: 'mitosis',
   clusters: [],
   msps: [
-    { id: 'alpha', status: 'shipped', integrationBranch: 'mitosis/alpha-integration' },
-    { id: 'beta', status: 'planned', dependsOn: ['alpha'], integrationBranch: 'mitosis/beta-integration' },
+    { id: 'alpha', progress: 'pr-open', integrationBranch: 'mitosis/alpha-integration' },
+    { id: 'beta', progress: 'planned', dependsOn: ['alpha'], integrationBranch: 'mitosis/beta-integration' },
   ],
 });
 
@@ -341,7 +341,7 @@ test('the merged set Integrate reads is the one this invocation probed, so the d
 });
 
 test('a built unit whose run declares no base branch parks rather than gating against a base nobody wrote', async () => {
-  const journal = { logicalRunId: 'r1', clusters: [], msps: [{ id: 'alpha', status: 'built' }] };
+  const journal = { logicalRunId: 'r1', clusters: [], msps: [{ id: 'alpha', progress: 'built' }] };
   const stub = stubbedPorts({ readJournal: () => journal });
   const driven = await runPhases(runRequest(), stub.ports);
   assert.deepEqual(driven.phases.Integrate.outcomes, [{
@@ -357,7 +357,7 @@ test('a built unit whose run declares no base branch parks rather than gating ag
 });
 
 test('a built unit is gated once against the declared base branch, and integrates when the gate is clean', async () => {
-  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', progress: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
   const stub = stubbedPorts({ readJournal: () => journal });
   const driven = await runPhases(runRequest(), stub.ports);
   assert.deepEqual(stub.gated, [{
@@ -379,7 +379,7 @@ test('a built unit is gated once against the declared base branch, and integrate
 });
 
 test('a not-comparable boundary verdict parks with its own diagnosis and dispatches no fix child', async () => {
-  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', progress: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
   const detail = 'gateBase "main" and headRef "refs/mitosis/9e8d7c6b/alpha" both resolve to the same tree, so the base is the tree under test';
   const stub = stubbedPorts({
     readJournal: () => journal,
@@ -416,7 +416,7 @@ test('a not-comparable boundary verdict parks with its own diagnosis and dispatc
 });
 
 test('a failing verdict whose blocking is not an array takes the ordinary boundary-fix path, not the not-comparable park', async () => {
-  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', progress: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
   let gateCalls = 0;
   const stub = stubbedPorts({
     readJournal: () => journal,
@@ -458,7 +458,7 @@ const DIGIT_LED_JOURNAL = Object.freeze({
   logicalRunId: '9f0',
   baseBranch: '0main',
   clusters: [],
-  msps: [{ id: '9delta', status: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/9delta' }],
+  msps: [{ id: '9delta', progress: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/9delta' }],
 });
 
 test('a run, a unit and a base branch a digit opens are keyed into the gate exactly as written', async () => {
@@ -525,11 +525,20 @@ test('Resume plans the whole spec when no journal names this run, and hands Exec
   assert.deepEqual(driven.phases.Resume.shipped, []);
 });
 
+const PARKED_DISPOSITION = Object.freeze({
+  class: 'Unknown',
+  diagnosis: null,
+  stage: null,
+  resumePoint: Object.freeze({ branch: null, ref: null, stage: null }),
+  triedSet: Object.freeze([]),
+  remediation: null,
+});
+
 test('Resume drops a unit the recovered journal already settled, and prunes the prereq that named it', async () => {
   const journal = {
     logicalRunId: 'r1',
     clusters: [],
-    msps: [{ id: 'alpha', status: 'built' }, { id: 'beta', status: 'parked' }],
+    msps: [{ id: 'alpha', progress: 'built' }, { id: 'beta', disposition: PARKED_DISPOSITION }],
   };
   const base = runRequest();
   const request = {
@@ -551,7 +560,7 @@ test('Resume drops a unit the recovered journal already settled, and prunes the 
 });
 
 function shippedClaim(extra = {}) {
-  return { logicalRunId: 'r1', clusters: [], msps: [{ id: 'alpha', status: 'shipped' }], ...extra };
+  return { logicalRunId: 'r1', clusters: [], msps: [{ id: 'alpha', progress: 'pr-open' }], ...extra };
 }
 
 test('a journal claiming a unit shipped does not retire it when the forge reports no merged pull request', async () => {
@@ -596,7 +605,7 @@ test('a journal naming a different run is not this run evidence, so the whole sp
   const journal = {
     logicalRunId: 'other',
     clusters: [],
-    msps: [{ id: 'alpha', status: 'built' }],
+    msps: [{ id: 'alpha', progress: 'built' }],
   };
   const driven = await runPhases(runRequest(), stubbedPorts({ readJournal: () => journal }).ports);
   assert.equal(driven.phases.Resume.restarted, true, 'a journal folded from another run must not silently retire this run work');
@@ -627,7 +636,6 @@ const APPROACH_FIXABLE_JOURNAL = Object.freeze({
   clusters: [],
   msps: [{
     id: 'alpha',
-    status: 'parked',
     triedSet: ['worktree:reset-clean'],
     resumePoint: { branch: null, ref: null, stage: 'execute' },
     disposition: {

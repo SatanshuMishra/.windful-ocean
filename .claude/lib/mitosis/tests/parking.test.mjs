@@ -9,7 +9,9 @@ import {
   selectPreservedBuilt,
 } from '../parking.mjs';
 import { mspContentHash } from '../recovery.mjs';
+import { createDisposition } from '../unit-state.mjs';
 import { checkpointRef } from '../checkpoint.mjs';
+import { censusOfFile, reportLegacyStatusReads } from './property-read-census.mjs';
 
 function manifestWith(msps) {
   return {
@@ -19,7 +21,7 @@ function manifestWith(msps) {
     clusters: [msps.map((m) => m.id)],
     msps: msps.map((m) => ({
       id: m.id,
-      status: m.status ?? 'planned',
+      progress: m.progress ?? 'planned',
       dependsOn: m.dependsOn ?? [],
       fileScope: m.fileScope ?? [],
       integrationBranch: `mitosis/${m.id}-integration`,
@@ -112,16 +114,16 @@ test('park: marks the blocked unit and its transitive dependents parked, writes 
   assert.notEqual(after, before);
   assert.deepEqual(before, snapshot);
 
-  const statusOf = (m, id) => m.msps.find((x) => x.id === id).status;
+  const progressOf = (m, id) => m.msps.find((x) => x.id === id).progress;
   const dispositionOf = (m, id) => m.msps.find((x) => x.id === id).disposition;
   assert.notStrictEqual(dispositionOf(after, 'core'), null, 'the blocked unit carries a disposition');
   assert.notStrictEqual(dispositionOf(after, 'auth'), null, 'the transitive dependent carries a disposition');
   assert.notStrictEqual(dispositionOf(after, 'api'), null, 'the transitive dependent carries a disposition');
   assert.strictEqual(dispositionOf(after, 'unrelated'), undefined, 'a unit outside the blocked set carries no disposition');
-  assert.equal(statusOf(after, 'core'), 'planned', 'park writes no progress or status; the legacy field the unit already carried is left untouched');
-  assert.equal(statusOf(after, 'auth'), 'planned', 'park writes no progress or status; the legacy field the unit already carried is left untouched');
-  assert.equal(statusOf(after, 'api'), 'planned', 'park writes no progress or status; the legacy field the unit already carried is left untouched');
-  assert.equal(statusOf(after, 'unrelated'), 'planned');
+  assert.equal(progressOf(after, 'core'), 'planned', 'park writes no progress; the progress the unit already carried is left untouched');
+  assert.equal(progressOf(after, 'auth'), 'planned', 'park writes no progress; the progress the unit already carried is left untouched');
+  assert.equal(progressOf(after, 'api'), 'planned', 'park writes no progress; the progress the unit already carried is left untouched');
+  assert.equal(progressOf(after, 'unrelated'), 'planned');
 
   assert.equal(after.parked.length, 1);
   const rec = after.parked[0];
@@ -239,7 +241,7 @@ test('selectResumeUnits: accepts a Map, a Set, or an array as the reconciled shi
 });
 
 test('selectResumeUnits: a manifest with no parked units yields an empty resume set', () => {
-  assert.deepEqual(selectResumeUnits(manifestWith([{ id: 'a', status: 'shipped' }]), new Map()), []);
+  assert.deepEqual(selectResumeUnits(manifestWith([{ id: 'a', progress: 'pr-open' }]), new Map()), []);
 });
 
 function builtManifest(msps) {
@@ -248,9 +250,9 @@ function builtManifest(msps) {
 
 test('selectResumeBuilt: built units yield a ship-stage resume descriptor carrying the checkpoint ref, and parked units are ignored', () => {
   const manifest = builtManifest([
-    { id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration', checkpointRef: 'refs/mitosis/deadbeef/a' },
-    { id: 'b', status: 'parked' },
-    { id: 'c', status: 'planned' },
+    { id: 'a', progress: 'built', integrationBranch: 'mitosis/a-integration', checkpointRef: 'refs/mitosis/deadbeef/a' },
+    { id: 'b', progress: 'built', disposition: createDisposition({ class: 'Unknown' }) },
+    { id: 'c', progress: 'planned' },
   ]);
   const resume = selectResumeBuilt(manifest, new Map(), ['a', 'b', 'c']);
   assert.deepEqual(resume, [{
@@ -261,14 +263,14 @@ test('selectResumeBuilt: built units yield a ship-stage resume descriptor carryi
 });
 
 test('selectResumeBuilt: an already-shipped built unit is excluded from the resume set', () => {
-  const manifest = builtManifest([{ id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration', checkpointRef: 'refs/mitosis/deadbeef/a' }]);
+  const manifest = builtManifest([{ id: 'a', progress: 'built', integrationBranch: 'mitosis/a-integration', checkpointRef: 'refs/mitosis/deadbeef/a' }]);
   assert.deepEqual(selectResumeBuilt(manifest, new Set(['a']), ['a']), []);
 });
 
 test('selectResumeBuilt: a manifest-built unit the observed built-unit fact does not carry gets NO synthesized checkpoint ref', () => {
   const manifest = builtManifest([
-    { id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration' },
-    { id: 'b', status: 'built', integrationBranch: 'mitosis/b-integration' },
+    { id: 'a', progress: 'built', integrationBranch: 'mitosis/a-integration' },
+    { id: 'b', progress: 'built', integrationBranch: 'mitosis/b-integration' },
   ]);
   assert.deepEqual(selectResumeBuilt(manifest, new Map(), ['a']), [
     { unitId: 'a', stage: 'ship', resumePoint: { branch: 'mitosis/a-integration', ref: 'refs/mitosis/deadbeef/a', stage: 'ship' } },
@@ -277,7 +279,7 @@ test('selectResumeBuilt: a manifest-built unit the observed built-unit fact does
 });
 
 test('selectResumeBuilt: an omitted or unusable built-unit fact is no observation at all, so the deterministic ref is still synthesized', () => {
-  const manifest = builtManifest([{ id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration' }]);
+  const manifest = builtManifest([{ id: 'a', progress: 'built', integrationBranch: 'mitosis/a-integration' }]);
   assert.deepEqual(selectResumeBuilt(manifest, new Map()).map((r) => r.resumePoint.ref), ['refs/mitosis/deadbeef/a']);
   assert.deepEqual(selectResumeBuilt(manifest, new Map(), null).map((r) => r.resumePoint.ref), ['refs/mitosis/deadbeef/a']);
   assert.deepEqual(selectResumeBuilt(manifest, new Map(), 'a').map((r) => r.resumePoint.ref), ['refs/mitosis/deadbeef/a']);
@@ -285,8 +287,8 @@ test('selectResumeBuilt: an omitted or unusable built-unit fact is no observatio
 
 test('selectResumeBuilt: an EMPTY built-unit fact is the documented return for "no remote", so it withholds no ref from anyone', () => {
   const manifest = builtManifest([
-    { id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration' },
-    { id: 'b', status: 'built', integrationBranch: 'mitosis/b-integration' },
+    { id: 'a', progress: 'built', integrationBranch: 'mitosis/a-integration' },
+    { id: 'b', progress: 'built', integrationBranch: 'mitosis/b-integration' },
   ]);
   assert.deepEqual(
     selectResumeBuilt(manifest, new Map(), []).map((r) => r.resumePoint.ref),
@@ -299,13 +301,13 @@ test('selectResumeBuilt: an EMPTY built-unit fact is the documented return for "
 });
 
 test('selectResumeBuilt: a checkpointRef the run id makes unbuildable degrades that unit to a null ref rather than throwing', () => {
-  const manifest = { ...builtManifest([{ id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration' }]), logicalRunId: 'not a safe run id' };
+  const manifest = { ...builtManifest([{ id: 'a', progress: 'built', integrationBranch: 'mitosis/a-integration' }]), logicalRunId: 'not a safe run id' };
   assert.deepEqual(selectResumeBuilt(manifest, new Map()).map((r) => r.resumePoint.ref), [null]);
   assert.deepEqual(selectResumeBuilt(manifest, new Map(), ['a']).map((r) => r.resumePoint.ref), [null]);
 });
 
 test('selectResumeBuilt: the built-unit fact is accepted as a Set as well as an array', () => {
-  const manifest = builtManifest([{ id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration' }]);
+  const manifest = builtManifest([{ id: 'a', progress: 'built', integrationBranch: 'mitosis/a-integration' }]);
   assert.deepEqual(selectResumeBuilt(manifest, new Map(), new Set(['a'])).map((r) => r.resumePoint.ref), ['refs/mitosis/deadbeef/a']);
 });
 
@@ -319,7 +321,7 @@ function priorManifestWithHashes(defs) {
       id: d.id,
       title: d.title ?? d.id,
       rationale: d.rationale ?? `rationale for ${d.id}`,
-      status: 'built',
+      progress: 'built',
       integrationBranch: `mitosis/${d.id}-integration`,
       dependsOn: d.dependsOn ?? [],
       fileScope: d.fileScope ?? [`src/${d.id}.ts`],
@@ -391,4 +393,12 @@ test('selectPreservedBuilt: a fresh MSP id absent from the prior manifest is nev
 test('selectPreservedBuilt: tolerates a null prior manifest and a non-array fresh set without throwing', () => {
   assert.deepEqual(selectPreservedBuilt(null, [freshMsp('a')], ['a'], new Set()), []);
   assert.deepEqual(selectPreservedBuilt(priorManifestWithHashes([{ id: 'a' }]), null, ['a'], new Set()), []);
+});
+
+test('parking.mjs reads no legacy status field, by a closed property census that halts on what it cannot decide', () => {
+  const census = censusOfFile('parking.mjs', new URL('../parking.mjs', import.meta.url));
+  const verdict = reportLegacyStatusReads('parking.mjs', census);
+
+  assert.equal(verdict.clean, true, verdict.report);
+  assert.ok(census.ok && census.propertyReads.length > 0, verdict.report);
 });

@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   IDENT_PART,
@@ -13,6 +13,9 @@ import {
 } from '../js-scan.mjs';
 
 const CONTEXT_WIDTH = 80;
+const SOURCE_EXTENSION = '.mjs';
+
+export const EXCLUDED_DIRECTORY = 'tests';
 
 export const MITOSIS_SOURCE_DIR = fileURLToPath(new URL('..', import.meta.url));
 
@@ -320,53 +323,108 @@ function countsOf(occurrences) {
 }
 
 function sourceFilesOf(directoryPath) {
-  const entries = readdirSync(directoryPath, { withFileTypes: true });
-  return Object.freeze(entries.filter((entry) => entry.isFile() && entry.name.endsWith('.mjs')).map((entry) => entry.name).sort());
+  const entries = readdirSync(directoryPath, { withFileTypes: true, recursive: true });
+  const names = entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(SOURCE_EXTENSION))
+    .map((entry) => relative(directoryPath, join(entry.parentPath, entry.name)))
+    .filter((name) => !name.split(sep).includes(EXCLUDED_DIRECTORY));
+  return Object.freeze([...names].sort());
+}
+
+function censusResult({ ok, error, directory, files, scanned, occurrences, unclassified, failures }) {
+  return Object.freeze({
+    ok,
+    error,
+    directory,
+    files: Object.freeze([...files]),
+    scanned: Object.freeze([...scanned]),
+    occurrences: Object.freeze([...occurrences]),
+    unclassified: Object.freeze([...unclassified]),
+    failures: Object.freeze([...failures]),
+    counts: countsOf(occurrences),
+  });
+}
+
+function enumerationFailure(directory, error) {
+  return censusResult({
+    ok: false,
+    error,
+    directory,
+    files: [],
+    scanned: [],
+    occurrences: [],
+    unclassified: [],
+    failures: [],
+  });
+}
+
+function scanFailure(file, text) {
+  return Object.freeze({ file, text });
 }
 
 export function progressTokenCensus(directoryPath) {
   if (typeof directoryPath !== 'string' || directoryPath.length === 0) {
-    return halt('the progress token census needs a non-empty directory path');
+    return enumerationFailure(null, 'the progress token census needs a non-empty directory path');
   }
   let files;
   try {
     files = sourceFilesOf(directoryPath);
   } catch (error) {
-    return halt(`the progress token census could not enumerate ${directoryPath} — ${error.message}`);
+    return enumerationFailure(directoryPath, `the progress token census could not enumerate ${directoryPath} — ${error.message}`);
   }
-  if (files.length === 0) return halt(`the progress token census found no .mjs source under ${directoryPath}`);
+  const scanned = [];
   const occurrences = [];
-  const misses = [];
+  const unclassified = [];
+  const failures = [];
   for (const file of files) {
     const path = join(directoryPath, file);
     let source;
     try {
       source = readFileSync(path, 'utf8');
     } catch (error) {
-      return halt(`${file}: the progress token census could not read ${path} — ${error.message}`);
+      failures.push(scanFailure(file, `${file}: the progress token census could not read ${path} — ${error.message}`));
+      continue;
     }
     const result = classifyFileTokens(file, source);
-    if (!result.ok) return result;
+    if (!result.ok) {
+      failures.push(scanFailure(file, result.error));
+      continue;
+    }
+    scanned.push(file);
     for (const occurrence of result.occurrences) occurrences.push(occurrence);
-    for (const miss of result.unclassified) misses.push(miss);
+    for (const miss of result.unclassified) unclassified.push(miss);
   }
-  const shared = {
+  return censusResult({
+    ok: true,
+    error: null,
+    directory: directoryPath,
     files,
-    occurrences: Object.freeze(occurrences),
-    unclassified: Object.freeze(misses),
-    counts: countsOf(occurrences),
-  };
-  if (misses.length > 0) {
-    return Object.freeze({ ...halt(misses.map((miss) => miss.text).join('\n')), ...shared });
-  }
-  return Object.freeze({ ok: true, ...shared });
+    scanned,
+    occurrences,
+    unclassified,
+    failures,
+  });
 }
 
 export function censusReport(result) {
   const counts = result.counts ?? countsOf([]);
   const classes = CENSUS_CLASSES.map((className) => `${className}=${counts[className]}`).join(', ');
-  const halted = result.ok === true ? 'halts on nothing' : `halts on ${(result.unclassified ?? []).length} unclassifiable literal(s)`;
-  return `${(result.files ?? []).length} production files, ${(result.occurrences ?? []).length} classified token literals (${classes}); ${halted}`;
+  return [
+    `${(result.files ?? []).length} enumerated production file(s)`,
+    `${(result.scanned ?? []).length} scanned`,
+    `${(result.failures ?? []).length} scan failure(s)`,
+    `${(result.occurrences ?? []).length} classified token literal(s) (${classes})`,
+    `${(result.unclassified ?? []).length} unclassifiable literal(s)`,
+    `enumeration ${result.ok === true ? 'performed' : `refused: ${result.error}`}`,
+  ].join(', ');
+}
+
+export function censusDiagnostic(result) {
+  return [
+    censusReport(result),
+    ...(result.failures ?? []).map((failure) => `scan failure: ${failure.text}`),
+    ...(result.unclassified ?? []).map((miss) => `unclassifiable: ${miss.text}`),
+  ].join('\n');
 }
 
 export function occurrencesOfClass(result, className) {

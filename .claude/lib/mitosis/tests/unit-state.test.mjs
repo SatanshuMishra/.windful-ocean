@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   DISPOSITION_CLASSES,
   PROGRESS_ORDER,
   createDisposition,
-  legacyProgress,
-  legacyStatusOf,
   legacyParkedDisposition,
   mergeProgress,
   startingProgressOf,
@@ -13,11 +13,26 @@ import {
 } from '../unit-state.mjs';
 import {
   CENSUS_CLASSES,
+  EXCLUDED_DIRECTORY,
   MITOSIS_SOURCE_DIR,
+  censusDiagnostic,
   censusReport,
   occurrencesOfClass,
   progressTokenCensus,
 } from './progress-token-census.mjs';
+import { censusOfFile, reportLegacyStatusReads } from './property-read-census.mjs';
+
+const SOURCE_EXTENSION = '.mjs';
+
+function productionSourceFiles(root, prefix = '') {
+  const found = [];
+  for (const entry of readdirSync(join(root, prefix), { withFileTypes: true })) {
+    const name = join(prefix, entry.name);
+    if (entry.isDirectory() && entry.name !== EXCLUDED_DIRECTORY) found.push(...productionSourceFiles(root, name));
+    if (entry.isFile() && entry.name.endsWith(SOURCE_EXTENSION)) found.push(name);
+  }
+  return found.sort();
+}
 
 test('PROGRESS ORDER: the exported lattice is frozen and exactly the four tokens in order', () => {
   assert.equal(Object.isFrozen(PROGRESS_ORDER), true);
@@ -44,19 +59,6 @@ test('MERGE PROGRESS: an equal pair merges to that same token', () => {
 test('MERGE PROGRESS: an unrecognized token in either argument position throws TypeError', () => {
   assert.throws(() => mergeProgress('anything-else', 'built'), { name: 'TypeError', message: /anything-else/ });
   assert.throws(() => mergeProgress('built', 'anything-else'), { name: 'TypeError', message: /anything-else/ });
-});
-
-test('LEGACY PROGRESS: the retired shipped token reads forward as pr-open', () => {
-  assert.equal(legacyProgress('shipped'), 'pr-open');
-});
-
-test('LEGACY PROGRESS: a token already in the current lattice passes through unchanged', () => {
-  assert.equal(legacyProgress('built'), 'built');
-  assert.equal(legacyProgress('planned'), 'planned');
-});
-
-test('LEGACY PROGRESS: an unrecognized token throws TypeError', () => {
-  assert.throws(() => legacyProgress('bogus'), { name: 'TypeError', message: /bogus/ });
 });
 
 test('DISPOSITION CLASSES: the exported set is frozen and exactly the five members in order', () => {
@@ -193,38 +195,12 @@ test('CREATE DISPOSITION: a resumePoint that is not an object (or is an array) t
   }
 });
 
-test('LEGACY STATUS OF: pins all four exact mappings', () => {
-  assert.strictEqual(legacyStatusOf('planned'), 'planned');
-  assert.strictEqual(legacyStatusOf('built'), 'built');
-  assert.strictEqual(legacyStatusOf('pr-open'), 'shipped');
-  assert.strictEqual(legacyStatusOf('merged'), 'shipped');
-});
-
-test('LEGACY STATUS OF: a token outside PROGRESS_ORDER throws TypeError', () => {
-  assert.throws(() => legacyStatusOf('parked'), { name: 'TypeError', message: /parked/ });
-  assert.throws(() => legacyStatusOf('shipped'), { name: 'TypeError', message: /shipped/ });
-  assert.throws(() => legacyStatusOf('bogus'), { name: 'TypeError', message: /bogus/ });
-});
-
 test('STARTING PROGRESS OF: a progress field short-circuits status entirely', () => {
   assert.strictEqual(startingProgressOf({ progress: 'merged', status: 'planned' }), 'merged');
 });
 
-test('STARTING PROGRESS OF: a legacy status of parked floors to planned — parkedness carries no progress information', () => {
-  assert.strictEqual(startingProgressOf({ status: 'parked' }), 'planned');
-});
-
-test('STARTING PROGRESS OF: a known legacy status token passes through legacyProgress unchanged', () => {
-  assert.strictEqual(startingProgressOf({ status: 'built' }), 'built');
-  assert.strictEqual(startingProgressOf({ status: 'shipped' }), 'pr-open');
-});
-
 test('STARTING PROGRESS OF: an msp with neither progress nor status defaults to planned', () => {
   assert.strictEqual(startingProgressOf({}), 'planned');
-});
-
-test('STARTING PROGRESS OF: an unrecognized legacy status token is not silently defaulted — it throws TypeError, so a corrupted or unclassifiable token cannot be quietly rewritten', () => {
-  assert.throws(() => startingProgressOf({ status: 'some-future-unknown-token' }), { name: 'TypeError', message: /some-future-unknown-token/ });
 });
 
 test('LEGACY PARKED DISPOSITION: carries the legacy msp triedSet and resumePoint through as class Unknown', () => {
@@ -289,15 +265,6 @@ test('WITH REMEDIATION: a valid record is carried onto a new frozen disposition 
   assert.strictEqual(disposition.remediation, null, 'the disposition read from is left exactly as it was, so filling a remediation never mutates the manifest entry the run folded');
 });
 
-test('PROGRESS TOKEN CENSUS: every progress token literal in mitosis production source is recognised by a classification rule, so nothing about the progress vocabulary is decided by a literal no rule can read', () => {
-  const census = progressTokenCensus(MITOSIS_SOURCE_DIR);
-  assert.equal(
-    census.ok,
-    true,
-    `the census halted rather than classifying every progress token literal — ${censusReport(census)}\n${census.error ?? ''}`,
-  );
-});
-
 test('PROGRESS TOKEN CENSUS: no progress token literal is written to or compared against the legacy status mirror', () => {
   const census = progressTokenCensus(MITOSIS_SOURCE_DIR);
   const legacy = occurrencesOfClass(census, 'manifest-status-legacy').map((occurrence) => `${occurrence.file} ${occurrence.at} ${occurrence.token}`);
@@ -305,18 +272,6 @@ test('PROGRESS TOKEN CENSUS: no progress token literal is written to or compared
     legacy,
     [],
     `the legacy status mirror is still written or read by a progress token literal — ${censusReport(census)}`,
-  );
-});
-
-test('PROGRESS TOKEN CENSUS: the progress field is named by a token literal in unit-state.mjs alone', () => {
-  const census = progressTokenCensus(MITOSIS_SOURCE_DIR);
-  const elsewhere = occurrencesOfClass(census, 'manifest-progress')
-    .filter((occurrence) => occurrence.file !== 'unit-state.mjs')
-    .map((occurrence) => `${occurrence.file} ${occurrence.at} ${occurrence.token}`);
-  assert.deepStrictEqual(
-    elsewhere,
-    [],
-    `the progress vocabulary is spelled as a literal outside its one home — ${censusReport(census)}`,
   );
 });
 
@@ -339,4 +294,27 @@ test('PROGRESS TOKEN CENSUS: every class in the closed domain is counted and rep
       `the census reported the class ${JSON.stringify(occurrence.class)} at ${occurrence.file} ${occurrence.at}, which is outside the closed domain`,
     );
   }
+});
+
+test('PROGRESS TOKEN CENSUS: the scanned file set is exactly the mitosis production source tree, so a source the census cannot reach is named rather than silently dropped', (t) => {
+  const census = progressTokenCensus(MITOSIS_SOURCE_DIR);
+  t.diagnostic(censusDiagnostic(census));
+  assert.equal(census.ok, true, `the census could not enumerate ${MITOSIS_SOURCE_DIR} — ${census.error}`);
+  const expected = productionSourceFiles(MITOSIS_SOURCE_DIR);
+  const scanned = [...census.scanned];
+  const missing = expected.filter((name) => !scanned.includes(name));
+  const unexpected = scanned.filter((name) => !expected.includes(name));
+  assert.deepStrictEqual(
+    scanned,
+    expected,
+    `the census scanned ${scanned.length} of the ${expected.length} .mjs source file(s) that ${MITOSIS_SOURCE_DIR} carries outside ${EXCLUDED_DIRECTORY}/. Enumerated but not scanned: ${missing.join(', ') || 'none'}. Scanned but absent from the tree: ${unexpected.join(', ') || 'none'}. The expected set is derived here by its own recursive directory walk rather than from the census, so an enumeration that quietly stops recursing, or a file whose scan failed, surfaces as a named difference instead of a smaller set that still looks whole — ${censusDiagnostic(census)}`,
+  );
+});
+
+test('unit-state.mjs reads no legacy status field, by a closed property census that halts on what it cannot decide', () => {
+  const census = censusOfFile('unit-state.mjs', new URL('../unit-state.mjs', import.meta.url));
+  const verdict = reportLegacyStatusReads('unit-state.mjs', census);
+
+  assert.equal(verdict.clean, true, verdict.report);
+  assert.ok(census.ok && census.propertyReads.length > 0, verdict.report);
 });

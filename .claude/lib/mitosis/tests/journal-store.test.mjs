@@ -170,7 +170,7 @@ test('a genesis line followed by appended deltas folds back through the incumben
   assert.equal(folded.quiescentExitAt, '2026-08-12T09:00:00Z');
   assert.equal(folded.quiescentExitOutstanding, true);
   assert.equal(folded.msps[0].builtSha, 'fx00000000000000000000000000000000000001');
-  assert.equal(folded.msps[0].status, 'built');
+  assert.equal(folded.msps[0].progress, 'built');
 });
 
 test('appendJournalLine adds one line per call and never rewrites what is already there', () => {

@@ -50,8 +50,8 @@ test('foldFile deterministically folds a genesis+ship journal on disk into a man
   withTemp(journal, (path) => {
     const folded = foldFile(path);
     assert.ok(folded, 'a valid journal folds to a manifest');
-    assert.equal(folded.msps.find((m) => m.id === 'a').status, 'shipped', 'the ship delta was applied by the fold');
-    assert.equal(folded.msps.find((m) => m.id === 'b').status, 'planned', 'an unaffected sibling keeps its genesis status');
+    assert.equal(folded.msps.find((m) => m.id === 'a').progress, 'pr-open', 'the ship delta was applied by the fold');
+    assert.equal(folded.msps.find((m) => m.id === 'b').progress, 'planned', 'an unaffected sibling keeps its genesis progress');
     const revalidated = parseRunManifest(JSON.stringify(folded));
     assert.deepEqual(revalidated, folded, 'the folded output survives the engine parseRunManifest re-validation gate');
   });
@@ -69,7 +69,7 @@ test('the fold base is the file the genesis writer writes: a journal produced by
     });
     const folded = foldFile(journal);
     assert.ok(folded, 'the journal the writer produced does not fold at the path the reader is pointed at, so the writer and the reader no longer name one fold base');
-    assert.equal(folded.msps.find((m) => m.id === 'a').status, 'shipped', 'a delta appended by the writer was not applied by the reader');
+    assert.equal(folded.msps.find((m) => m.id === 'a').progress, 'pr-open', 'a delta appended by the writer was not applied by the reader');
     assert.deepEqual(parseRunManifest(JSON.stringify(folded)), folded, 'the writer-produced journal folds to a manifest the engine re-validation gate rejects');
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -81,8 +81,8 @@ test('foldFile folds a journal carrying two genesis lines from the LAST one, so 
   const secondManifest = {
     ...firstManifest,
     msps: firstManifest.msps.map((msp) => {
-      if (msp.id === 'a') return { ...msp, status: 'built' };
-      if (msp.id === 'b') return { ...msp, status: 'pr-open' };
+      if (msp.id === 'a') return { ...msp, progress: 'built' };
+      if (msp.id === 'b') return { ...msp, progress: 'pr-open' };
       return msp;
     }),
   };
@@ -90,8 +90,8 @@ test('foldFile folds a journal carrying two genesis lines from the LAST one, so 
   withTemp(journal, (path) => {
     const folded = foldFile(path);
     assert.ok(folded, 'a journal with two genesis lines must still fold to a manifest');
-    assert.equal(folded.msps.find((m) => m.id === 'a').status, 'built', 'the fold used the first genesis line rather than the last');
-    assert.equal(folded.msps.find((m) => m.id === 'b').status, 'shipped', 'b is planned under the first genesis line and pr-open under the second, so a fold that used the first genesis line rather than the last would report planned instead of shipped');
+    assert.equal(folded.msps.find((m) => m.id === 'a').progress, 'built', 'the fold used the first genesis line rather than the last');
+    assert.equal(folded.msps.find((m) => m.id === 'b').progress, 'pr-open', 'b is planned under the first genesis line and pr-open under the second, so a fold that used the first genesis line rather than the last would report planned instead of pr-open');
   });
 });
 
@@ -113,9 +113,9 @@ test('foldFile discards deltas that sit before the last genesis line rather than
     assert.ok(folded, 'a journal with pre-genesis deltas must still fold to a manifest');
     const a = folded.msps.find((m) => m.id === 'a');
     const b = folded.msps.find((m) => m.id === 'b');
-    assert.equal(a.status, 'built', 'the delta after the last genesis line is applied');
+    assert.equal(a.progress, 'built', 'the delta after the last genesis line is applied');
     assert.equal(a.builtSha, 'sha-a2', 'the applied built delta is the one after the last genesis, not the discarded one before it');
-    assert.equal(b.status, 'planned', 'the delta before the last genesis line must be discarded, not replayed onto the genesis base');
+    assert.equal(b.progress, 'planned', 'the delta before the last genesis line must be discarded, not replayed onto the genesis base');
     assert.equal(b.builtSha, undefined, 'a discarded pre-genesis delta must leave no trace on the folded manifest');
   });
 });
@@ -143,7 +143,7 @@ test('the CLI the agent executes emits a parseRunManifest-valid manifest on stdo
     const out = execFileSync('node', [SCRIPT, path], { encoding: 'utf8' });
     const revalidated = parseRunManifest(out.trim());
     assert.ok(revalidated, 'the engine re-validates the CLI stdout via parseRunManifest');
-    assert.equal(revalidated.msps.find((m) => m.id === 'b').status, 'shipped');
+    assert.equal(revalidated.msps.find((m) => m.id === 'b').progress, 'pr-open');
   });
   withTemp('{not valid json', (path) => {
     assert.throws(

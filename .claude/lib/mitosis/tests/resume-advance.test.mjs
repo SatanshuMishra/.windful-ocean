@@ -10,9 +10,9 @@ function resumeView(overrides = {}) {
       baseBranch: 'main',
       clusters: [],
       msps: [
-        { id: 'alpha', status: 'planned', integrationBranch: 'mitosis/alpha-integration' },
-        { id: 'beta', status: 'built', integrationBranch: 'mitosis/beta-integration', checkpointRef: 'refs/mitosis/9e8d7c6b/beta' },
-        { id: 'gamma', status: 'shipped', integrationBranch: 'mitosis/gamma-integration' },
+        { id: 'alpha', progress: 'planned', integrationBranch: 'mitosis/alpha-integration' },
+        { id: 'beta', progress: 'built', integrationBranch: 'mitosis/beta-integration', checkpointRef: 'refs/mitosis/9e8d7c6b/beta' },
+        { id: 'gamma', progress: 'pr-open', integrationBranch: 'mitosis/gamma-integration' },
       ],
     },
     built: [{
@@ -52,8 +52,8 @@ test('the deltas Execute recorded join the units the pre-Execute view already he
 test('the manifest handed on marks every recorded unit built, which is the field the divergence guard keys on', () => {
   const advanced = advanceResume(resumeView(), [ALPHA_BUILT]);
   assert.deepEqual(
-    advanced.manifest.msps.map((msp) => [msp.id, msp.status]),
-    [['alpha', 'built'], ['beta', 'built'], ['gamma', 'shipped']],
+    advanced.manifest.msps.map((msp) => [msp.id, msp.progress]),
+    [['alpha', 'built'], ['beta', 'built'], ['gamma', 'pr-open']],
   );
 });
 
@@ -66,7 +66,7 @@ test('the shipped set passes through untouched, because only the forge probe may
 test('a unit reported shipped is not re-reported built even when a delta names it', () => {
   const advanced = advanceResume(resumeView(), [{ ...ALPHA_BUILT, unitId: 'gamma' }]);
   assert.deepEqual(advanced.built.map((entry) => entry.unitId), ['beta']);
-  assert.deepEqual(advanced.manifest.msps.find((msp) => msp.id === 'gamma').status, 'shipped');
+  assert.deepEqual(advanced.manifest.msps.find((msp) => msp.id === 'gamma').progress, 'pr-open');
 });
 
 test('the view it was given is left as it was, so its caller still reads the state before the advance', () => {
