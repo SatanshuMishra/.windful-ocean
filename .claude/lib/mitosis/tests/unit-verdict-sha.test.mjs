@@ -110,7 +110,7 @@ function cliArgv(place) {
     '--run-id', RUN_ID,
     '--at', AT,
     '--repo-root', place.root,
-    '--journal', JOURNAL_PATH,
+    '--journal', join(place.root, JOURNAL_PATH),
     '--repo-slug', REPO_SLUG,
     '--integration-branch', INTEGRATION_BRANCH,
   ];

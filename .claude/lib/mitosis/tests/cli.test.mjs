@@ -15,7 +15,7 @@ function fullArgv(extra = [], root = '/repo') {
     '--run-id', '0a1b2c3d',
     '--at', '2026-08-15T12:00:00Z',
     '--repo-root', root,
-    '--journal', '.mitosis/run.jsonl',
+    '--journal', join(root, '.mitosis', 'run.jsonl'),
     '--repo-slug', 'acme/widgets',
     '--integration-branch', 'integration',
     ...extra,
@@ -74,7 +74,7 @@ test('ARGV PARSE: a full argument vector yields every field the engine needs', (
   assert.equal(value.runId, '0a1b2c3d');
   assert.equal(value.at, '2026-08-15T12:00:00Z');
   assert.equal(value.repoRoot, '/repo');
-  assert.equal(value.journalPath, '.mitosis/run.jsonl');
+  assert.equal(value.journalPath, '/repo/.mitosis/run.jsonl');
   assert.equal(value.repoSlug, 'acme/widgets');
   assert.equal(value.integrationBranch, 'integration');
   assert.equal(value.window, undefined);
@@ -117,6 +117,87 @@ test('USAGE EXIT: a parse failure writes the usage line and exits 2 without read
   assert.equal(code, 2);
   assert.ok(io.errOut.join('').includes(CLI_USAGE));
   assert.deepEqual(io.out, []);
+});
+
+function withFlag(argv, flag, value) {
+  const index = argv.indexOf(flag);
+  return [...argv.slice(0, index + 1), value, ...argv.slice(index + 2)];
+}
+
+function refusedPorts() {
+  const reached = [];
+  const refuse = (port) => () => {
+    reached.push(port);
+    throw new Error(`${port} must not be reached`);
+  };
+  return {
+    reached,
+    makePorts: refuse('makePorts'),
+    deps: { openRun: refuse('openRun'), dispatch: refuse('dispatch'), foldJournal: refuse('foldJournal') },
+  };
+}
+
+test('PARSE REFUSES A RELATIVE JOURNAL: no run-store lock, no attempt directory and no paid dispatch are created', async () => {
+  const io = stubIo(specDocument());
+  const guard = refusedPorts();
+  const code = await runCli(withFlag(fullArgv(), '--journal', '.mitosis/run.jsonl'), io, guard.makePorts, guard.deps);
+  assert.deepEqual(
+    guard.reached,
+    [],
+    'openRun takes the run-store lock and creates the attempt directory, so a relative --journal must be refused at argv parse and never reach it',
+  );
+  assert.equal(code, 2, 'a journal this entry point cannot resolve is a usage failure, not a run that failed');
+  assert.match(io.errOut.join(''), /--journal must be absolute/);
+  assert.ok(io.errOut.join('').includes(CLI_USAGE));
+  assert.deepEqual(io.out, []);
+});
+
+test('PARSE REFUSES A JOURNAL OUTSIDE THE REPOSITORY ROOT: the confinement check is not fooled by a relative root', async () => {
+  const io = stubIo(specDocument());
+  const guard = refusedPorts();
+  const argv = withFlag(withFlag(fullArgv(), '--repo-root', 'repo'), '--journal', '/repo/.mitosis/run.jsonl');
+  const code = await runCli(argv, io, guard.makePorts, guard.deps);
+  assert.deepEqual(guard.reached, [], 'a relative --repo-root makes the confinement comparison meaningless, so it is refused before the run opens');
+  assert.equal(code, 2);
+  assert.match(io.errOut.join(''), /--repo-root must be absolute/);
+});
+
+test('PARSE REFUSES AN --at THAT IS NOT AN ISO INSTANT: no run-store lock, no attempt directory and no paid dispatch are created', async () => {
+  for (const token of ['1755259200000', '2026-08-15T12:00Z', '2026-08-15T12:00:00', 'yesterday']) {
+    const io = stubIo(specDocument());
+    const guard = refusedPorts();
+    const code = await runCli(withFlag(fullArgv(), '--at', token), io, guard.makePorts, guard.deps);
+    assert.deepEqual(guard.reached, [], `openRun must never be reached for --at ${token}, because the lock and the attempt directory would outlive the refusal`);
+    assert.equal(code, 2, `--at ${token} is a usage failure, not a run that failed`);
+    assert.match(io.errOut.join(''), /--at needs an ISO instant/);
+    assert.deepEqual(io.out, []);
+  }
+});
+
+test('ONE RESOLVER: the read port and every write port receive the identical absolute journal location', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'mitosis-cli-resolver-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const journal = join(root, '.mitosis', 'run.jsonl');
+  const io = stubIo(specDocument());
+  const stub = stubPorts(async () => Done({ sha: 'sha-alpha' }));
+  const readPaths = [];
+  const code = await runCli(fullArgv([], root), io, () => stub.ports, {
+    foldJournal: (path) => { readPaths.push(path); return null; },
+    dispatch: () => { throw new Error('dispatch must not be reached'); },
+  });
+  assert.equal(code, 3);
+  assert.deepEqual(readPaths, [journal], 'the read port is handed the one resolved location, never a path it resolves for itself');
+  const journalWrites = stub.calls.filter((call) => call.value !== null && typeof call.value === 'object' && Object.hasOwn(call.value, 'path'));
+  assert.deepEqual(
+    [...new Set(journalWrites.map((call) => call.port))].sort(),
+    ['appendJournal', 'writeGenesis'],
+    'both journal write ports ran, so neither claim below is made over an empty set',
+  );
+  assert.deepEqual(
+    [...new Set(journalWrites.map((call) => call.value.path))],
+    [journal],
+    'one resolver produces one journal location, and every write port receives that exact string',
+  );
 });
 
 test('THE INSTANT ARRIVES AS ARGV: the --at value is the at the engine writes into the quiescent-exit record', async (t) => {

@@ -70,7 +70,7 @@ function argvFor(root) {
     '--run-id', '0a1b2c3d',
     '--at', AT,
     '--repo-root', root,
-    '--journal', '.mitosis/run.jsonl',
+    '--journal', join(root, '.mitosis', 'run.jsonl'),
     '--repo-slug', 'acme/widgets',
     '--integration-branch', 'integration',
   ];
