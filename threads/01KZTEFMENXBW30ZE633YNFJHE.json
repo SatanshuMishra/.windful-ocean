@@ -1217,6 +1217,11 @@
         "ref": "0612-m8a-repins-three-reader-test-files-and-breaches-the-cap-with-reason",
         "title": "M8a repins the three reader-side test files its mandatory request fields broke; the 400 cap is breached with reason",
         "scope": "c28"
+      },
+      {
+        "ref": "0615-the-spec-is-the-ceiling-and-a-review-question-is-not-a-reopener",
+        "title": "The SPEC is the ceiling; a design review's own open question is not a licence to reopen it",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -1228,5 +1233,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T02:28:48.059Z"
+  "updated_at": "2026-08-19T02:56:54.137Z"
 }
