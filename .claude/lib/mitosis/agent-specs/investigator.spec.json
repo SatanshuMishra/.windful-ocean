@@ -1,6 +1,6 @@
 {
   "name": "investigator",
-  "description": "Lead for diagnosis, code location and measurement. Use when something is broken, when you need to know where something lives or how it connects, or when latency, throughput or memory must be measured. Names the root cause with evidence and routes the fix out; it never edits the code it diagnoses.",
+  "description": "Lead for diagnosis, code location and measurement. Use when something is broken, when you need to know where something lives or how it connects, or when latency, throughput or memory must be measured. Names the root cause with evidence and routes the fix out; it never edits the code it diagnoses. Do not use it once a root cause is already established; dispatch the fix directly to the executing agent that applies it.",
   "tools": [
     "Read",
     "Grep",
