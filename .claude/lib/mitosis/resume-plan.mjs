@@ -1,10 +1,20 @@
 import { SHA_HEX_PATTERN } from './divergence.mjs';
 import { selectResumeBuilt, selectResumeUnits } from './parking.mjs';
 import { reconcileShippedSet, resolveResumeTarget } from './recovery.mjs';
+import { startingProgressOf, PROGRESS_ORDER } from './unit-state.mjs';
 
 const MODULE = 'resume-plan';
-const SHIPPED = 'shipped';
 const NO_RESUME_POINT = Object.freeze({ branch: null, ref: null, stage: null });
+
+export const MERGED_PROBE_STATE = Object.freeze({
+  NOT_ASKED: 'not-asked',
+  CONFIRMED_NONE: 'confirmed-none',
+  CONFIRMED_MERGED: 'confirmed-merged',
+  FAILED: 'failed',
+});
+
+const CLAIMED_PROGRESS_FLOOR = PROGRESS_ORDER.indexOf('pr-open');
+const MERGED_PROGRESS_RANK = PROGRESS_ORDER.indexOf('merged');
 
 function describe(value) {
   if (value === null) return 'null';
@@ -54,10 +64,18 @@ function mspsOf(manifest) {
   return Array.isArray(manifest.msps) ? manifest.msps : [];
 }
 
-function shippedByStatus(manifest) {
+function claimedByProgress(manifest) {
   return new Set(mspsOf(manifest)
     .filter((msp) => msp !== null && typeof msp === 'object' && !Array.isArray(msp))
-    .filter((msp) => typeof msp.id === 'string' && msp.status === SHIPPED)
+    .filter((msp) => typeof msp.id === 'string' && PROGRESS_ORDER.indexOf(startingProgressOf(msp)) >= CLAIMED_PROGRESS_FLOOR)
+    .map((msp) => msp.id));
+}
+
+function settledByProgress(manifest, plannedIds) {
+  return new Set(mspsOf(manifest)
+    .filter((msp) => msp !== null && typeof msp === 'object' && !Array.isArray(msp))
+    .filter((msp) => typeof msp.id === 'string' && plannedIds.has(msp.id))
+    .filter((msp) => PROGRESS_ORDER.indexOf(startingProgressOf(msp)) >= MERGED_PROGRESS_RANK)
     .map((msp) => msp.id));
 }
 
@@ -73,14 +91,32 @@ function probeValues(manifest, repoSlug) {
   return Object.freeze({ ownerRepo, baseBranch, sourcePrefix, repoHost: nonEmptyText(manifest.repoHost) });
 }
 
-async function mergedRecords(manifest, plannedIds, request) {
-  const claimed = [...shippedByStatus(manifest)].filter((id) => plannedIds.has(id));
-  if (claimed.length === 0) return new Map();
+function notAskedProbe() {
+  return Object.freeze({ state: MERGED_PROBE_STATE.NOT_ASKED, records: new Map(), reason: null });
+}
+
+function failedProbe(reason) {
+  return Object.freeze({ state: MERGED_PROBE_STATE.FAILED, records: new Map(), reason });
+}
+
+async function probeMerges(manifest, plannedIds, request) {
+  const claimed = [...claimedByProgress(manifest)].filter((id) => plannedIds.has(id));
+  if (claimed.length === 0) return notAskedProbe();
   const probe = probeValues(manifest, request.repoSlug);
-  if (probe === null) return new Map();
-  const merged = await request.reconcile(probe);
-  if (!Array.isArray(merged)) return new Map();
-  return reconcileShippedSet(merged, probe.sourcePrefix, probe.ownerRepo, probe.repoHost);
+  if (probe === null) return notAskedProbe();
+  let merged;
+  try {
+    merged = await request.reconcile(probe);
+  } catch (err) {
+    return failedProbe(`reconcile threw: ${err instanceof Error ? err.message : describe(err)}`);
+  }
+  if (!Array.isArray(merged)) {
+    return failedProbe(`reconcile did not return an array, received ${describe(merged)}`);
+  }
+  const records = reconcileShippedSet(merged, probe.sourcePrefix, probe.ownerRepo, probe.repoHost);
+  const plannedMerged = [...records.keys()].filter((id) => plannedIds.has(id));
+  const state = plannedMerged.length > 0 ? MERGED_PROBE_STATE.CONFIRMED_MERGED : MERGED_PROBE_STATE.CONFIRMED_NONE;
+  return Object.freeze({ state, records, reason: null });
 }
 
 function mergedShasOf(records, plannedIds) {
@@ -140,12 +176,13 @@ export async function planResume(request) {
   const recovered = recoveredManifest(request.journal, runIdentity(declared, runId));
   const manifest = recovered === null ? declared : recovered;
   const plannedIds = new Set(planned.map((spec) => spec.id));
-  const records = await mergedRecords(manifest, plannedIds, request);
+  const probe = await probeMerges(manifest, plannedIds, request);
+  const records = probe.records;
   const shipped = new Set(records.keys());
   const built = entriesWithin(selectResumeBuilt(manifest, shipped, null), plannedIds);
   const parked = entriesWithin(selectResumeUnits(manifest, shipped), plannedIds);
   const parkedById = new Map(parked.map((entry) => [entry.unitId, entry]));
-  const settled = new Set([...shipped, ...built.map((entry) => entry.unitId)]);
+  const settled = new Set([...shipped, ...built.map((entry) => entry.unitId), ...settledByProgress(manifest, plannedIds)]);
   const outstanding = planned.filter((spec) => !settled.has(spec.id));
   const retained = new Set(outstanding.map((spec) => spec.id));
   return Object.freeze({
@@ -157,6 +194,8 @@ export async function planResume(request) {
     built: Object.freeze(built),
     shipped: Object.freeze([...plannedIds].filter((id) => shipped.has(id))),
     mergedShas: mergedShasOf(records, plannedIds),
+    mergedProbe: probe.state,
+    mergedProbeReason: probe.reason,
   });
 }
 
@@ -168,5 +207,7 @@ export function resumeSummary(plan) {
     built: plan.built.map((entry) => entry.unitId),
     shipped: [...plan.shipped],
     mergedShas: { ...plan.mergedShas },
+    mergedProbe: plan.mergedProbe,
+    mergedProbeReason: plan.mergedProbeReason,
   };
 }

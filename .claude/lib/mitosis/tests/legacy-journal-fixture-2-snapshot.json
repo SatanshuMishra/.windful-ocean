@@ -33,6 +33,15 @@
         "ref": "refs/mitosis/deadbeef/b1",
         "stage": "ship"
       }
+    },
+    {
+      "unitId": "s1",
+      "stage": "ship",
+      "resumePoint": {
+        "branch": "mit2/s1-integration",
+        "ref": "refs/mitosis/deadbeef/s1",
+        "stage": "ship"
+      }
     }
   ],
   "statusById": [
