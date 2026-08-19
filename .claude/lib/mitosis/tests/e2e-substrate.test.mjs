@@ -5,14 +5,13 @@ import { join } from 'node:path';
 import test from 'node:test';
 import {
   CLAUDE_BEHAVIOURS,
-  DONE_ORACLE_ARGV,
+  doneOracleArgv,
   FIXED_AT,
   FIXED_RUN_ID,
   REPO_SLUG,
   claudeArgvs,
   claudeArgvsFor,
   composedKindsFor,
-  ghArgvs,
   ghArgvsMatching,
   implementArgvsFor,
   planArtifactPathOf,
@@ -95,7 +94,11 @@ test('a real cli.mjs child drives a two-unit fixture to done through the sandbox
       { id: 'beta', state: 'done' },
     ]);
     assert.equal(claudeArgvs(sandbox).length, 2);
-    assert.deepEqual(ghArgvs(sandbox)[0], DONE_ORACLE_ARGV, 'the engine probes the done oracle when it reaches quiescence, before Ship walks anything');
+    assert.deepEqual(
+      ghArgvsMatching(sandbox, ['pr', 'view']),
+      [doneOracleArgv('mitosis/alpha-integration'), doneOracleArgv('mitosis/beta-integration')],
+      'the engine probes no done oracle of its own; Ship reads it exactly once per unit it walks',
+    );
     assert.equal(ghArgvsMatching(sandbox, ['pr', 'create']).length, 2, 'one invocation carries both units from build to an open pull request, so the recorder holds one create per unit');
   });
 });
@@ -178,7 +181,7 @@ test('a unit the plan fails is diagnosed, redispatched exactly once, and parks o
     assert.equal(claudeArgvsFor(sandbox, 'alpha').length, 1);
     assert.equal(claudeArgvs(sandbox).length, 4);
     assert.equal(readJournal(sandbox).filter((record) => record.kind === 'park').length, 1);
-    assert.equal(ghArgvsMatching(sandbox, ['pr', 'view']).length, 2, 'one read settles whether the run branch already carries a pull request, and Ship reads the done oracle once for the unit it reaches');
+    assert.equal(ghArgvsMatching(sandbox, ['pr', 'view']).length, 1, 'Ship reads the done oracle once for the one unit it reaches, and the engine probes none of its own');
   });
 });
 

@@ -41,6 +41,20 @@ function baseRequest(overrides = {}) {
   };
 }
 
+const ENGINE_RESULT_KEYS = Object.freeze(['aborted', 'quiescent', 'recorded', 'ticks', 'units']);
+const CANDIDATE_PORTS = Object.freeze(['runUnit', 'writeGenesis', 'appendJournal', 'writeRef', 'gh']);
+const REQUIRED_PORT_NAMES = Object.freeze(['runUnit', 'writeGenesis', 'appendJournal', 'writeRef']);
+
+async function refusesMissingPort(ports, name) {
+  try {
+    await runEngine(baseRequest(), ports);
+    return false;
+  } catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+    return new RegExp(name).test(error.message);
+  }
+}
+
 function journalRecords(calls) {
   return calls.filter((c) => c.port === 'appendJournal').map((c) => JSON.parse(c.value.line));
 }
@@ -49,7 +63,7 @@ function lastIndexOfPort(calls, port) {
   return calls.map((c, i) => (c.port === port ? i : -1)).filter((i) => i !== -1).pop();
 }
 
-test('END TO END: a fixture spec runs to quiescence against a stubbed dispatch and produces the expected journal, refs and PR call', async () => {
+test('END TO END: a fixture spec runs to quiescence against a stubbed dispatch and produces the expected journal and refs, and probes no pull request', async () => {
   const runUnit = async (unit) => {
     if (unit.id === 'alpha') return Done({ sha: 'sha-alpha', green: true });
     if (unit.id === 'beta') return Done({ sha: 'sha-beta', green: true });
@@ -77,7 +91,11 @@ test('END TO END: a fixture spec runs to quiescence against a stubbed dispatch a
   assert.equal(alphaBuilt.length, 1, 'exactly one built record for alpha');
   assert.equal(alphaBuilt[0].checkpointRef, 'refs/mitosis/0a1b2c3d/alpha');
   assert.equal(alphaBuilt[0].sha, 'sha-alpha');
-  assert.equal(alphaBuilt[0].green, true);
+  assert.deepEqual(
+    Object.keys(alphaBuilt[0]),
+    ['kind', 'unitId', 'checkpointRef', 'sha', 'builtAgainst'],
+    'the journalled built record carries exactly these fields',
+  );
 
   const betaBuilt = records.filter((r) => r.kind === 'built' && r.unitId === 'beta');
   assert.equal(betaBuilt.length, 1, 'exactly one built record for beta');
@@ -93,18 +111,11 @@ test('END TO END: a fixture spec runs to quiescence against a stubbed dispatch a
   assert.equal(lastRecord.at, '2026-08-15T12:00:00Z');
   assert.equal(lastRecord.outstanding, true);
 
-  const ghCalls = h.calls.filter((c) => c.port === 'gh');
-  assert.equal(ghCalls.length, 1, 'exactly one gh call');
-  assert.deepEqual(ghCalls[0].value.slice(0, 6), ['pr', 'view', '-R', 'acme/widgets', 'integration', '--json']);
-  assert.equal(ghCalls[0].value.length, 7);
-
-  const ghIndex = h.calls.indexOf(ghCalls[0]);
-  const lastAppendIndex = lastIndexOfPort(h.calls, 'appendJournal');
-  assert.ok(ghIndex > lastAppendIndex, 'the PR probe follows the quiescent-exit write');
+  assert.deepEqual(h.calls.filter((c) => c.port === 'gh'), [], 'the engine drives no gh port: it measures no pull-request state');
+  assert.equal(lastIndexOfPort(h.calls, 'appendJournal'), h.calls.length - 1, 'the quiescent-exit write is the last port call the engine makes');
 
   assert.equal(result.quiescent, true);
   assert.equal(result.aborted, false);
-  assert.deepEqual(result.prState, { state: 'OPEN' });
   assert.equal(indexUnits(result.units).get('gamma').state, 'parked');
 });
 
@@ -140,7 +151,6 @@ test('ABORT WRITES NO QUIESCENT-EXIT LINE AND MAKES NO PR CALL', async () => {
   const records = journalRecords(h.calls);
   assert.ok(!records.some((r) => r.kind === 'quiescent-exit'), 'no quiescent-exit line is written on an aborted exit');
   assert.ok(!h.calls.some((c) => c.port === 'gh'), 'no gh call is made on an aborted exit');
-  assert.equal(result.prState, null);
 });
 
 test('THE INSTANT ARRIVES AS AN ARGUMENT: a request whose at is not an ISO 8601 instant is refused before any port is called', async () => {
@@ -152,17 +162,41 @@ test('THE INSTANT ARRIVES AS AN ARGUMENT: a request whose at is not an ISO 8601 
   assert.equal(h.calls.length, 0, 'no port is called before the malformed request is refused');
 });
 
-test('A MISSING PORT IS REFUSED BEFORE ANY WORK STARTS', async () => {
-  const fullPorts = harness(async () => Done({ sha: 'x' })).ports;
-  for (const name of ['runUnit', 'writeGenesis', 'appendJournal', 'writeRef', 'gh']) {
-    const ports = { ...fullPorts };
+test('A MISSING PORT IS REFUSED BEFORE ANY WORK STARTS, and the required set is exactly the four ports the engine drives', async () => {
+  const required = [];
+  for (const name of CANDIDATE_PORTS) {
+    const ports = { ...harness(async () => Done({ sha: 'x' })).ports };
     delete ports[name];
-    await assert.rejects(
-      runEngine(baseRequest(), ports),
-      (error) => error instanceof TypeError && new RegExp(name).test(error.message),
-      `a ports object missing ${name} must be refused with a message naming ${name}`,
-    );
+    if (await refusesMissingPort(ports, name)) required.push(name);
   }
+  assert.deepEqual(
+    required,
+    [...REQUIRED_PORT_NAMES],
+    'the engine requires exactly these ports; gh is absent because the engine opens no pull-request probe of its own',
+  );
+});
+
+test('THE ENGINE RESULT CARRIES NO prState KEY on either the quiescent or the non-quiescent exit', async () => {
+  const quiescentHarness = harness(async () => Done({ sha: 'sha-x' }));
+  const quiescent = await runEngine(baseRequest(), quiescentHarness.ports);
+  assert.equal(quiescent.quiescent, true, 'the fixture request must reach quiescence for this to exercise the quiescent exit');
+  assert.equal(Object.hasOwn(quiescent, 'prState'), false, 'the quiescent exit must carry no prState key');
+  assert.deepEqual(Object.keys(quiescent).sort(), [...ENGINE_RESULT_KEYS], 'the quiescent exit carries exactly these result fields');
+
+  const controller = new AbortController();
+  let hasAborted = false;
+  const abortHarness = harness(async () => {
+    if (!hasAborted) {
+      hasAborted = true;
+      controller.abort();
+    }
+    return Done({ sha: 'sha-x' });
+  });
+  const nonQuiescent = await runEngine(baseRequest({ signal: controller.signal }), abortHarness.ports);
+  assert.equal(nonQuiescent.quiescent, false, 'the aborted request must not reach quiescence for this to exercise the non-quiescent exit');
+  assert.equal(nonQuiescent.aborted, true);
+  assert.equal(Object.hasOwn(nonQuiescent, 'prState'), false, 'the non-quiescent exit must carry no prState key');
+  assert.deepEqual(Object.keys(nonQuiescent).sort(), [...ENGINE_RESULT_KEYS], 'the non-quiescent exit carries exactly these result fields');
 });
 
 test('a checkpoint write that throws a bare Error records its own message rather than the stringified error', async () => {

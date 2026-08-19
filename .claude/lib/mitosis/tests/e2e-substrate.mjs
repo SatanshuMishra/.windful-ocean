@@ -134,9 +134,9 @@ export const INTEGRATION_BRANCH = 'mitosis/integration';
 export const DEFAULT_WINDOW = 1;
 export const DISPATCH_TIMEOUT_MS = 30000;
 
-export const DONE_ORACLE_ARGV = Object.freeze([
-  'pr', 'view', '-R', REPO_SLUG, INTEGRATION_BRANCH, '--json', 'state,mergedAt,url',
-]);
+export function doneOracleArgv(integrationBranch) {
+  return Object.freeze(['pr', 'view', '-R', REPO_SLUG, integrationBranch, '--json', 'state,mergedAt,url']);
+}
 
 export const BASE_BRANCH = 'main';
 export const BRANCH_PREFIX = 'mitosis';

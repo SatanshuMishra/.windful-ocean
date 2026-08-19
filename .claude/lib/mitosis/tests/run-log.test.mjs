@@ -80,7 +80,7 @@ test('foldRunManifest folds a ci-attempt delta onto triedSet WITHOUT parking the
   const manifest = genesisManifest(TWO);
   const log = [
     JSON.stringify(manifest),
-    JSON.stringify(builtDelta({ unitId: 'a', checkpointRef: 'refs/mitosis/a1b2c3d4/a', sha: 'c'.repeat(40), green: true, builtAgainst: {} })),
+    JSON.stringify(builtDelta({ unitId: 'a', checkpointRef: 'refs/mitosis/a1b2c3d4/a', sha: 'c'.repeat(40), builtAgainst: {} })),
     JSON.stringify(ciAttemptDelta({ unitId: 'a', fingerprint: 'ci-published:pr' })),
     JSON.stringify(ciAttemptDelta({ unitId: 'a', fingerprint: 'ci-probe:rerun' })),
     JSON.stringify(ciAttemptDelta({ unitId: 'a', fingerprint: 'ci-probe:rerun' })),
@@ -97,7 +97,7 @@ test('foldRunManifest records every ci attempt in a park-immune field, so a LATE
   const manifest = genesisManifest(TWO);
   const log = [
     JSON.stringify(manifest),
-    JSON.stringify(builtDelta({ unitId: 'b', checkpointRef: 'refs/mitosis/a1b2c3d4/b', sha: 'c'.repeat(40), green: true, builtAgainst: {} })),
+    JSON.stringify(builtDelta({ unitId: 'b', checkpointRef: 'refs/mitosis/a1b2c3d4/b', sha: 'c'.repeat(40), builtAgainst: {} })),
     JSON.stringify(ciAttemptDelta({ unitId: 'b', fingerprint: 'ci-published:pr' })),
     JSON.stringify(ciAttemptDelta({ unitId: 'b', fingerprint: 'ci-fix:abcd1234' })),
     JSON.stringify(parkDelta({
@@ -177,17 +177,24 @@ test('foldRunManifest degrades to null on a malformed or absent genesis (fresh d
 });
 
 test('the delta constructors emit discriminated, single-unit records with no whole-manifest payload', () => {
+  const built = builtDelta({ unitId: 'a', checkpointRef: 'r', sha: 'deadbee', builtAgainst: { p: '1234abc' } });
+  assert.deepEqual(
+    Object.keys(built),
+    ['kind', 'unitId', 'checkpointRef', 'sha', 'builtAgainst'],
+    'the built delta carries exactly these fields; green was deleted because no production caller ever set it and nothing ever read it',
+  );
+  assert.equal(Object.hasOwn(built, 'green'), false, 'builtDelta must emit no green key');
   assert.deepEqual(
     shipDelta({ mspId: 'a', prUrl: 'u', mergedAt: 't', title: 'T', rationale: 'R' }),
     { kind: 'ship', mspId: 'a', prUrl: 'u', mergedAt: 't', title: 'T', rationale: 'R' },
   );
   assert.deepEqual(
     builtDelta({ unitId: 'a', checkpointRef: 'refs/mitosis/a1b2c3d4/a', sha: null }),
-    { kind: 'built', unitId: 'a', checkpointRef: 'refs/mitosis/a1b2c3d4/a', sha: null, green: false, builtAgainst: {} },
+    { kind: 'built', unitId: 'a', checkpointRef: 'refs/mitosis/a1b2c3d4/a', sha: null, builtAgainst: {} },
   );
   assert.deepEqual(
-    builtDelta({ unitId: 'a', checkpointRef: 'r', sha: 'deadbee', green: true, builtAgainst: { p: '1234abc' } }),
-    { kind: 'built', unitId: 'a', checkpointRef: 'r', sha: 'deadbee', green: true, builtAgainst: { p: '1234abc' } },
+    builtDelta({ unitId: 'a', checkpointRef: 'r', sha: 'deadbee', builtAgainst: { p: '1234abc' } }),
+    { kind: 'built', unitId: 'a', checkpointRef: 'r', sha: 'deadbee', builtAgainst: { p: '1234abc' } },
   );
   const pd = parkDelta({ unitId: 'a', stage: 'plan', diagnosis: 'd', request: null, remediation: null, resumePoint: null, triedSet: undefined });
   assert.equal(pd.kind, 'park');
@@ -238,15 +245,15 @@ test('foldRunManifest round-trips an engine-produced park delta identically to a
   assert.strictEqual(foldedProgress, 'planned', 'the fold pipeline derives the legacy-progress floor for a unit whose journal never carried one');
 });
 
-test('foldRunManifest carries green + builtAgainst from a built delta onto the msp', () => {
+test('foldRunManifest carries builtAgainst from a built delta onto the msp and folds no green field', () => {
   const manifest = genesisManifest(TWO);
   const folded = foldRunManifest([
     JSON.stringify(manifest),
-    JSON.stringify(builtDelta({ unitId: 'a', checkpointRef: 'refs/mitosis/a1b2c3d4/a', sha: 'abc1234', green: true, builtAgainst: { seed: 'f00ba12' } })),
+    JSON.stringify(builtDelta({ unitId: 'a', checkpointRef: 'refs/mitosis/a1b2c3d4/a', sha: 'abc1234', builtAgainst: { seed: 'f00ba12' } })),
   ].join('\n'));
   const a = folded.msps.find((m) => m.id === 'a');
   assert.equal(a.status, 'built');
-  assert.equal(a.green, true);
+  assert.equal(Object.hasOwn(a, 'green'), false, 'the fold must carry no green field onto the msp');
   assert.deepEqual(a.builtAgainst, { seed: 'f00ba12' });
 });
 
@@ -338,7 +345,7 @@ test('foldRunManifest: after any fold, every msp status is exactly legacyStatusO
   const manifest = genesisManifest(THREE);
   const log = [
     JSON.stringify(manifest),
-    JSON.stringify(builtDelta({ unitId: 'x', checkpointRef: 'refs/mitosis/a1b2c3d4/x', sha: 'x'.repeat(7), green: true, builtAgainst: {} })),
+    JSON.stringify(builtDelta({ unitId: 'x', checkpointRef: 'refs/mitosis/a1b2c3d4/x', sha: 'x'.repeat(7), builtAgainst: {} })),
     JSON.stringify(shipDelta({ mspId: 'y', prUrl: 'https://x/pr/y', mergedAt: '2026-07-15T00:00:00Z', title: 'Yankee', rationale: 'y rationale' })),
     JSON.stringify(parkDelta({ unitId: 'z', stage: 'plan', diagnosis: 'z stalled on a plan decision', request: null, remediation: null, resumePoint: null, triedSet: [] })),
   ].join('\n');

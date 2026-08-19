@@ -7,8 +7,8 @@ export function shipDelta({ mspId, prUrl, mergedAt, title, rationale }) {
   return { kind: 'ship', mspId, prUrl: prUrl ?? null, mergedAt: mergedAt ?? null, title: title ?? null, rationale: rationale ?? null };
 }
 
-export function builtDelta({ unitId, checkpointRef, sha, green, builtAgainst }) {
-  return { kind: 'built', unitId, checkpointRef: checkpointRef ?? null, sha: sha ?? null, green: green ?? false, builtAgainst: builtAgainst ?? {} };
+export function builtDelta({ unitId, checkpointRef, sha, builtAgainst }) {
+  return { kind: 'built', unitId, checkpointRef: checkpointRef ?? null, sha: sha ?? null, builtAgainst: builtAgainst ?? {} };
 }
 
 export function parkDelta({ unitId, stage, diagnosis, request, remediation, resumePoint, triedSet, blockedBy, class: dispositionClass }) {
