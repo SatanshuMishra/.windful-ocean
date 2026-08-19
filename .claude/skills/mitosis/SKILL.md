@@ -109,14 +109,14 @@ The exit code reads the build AND the shipping. Building every unit is not a suc
 
 | Exit | Meaning |
 |---|---|
-| 0 | quiescent, every unit reached `done`, and shipping handed off: `verdict.status` is `all-integrated-opened` or `awaiting-approval` — or it is `nothing-pending` and nothing reached Integrate either, the run having held no work at all |
-| 3 | the run stopped short: not quiescent, or a unit short of `done`, or work was pending and shipping did not hand it off — `verdict.status` `blocked`, `ci-red-exhausted`, `ci-unwatched`, `partial`, or `nothing-pending` over units that reached Integrate |
+| 0 | quiescent, every unit reached `done`, and shipping handed off: `verdict.status` is `all-integrated-opened`, `awaiting-approval`, or `ci-unwatched` — or it is `nothing-pending` and nothing reached Integrate either, the run having held no work at all |
+| 3 | the run stopped short: not quiescent, or a unit short of `done`, or work was pending and shipping did not hand it off — `verdict.status` `blocked`, `ci-red-exhausted`, `partial`, or `nothing-pending` over units that reached Integrate |
 | 2 | the arguments were rejected; nothing ran |
 | 1 | the run threw; the message names the field or the step |
 
 0 never means merged. This engine opens pull requests and never merges, so `awaiting-approval` — pull requests open, waiting on a human — is the healthy terminal state and exits 0. A run that built every unit and opened no pull request exits 3, because there is nothing for the human to merge.
 
-`ci-unwatched` is the pull requests being open while this run never managed to read their checks. `verdict.ciUnwatchedCount` names how many, and it withholds `all-integrated-opened`: unread checks are not green checks, so the run exits 3 and the human reads the checks on the forge. `ship.status` still reports what the ship phase's merge policy alone saw, which is why it can read `all-integrated-opened` while the verdict does not.
+`ci-unwatched` is the pull requests being open while this run never managed to read their checks. `verdict.ciUnwatchedCount` names how many, and the withheld word is what reports the gap: `all-integrated-opened` is withheld because unread checks are not green checks, so the human reads them on the forge. The run still exits 0, because the pull requests were opened and handed off, and the hand-off is not retracted. `ship.status` still reports what the ship phase's merge policy alone saw, which is why it can read `all-integrated-opened` while the verdict does not.
 
 Name the units that are not `done` and the state each stopped in, and name `verdict.status` with the pull requests in `ship.prUrls`. Do not re-run or "continue" the loop in main.
 
