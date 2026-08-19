@@ -189,8 +189,8 @@ test('EXIT MAPPING: shipping decides the code once the build is clean, and a han
   assert.equal(codeOf({ status: 'ci-red-exhausted', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME), 3);
   assert.equal(
     codeOf({ status: 'all-integrated-opened', outcomes: BUILT_UNIT_OUTCOME, ci: { unwatched: BUILT_UNIT_OUTCOME } }, BUILT_UNIT_OUTCOME),
-    3,
-    'the pull requests are open but this run never read their checks, so it is not a hand-off an operator may read as finished',
+    0,
+    'the pull requests are open and their checks went unread; the withheld status word reports that, and the code still reports the hand-off the run completed',
   );
 });
 

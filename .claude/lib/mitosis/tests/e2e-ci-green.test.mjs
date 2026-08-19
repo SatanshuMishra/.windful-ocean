@@ -119,7 +119,7 @@ test('a run id the forge does not resolve leaves the msp unwatched, opens no fix
     assert.deepEqual(composedKindsMatching(sandbox, mspTokenOf(UNIT_ID)), [], 'an unwatchable run composes no ci prompt at all');
     assert.deepEqual(ship.summary.ship.ci, [{ id: UNIT_ID, state: 'ci-unwatched', fixes: 0 }]);
     assert.equal(ship.summary.ship.status, 'all-integrated-opened');
-    assert.equal(ship.status, 3, 'the pull request was opened and handed to the human; an unwatchable check run does not retract that');
+    assert.equal(ship.status, 0, 'the pull request was opened and handed to the human; an unwatchable check run does not retract that');
     assert.deepEqual(ship.summary.ship.parked, []);
   });
 });

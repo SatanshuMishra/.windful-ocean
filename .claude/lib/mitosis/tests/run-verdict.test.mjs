@@ -29,11 +29,20 @@ test('the verdict surfaces the unwatched-check count the ci watch plan already c
   assert.equal(runVerdictOf(driven({ ship: { ci: { unwatched: [UNWATCHED_ENTRY, UNWATCHED_ENTRY] } } })).ciUnwatchedCount, 2);
 });
 
-test('a run whose checks were never watched is not reported as the shipped word and does not exit clean', () => {
+test('a run whose checks were never watched is not reported as the shipped word', () => {
   const verdict = runVerdictOf(driven({ ship: { ci: { unwatched: [UNWATCHED_ENTRY] } } }));
   assert.equal(verdict.status, 'ci-unwatched');
   assert.equal(verdict.shipStatus, 'all-integrated-opened', 'the ship phase still reports what its merge policy read; the verdict is what gates on the unwatched count');
-  assert.equal(exitCodeOf(verdict), 3, 'the engine never read these checks, so it cannot hand the run off as one whose checks came back green');
+  assert.equal(exitCodeOf(verdict), 0, 'the word the run reports changes; the hand-off it already made to a human is not retracted');
+});
+
+test('ci-unwatched is a hand-off status: the word is withheld and the exit code stays clean', () => {
+  const unwatched = runVerdictOf(driven({ ship: { ci: { unwatched: [UNWATCHED_ENTRY] } } }));
+  assert.equal(unwatched.quiescent, true, 'the run settled, so the exit code is decided by the status rather than by an unfinished build');
+  assert.equal(unwatched.unitsAllDone, true, 'every unit is done, so nothing but the status can withhold a clean exit');
+  assert.equal(unwatched.status, 'ci-unwatched');
+  assert.notEqual(unwatched.status, 'all-integrated-opened', 'the shipped word is withheld, because no check was ever read');
+  assert.equal(exitCodeOf(unwatched), 0, 'an open pull request waiting on a human is the healthy terminal state, and a check run the engine could not watch is one more thing handed to that human rather than a retraction of the hand-off');
 });
 
 test('a run whose checks were all watched keeps the shipped word and exits clean', () => {
@@ -141,7 +150,7 @@ test('exitCodeOf maps every declared verdict status to a code, and the build sho
   assert.equal(exitCodeOf(verdict({ status: 'partial' })), 3);
   assert.equal(exitCodeOf(verdict({ status: 'blocked' })), 3);
   assert.equal(exitCodeOf(verdict({ status: 'ci-red-exhausted' })), 3);
-  assert.equal(exitCodeOf(verdict({ status: 'ci-unwatched' })), 3);
+  assert.equal(exitCodeOf(verdict({ status: 'ci-unwatched' })), 0);
   assert.equal(exitCodeOf(verdict({ quiescent: false })), 3);
   assert.equal(exitCodeOf(verdict({ unitsAllDone: false })), 3);
 });

@@ -573,7 +573,7 @@ test('the ship config is refused at the boundary, and the refusal names what arr
   await assert.rejects(() => shipIntegrated({ ...SHIP_CONFIG, journalPath: undefined }, SHIP_PORTS), /non-empty journalPath.*received undefined$/);
   assert.deepEqual(
     await shipIntegrated({ ...SHIP_CONFIG, journalPath: 'j' }, SHIP_PORTS),
-    { opened: [], parked: [], outcomes: [], awaiting: [], blocked: [], retired: [], ci: NO_CI_WATCH, status: 'partial' },
+    { opened: [], parked: [], outcomes: [], awaiting: [], blocked: [], retired: [], ci: NO_CI_WATCH, status: 'nothing-pending' },
     'a one-character path is a path; the boundary refuses what is empty, never what is short',
   );
 });
