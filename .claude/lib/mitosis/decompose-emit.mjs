@@ -26,6 +26,7 @@ export const EXIT_INPUTS = 3;
 export const EXIT_DECOMPOSE = 4;
 export const EXIT_COMPOSE = 5;
 export const EXIT_WRITE = 6;
+export const EXIT_NO_WORK = 7;
 
 const AGENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const TOKEN_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@+/-]*$/;
@@ -127,7 +128,7 @@ function flagList(required) {
 export const DECOMPOSE_EMIT_USAGE = [
   `usage: decompose-emit.mjs ${flagList(true).map((flag) => `${flag} <value>`).join(' ')}`,
   `       ${flagList(false).map((flag) => `[${flag} <value>]`).join(' ')}`,
-  `exit codes: ${EXIT_CLEAN} the run document was written; ${EXIT_UNCLASSIFIED} an unclassified throw; ${EXIT_USAGE} the arguments were rejected and nothing ran; ${EXIT_INPUTS} an input could not be resolved; ${EXIT_DECOMPOSE} the decompose child returned no conforming decomposition; ${EXIT_COMPOSE} the decomposition composed no run document; ${EXIT_WRITE} the run document could not be written`,
+  `exit codes: ${EXIT_CLEAN} the run document was written; ${EXIT_UNCLASSIFIED} an unclassified throw; ${EXIT_USAGE} the arguments were rejected and nothing ran; ${EXIT_INPUTS} an input could not be resolved; ${EXIT_DECOMPOSE} the decompose child returned no conforming decomposition; ${EXIT_COMPOSE} the decomposition composed no run document; ${EXIT_WRITE} the run document could not be written; ${EXIT_NO_WORK} the decomposition named no unit to schedule and gave its reason`,
 ].join('\n');
 
 function usageFailure(error) {
@@ -248,7 +249,12 @@ async function runDecomposer(args, deps) {
   if (validated.ok !== true) {
     return failure(EXIT_DECOMPOSE, `the decompose child returned a decomposition the schema refuses: ${validated.failures.join('; ')}`);
   }
-  return Object.freeze({ ok: true, msps: validated.decomposition.msps, envelope: normalizeEnvelope(verdict.envelope) });
+  return Object.freeze({
+    ok: true,
+    msps: validated.decomposition.msps,
+    noWorkReason: validated.decomposition.noWorkReason === undefined ? null : validated.decomposition.noWorkReason,
+    envelope: normalizeEnvelope(verdict.envelope),
+  });
 }
 
 function coarseScopeFlagLine(unitId, flag) {
@@ -365,12 +371,17 @@ function warnWriterOf(deps) {
   return deps.warn;
 }
 
+function noWorkResult(reason) {
+  return failure(EXIT_NO_WORK, `the decomposition names no unit to schedule, and the decomposer gives the reason: ${reason}; no run document was written, because a document naming no unit would schedule nothing`);
+}
+
 export async function emitRunDocument(args, deps = {}) {
   const warn = warnWriterOf(deps);
   const inputs = resolveInputs(args, deps);
   if (inputs.ok !== true) return inputs;
   const decomposed = await runDecomposer(args, deps);
   if (decomposed.ok !== true) return decomposed;
+  if (decomposed.msps.length === 0) return noWorkResult(decomposed.noWorkReason);
   reportCoarseScope(decomposed.msps, warn);
   reportJudgmentOmission(args, decomposed.msps, warn);
   const composed = composeDocument(args, inputs, decomposed.msps);

@@ -14,7 +14,7 @@ import {
   parseDecomposeArgv,
   serializeRunDocument,
 } from '../decompose-emit.mjs';
-import { DECOMPOSE_CHANGE_TYPES, DECOMPOSE_SCHEMA } from '../decompose-schema.mjs';
+import { DECOMPOSE_CHANGE_TYPES, DECOMPOSE_SCHEMA, validateAgainstSchema } from '../decompose-schema.mjs';
 import { buildUnitTable } from '../leases.mjs';
 import { composePrompt } from '../prompt-registry.mjs';
 import { parseRunManifest } from '../recovery.mjs';
@@ -52,6 +52,8 @@ const MSPS = Object.freeze([
     fileScope: { edit: ['src/beta.mjs'], read: ['src/alpha.mjs'], truncated: null },
   },
 ]);
+
+const NO_WORK_REASON = 'The spec asks for behaviour this repository already ships, so this run has no unit to schedule.';
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -231,6 +233,29 @@ test('the decompose child is dispatched with the registry prompt and the lib-res
     repoRoot: place.root,
     changeTypes: [...DECOMPOSE_CHANGE_TYPES],
   }));
+});
+
+test('the schema handed to the decompose child as constrained generation permits an empty msps list carrying a reason', async (t) => {
+  const place = scratch(t);
+  const calls = [];
+  await emit(place, {}, clone(MSPS), calls);
+  assert.equal(calls.length, 1);
+  const argv = calls[0].argv;
+  const handed = JSON.parse(argv[argv.indexOf('--json-schema') + 1]);
+  const verdict = validateAgainstSchema(handed, { msps: [], noWorkReason: NO_WORK_REASON }, 'the handed schema');
+  assert.deepEqual(verdict.failures, [], verdict.failures.join('; '));
+  assert.equal(verdict.ok, true);
+});
+
+test('a decomposition naming no unit but carrying a reason exits on the no-work code and writes no run document', async (t) => {
+  const place = scratch(t);
+  const result = await emitRunDocument(argsFor(place), depsFor({ msps: [], noWorkReason: NO_WORK_REASON }));
+  assert.equal(result.ok, false);
+  assert.equal(result.exitCode, 7);
+  assert.notEqual(result.exitCode, EXIT_DECOMPOSE);
+  assert.match(result.error, /names no unit to schedule/);
+  assert.equal(result.error.includes(NO_WORK_REASON), true, result.error);
+  assert.equal(existsSync(place.out), false, 'a no-work verdict left a run document behind');
 });
 
 test('the written bytes are exactly the serialization of the composed run document', async (t) => {

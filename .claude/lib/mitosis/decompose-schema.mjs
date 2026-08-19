@@ -1,4 +1,5 @@
 const MODULE = 'decompose-schema';
+const DECOMPOSITION_LABEL = 'the decomposition';
 
 const SUPPORTED_KEYWORDS = Object.freeze([
   'type',
@@ -31,7 +32,6 @@ export const DECOMPOSE_SCHEMA = deepFreeze({
   properties: {
     msps: {
       type: 'array',
-      minItems: 1,
       items: {
         type: 'object',
         required: ['id', 'title', 'rationale', 'changeType', 'scope', 'securityReviewRequired', 'dependsOn', 'fileScope'],
@@ -57,6 +57,7 @@ export const DECOMPOSE_SCHEMA = deepFreeze({
         },
       },
     },
+    noWorkReason: { type: 'string', pattern: '^[A-Za-z0-9(][\\x20-\\x7E]{0,198}[\\x21-\\x7E]$' },
   },
 });
 
@@ -177,6 +178,18 @@ export function validateAgainstSchema(schema, value, label) {
   return Object.freeze({ ok: true, failures: Object.freeze([]), decomposition: value });
 }
 
+const NO_WORK_REFUSAL = `${DECOMPOSITION_LABEL} names no unit and carries no noWorkReason, so a run that schedules nothing cannot be told apart from a decomposer that returned nothing`;
+
+function noWorkFailures(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return [];
+  if (!Array.isArray(value.msps) || value.msps.length > 0) return [];
+  if (typeof value.noWorkReason === 'string' && value.noWorkReason.trim() !== '') return [];
+  return [NO_WORK_REFUSAL];
+}
+
 export function validateDecomposition(value) {
-  return validateAgainstSchema(DECOMPOSE_SCHEMA, value, 'the decomposition');
+  const verdict = validateAgainstSchema(DECOMPOSE_SCHEMA, value, DECOMPOSITION_LABEL);
+  const crossField = noWorkFailures(value);
+  if (crossField.length === 0) return verdict;
+  return Object.freeze({ ok: false, failures: Object.freeze([...verdict.failures, ...crossField]), decomposition: null });
 }
