@@ -255,7 +255,7 @@
     {
       "id": "c28",
       "text": "The engine opens one pull request per MSP through the centralized pr-create tool on a real run, and serializes merges so the shared branch stays green, proven end to end not by unit test.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -315,9 +315,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Prove mitosis works end to end on a live run, then finish the test-suite cleanup. All 24 units are built and merged.",
-    "next_step": "TRIGGER THE LIVE RUN. Nothing in the repo blocks it. Follow m15/c28-rerun-RUNBOOK.md: reset the substrate repo mitosis-live-pr-harness to seed fe0dff16 and drop last run's branches, settle the done-oracle question with the one-command check, then trigger. Pass is 3 pull requests opened and none parked; merge those three by hand because the engine never merges. Then c41's remaining batches, and the PATH fallthrough filed under c42.",
-    "last_session": "2026-08-20: c40, c31 and c42 closed. M16 merged (PR 250), plus PRs 253 and 254 closing two of three paths by which the suite could spawn the real billed binary. c28's park root-caused to a 226-char rationale against a 200-char cap and filed as architecture. Three merged worktrees cleaned.",
+    "active_goal": "Land the stacked-retarget fix on main, then run c41's test-suite cleanup. The engine's live behaviour is proven end to end; only that fix and the blind-test cleanup remain.",
+    "next_step": "MERGE PULL REQUEST 255 first - it is open, all twelve checks green including receipts at 1m49s, and human-gated. Then delete the two spent harness repos with the two commands in this session's log. Then start c41's cleanup batches. A fresh e2e run needs no setup at all: the substrate mitosis-live-pr-harness-r3 is pristine, run-live.sh points at it and needs no environment variable, so the trigger is one bash command.",
+    "last_session": "2026-08-20: the c28 live run passed 3 of 3 with failures=0. The merge half exposed a new engine defect at ship-plan.mjs:623, fixed in pull request 255 with all checks green. Substrate r3 staged pristine; evidence and the seed archived.",
     "open_risks": [
       {
         "text": "Never let the engine merge a pull request — merge is refused at four independent layers by design, so c28 means serialized ship order plus a blocked-pending-approval handoff",
@@ -369,116 +369,6 @@
         "scope": "c29",
         "refs": [
           "0571"
-        ]
-      },
-      {
-        "text": "Re-derive M8a's state from git before touching it — its lead was resumed mid-remediation at session close and may have pushed or opened a PR after the ledger was written",
-        "scope": "c28",
-        "refs": [
-          "ws-m8a",
-          "feat/mitosis-gate-own-tree",
-          "f5547344",
-          "gh pr list --head feat/mitosis-gate-own-tree"
-        ]
-      },
-      {
-        "text": "Merge the six reopened pull requests and delete no branch until M8a is retargeted onto main — M8a stacks on M3's head branch, and deleting a base branch closes its children instead of moving them",
-        "scope": "c28",
-        "refs": [
-          "#232-#237",
-          "feat/mitosis-append-only-journal",
-          "0519"
-        ]
-      },
-      {
-        "text": "Merge parent, delete parent branch, confirm the ref is gone, then merge child — six pull requests reported MERGED this session while their content never reached main because the parent branch was still alive",
-        "scope": "c28",
-        "refs": [
-          "0445",
-          "0519",
-          "#223 #224 #226 #227 #228 #230"
-        ]
-      },
-      {
-        "text": "Enter a second open parent by merge commit and never wait on a human merge — the wave keeps moving and the pull request diff narrows once the parents land",
-        "scope": "c28",
-        "refs": [
-          "0602",
-          "0604"
-        ]
-      },
-      {
-        "text": "Read G14 survivors by file ownership on a stacked unit — the enforcer diffs two-dot from the base sha, so a parent's equivalent mutants appear in the child's verdict",
-        "scope": "c28",
-        "refs": [
-          "0604"
-        ]
-      },
-      {
-        "text": "Expect G11 to block any unit that deletes test files — the pr-create tool renders every value as a bullet so the enforcer never sees a bare test-removal line; the deletion is recorded as a tracked downgrade and M12b-3 inherits the ruling",
-        "scope": "c28",
-        "refs": [
-          "#230",
-          "M12b-3"
-        ]
-      },
-      {
-        "text": "Keep all four ladder tags out of every PR body — the enforcer matches them as text and short-circuits all eight re-run gates, so an honest disclosure suppresses the check that would have caught it",
-        "scope": "c28",
-        "refs": [
-          "PR 215 at 129ms",
-          "PR 221 at 67s",
-          "0594"
-        ]
-      },
-      {
-        "text": "Never let ship-with-downgrade excuse breaking the target branch — it covers a verification gap only, and no agent can waive a user-level invariant on another agent's word",
-        "scope": "c28",
-        "refs": [
-          "0596",
-          "M7"
-        ]
-      },
-      {
-        "text": "Treat any hand-built reference inventory as a hypothesis — three in a row came back short because the search could not see raw-text pins, reader-side references or multi-line imports; A8's sweep also excluded tests/",
-        "scope": "c28",
-        "refs": [
-          "0585",
-          "A16",
-          "0603"
-        ]
-      },
-      {
-        "text": "Run the inertness mutation on every unit without exception — each one is fixing vacuity and can reproduce vacuity inside its own fix",
-        "scope": "c28",
-        "refs": [
-          "0587",
-          "boundary-gate.test.mjs"
-        ]
-      },
-      {
-        "text": "Rebase a stacked branch with --onto and its old parent — merged branches are not deleted here, so a bare rebase replays commits already on main",
-        "scope": "c28",
-        "refs": [
-          "c29829a2",
-          "M2"
-        ]
-      },
-      {
-        "text": "Reset the live harness before M15 and ask the user first — its journal demoted a shipped unit to parked and can never reconcile its open pull request, so branches alone are not enough",
-        "scope": "c28",
-        "refs": [
-          "mitosis-live-pr-harness",
-          "0576"
-        ]
-      },
-      {
-        "text": "Tell M17 that isParked reads a token outside the lattice and that the progress-token census file does not exist yet — the mirror deletion is a modelling gap, not a mechanical repoint",
-        "scope": "c28",
-        "refs": [
-          "parking.mjs:115",
-          "tests/progress-token-census.mjs",
-          "M4b report"
         ]
       },
       {
@@ -633,6 +523,82 @@
         "refs": [
           "c13",
           "git worktree prune"
+        ]
+      },
+      {
+        "text": "Retarget a stacked child explicitly before deleting its parent branch — GitHub's documented auto-retarget did not fire in either measured case, and closed the child instead",
+        "scope": "c43",
+        "refs": [
+          "0643",
+          "c28-rerun-RUNBOOK.md step 7",
+          "r2 pull requests 3 and 6"
+        ]
+      },
+      {
+        "text": "Re-pinning the engine past b70536fc breaks the harness merge-order shape check — the declared key set is compared exactly and the fix adds a key to every entry",
+        "scope": "c43",
+        "refs": [
+          "compare-declared-terminal-states.mjs:214",
+          "declared-terminal-states.json",
+          "PR 255"
+        ]
+      },
+      {
+        "text": "Hold the r2 harness repo until the urls in decisions 0641 to 0643 are no longer wanted live — its evidence is archived by path, but the links stop resolving once it is deleted",
+        "scope": "c43",
+        "refs": [
+          "m15/evidence-archive/",
+          "0645"
+        ]
+      },
+      {
+        "text": "Expect G11 to block any unit that deletes test files — the pr-create tool renders every value as a bullet, so the enforcer never sees a bare test-removal line and the deletion is recorded as a tracked downgrade",
+        "scope": "c41",
+        "refs": [
+          "#230",
+          "M12b-3"
+        ]
+      },
+      {
+        "text": "Treat any hand-built reference inventory as a hypothesis — three in a row came back short because the search could not see raw-text pins, reader-side references or multi-line imports",
+        "scope": "c41",
+        "refs": [
+          "0585",
+          "A16",
+          "0603"
+        ]
+      },
+      {
+        "text": "Run the inertness mutation on every unit without exception — each one is fixing vacuity and can reproduce vacuity inside its own fix",
+        "scope": "c41",
+        "refs": [
+          "0587",
+          "boundary-gate.test.mjs"
+        ]
+      },
+      {
+        "text": "Keep all four ladder tags out of every pull request body — the enforcer matches them as plain text and short-circuits all eight re-run gates, so an honest disclosure suppresses the check that would have caught it",
+        "scope": "c41",
+        "refs": [
+          "0594",
+          "PR 215 at 129ms"
+        ]
+      },
+      {
+        "text": "Never let ship-with-downgrade excuse breaking the target branch — it covers a verification gap only, and no agent can waive a user-level invariant on another agent's word",
+        "scope": "c41",
+        "refs": [
+          "0596",
+          "M7"
+        ]
+      },
+      {
+        "text": "MITOSIS_LIVE_GH_TOKEN is still absent, so live-github-substrate has failed all ten runs on main — c31's runs-in-CI half stays unproven and the check cannot be made required",
+        "scope": "c41",
+        "refs": [
+          "c31",
+          "live-github-substrate",
+          "0636"
         ]
       }
     ],
@@ -1377,5 +1343,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T17:09:17.439Z"
+  "updated_at": "2026-08-20T17:10:23.892Z"
 }
