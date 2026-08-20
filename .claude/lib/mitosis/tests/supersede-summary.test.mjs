@@ -58,26 +58,24 @@ test('a run that did not complete is refused rather than read as an empty interd
 test('the composed summary states the file count and the line totals the parse measured', () => {
   const composed = composeSupersedeSummary(parseNumstat(ran(0, '12\t3\tsrc/a.ts\n0\t7\tsrc/b.ts\n')));
   assert.equal(composed.ok, true, JSON.stringify(composed));
-  assert.match(composed.summary, /2 files? changed/);
-  assert.match(composed.summary, /\+12/);
-  assert.match(composed.summary, /-10/);
+  assert.equal(composed.summary, 'This branch changes 2 files since the superseded head, adding 12 lines and removing 10 lines.');
 });
 
 test('an interdiff with no file at all still composes a summary that says so', () => {
   const composed = composeSupersedeSummary(parseNumstat(ran(0, '')));
   assert.equal(composed.ok, true, JSON.stringify(composed));
-  assert.match(composed.summary, /0 files changed/);
+  assert.equal(composed.summary, 'This branch changes 0 files since the superseded head, adding 0 lines and removing 0 lines.');
 });
 
-test('a summary that would exceed the pr-create cap is bounded by this composer, not by its caller', () => {
+test('a summary built from bare counts never approaches the pr-create cap, so the bound never engages', () => {
   const many = Array.from({ length: 400 }, (unused, index) => `1\t1\tsrc/a-very-long-directory-name/module-${index}/index.ts`).join('\n');
   const read = parseNumstat(ran(0, `${many}\n`));
   assert.equal(read.ok, true, JSON.stringify(read).slice(0, 200));
   const composed = composeSupersedeSummary(read);
   assert.equal(composed.ok, true, JSON.stringify(composed));
   assert.ok(composed.summary.length <= SUPERSEDE_SUMMARY_CAP, `the composed summary is ${composed.summary.length} characters, past the ${SUPERSEDE_SUMMARY_CAP} pr-create accepts`);
-  assert.equal(composed.bounded, true, 'a summary long enough to be cut does not report that it was');
-  assert.match(composed.summary, /400 files changed/);
+  assert.equal(composed.bounded, false, 'a summary built from bare counts is nowhere near the cap, so nothing here was cut');
+  assert.equal(composed.summary, 'This branch changes 400 files since the superseded head, adding 400 lines and removing 400 lines.');
 });
 
 test('no composed summary can carry a value pr-create reads as anything but one inert value', () => {

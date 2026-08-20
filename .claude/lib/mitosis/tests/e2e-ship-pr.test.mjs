@@ -5,7 +5,6 @@ import {
   BOUNDARY_VERIFIED,
   PR_TOOL_PATH,
   RECEIPTS_NOT_VERIFIED,
-  changedLinesValue,
   composePrCreateArgv,
   prTitleOf,
   readPrAction,
@@ -53,10 +52,8 @@ const BETA_FACTS = Object.freeze({
   base: 'main',
   head: 'mitosis/beta-integration',
   title: 'feat(beta): unit beta',
-  provenance: 'agent=mitosis-engine model=unspecified',
   why: 'fixture rationale for unit beta',
   what: 'unit beta',
-  depends: Object.freeze(['alpha']),
   boundaryClean: true,
 });
 
@@ -167,47 +164,37 @@ test('the pull-request tool is spawned as node, unshimmed, from the allowlist th
 });
 
 test('the composed argv carries every mandated field once, in the order the tool reads them', () => {
-  assert.deepEqual([...composePrCreateArgv(BETA_FACTS, 12).argv], [
+  assert.deepEqual([...composePrCreateArgv(BETA_FACTS).argv], [
     '--', PR_TOOL_PATH, 'pr-create',
     '--repo', 'acme/widgets',
     '--head', 'mitosis/beta-integration',
     '--base', 'main',
     '--title', 'feat(beta): unit beta',
-    '--origin', 'machine',
-    '--provenance', 'agent=mitosis-engine model=unspecified',
     '--why', 'fixture rationale for unit beta',
-    '--what', 'unit beta',
+    '--what', 'Unit beta.',
     '--verified', 'boundary gate - clean',
     '--not-verified', 'receipts enforcer - not run',
-    '--depends', 'alpha',
-    '--changed-lines', '12',
   ]);
+});
+
+test('the composed --what value is the msp title capitalised and full-stopped, and a colon inside it is never truncated', () => {
+  const withColon = composePrCreateArgv({ ...BETA_FACTS, what: 'Test the colon: it survives.' }).argv;
+  assert.equal(withColon[withColon.indexOf('--what') + 1], 'Test the colon: it survives.');
 });
 
 test('a gate that was not clean drops its verified line, and the receipts one still reaches a tool that refuses an empty verification section', () => {
-  const ungated = composePrCreateArgv({ ...BETA_FACTS, boundaryClean: false, depends: [] }, null).argv;
+  const ungated = composePrCreateArgv({ ...BETA_FACTS, boundaryClean: false }).argv;
   assert.deepEqual([...ungated].slice(ungated.indexOf('--what')), [
-    '--what', 'unit beta',
+    '--what', 'Unit beta.',
     '--not-verified', 'receipts enforcer - not run',
   ]);
 
-  const claimedGreen = composePrCreateArgv({ ...BETA_FACTS, green: true, depends: [] }, null).argv;
+  const claimedGreen = composePrCreateArgv({ ...BETA_FACTS, green: true }).argv;
   assert.deepEqual([...claimedGreen].slice(claimedGreen.indexOf('--what')), [
-    '--what', 'unit beta',
+    '--what', 'Unit beta.',
     '--verified', 'boundary gate - clean',
     '--not-verified', 'receipts enforcer - not run',
   ], 'nothing measures a unit verdict, so a fact asserting one is ignored rather than rendered as a verified line');
-});
-
-test('the changed-line count is a whole number the publish measured or nothing at all, never inferred', () => {
-  assert.equal(changedLinesValue(48), '48');
-  assert.equal(changedLinesValue(0), '0');
-  assert.equal(changedLinesValue(null), null);
-  assert.equal(changedLinesValue(undefined), null);
-  assert.equal(changedLinesValue('12'), null, 'a count that arrived as text was never measured as a number, and is left out rather than passed through');
-  assert.equal(changedLinesValue(-1), null);
-  assert.equal(changedLinesValue(1.5), null);
-  assert.equal(changedLinesValue(10000000), null, 'a total the tool would reject as more than seven digits is left out rather than sent to a usage rejection');
 });
 
 const NO_CI_WATCH = Object.freeze({ outcomes: EMPTY_CI, green: EMPTY_CI, unwatched: EMPTY_CI, exhausted: EMPTY_CI });
@@ -292,21 +279,6 @@ function shippingPorts(extra = {}) {
     },
   };
 }
-
-test('the changed-line count the publish measured becomes the flag, and a count it left unmeasured removes it', async () => {
-  const measured = shippingPorts({ publishHead: (request) => publishedOutcome(request, { changedLines: 8 }) });
-  await shipIntegrated(shippingConfig(), measured.ports);
-  assert.equal(measured.spawned[0][measured.spawned[0].indexOf('--changed-lines') + 1], '8');
-
-  const unmeasured = shippingPorts();
-  await shipIntegrated(shippingConfig(), unmeasured.ports);
-  assert.equal(unmeasured.spawned[0].includes('--changed-lines'), false);
-
-  const oversized = shippingPorts({ publishHead: (request) => publishedOutcome(request, { changedLines: 99999999 }) });
-  const plan = await shipIntegrated(shippingConfig(), oversized.ports);
-  assert.equal(oversized.spawned[0].includes('--changed-lines'), false, 'a total the tool would reject is left out rather than sent to a usage rejection');
-  assert.deepEqual(plan.opened.map((entry) => entry.unitId), ['beta']);
-});
 
 test('a head the publish did not leave standing on the remote reaches no pull-request tool at all', async () => {
   const parked = shippingPorts({
@@ -557,7 +529,7 @@ test('a title the msp cannot compose is refused field by field, never mangled in
   }
   assert.equal(prTitleOf(BETA_MSP), 'feat(beta): unit beta');
   assert.equal(prTitleOf({ ...BETA_MSP, changeType: 'sneak' }), null, 'a type outside the conventional-commits list would be rejected by the tool, so it is refused here');
-  assert.equal(composePrCreateArgv({ ...BETA_FACTS, title: null }, null).ok, false, 'one unusable field is enough to refuse the whole argv');
+  assert.equal(composePrCreateArgv({ ...BETA_FACTS, title: null }).ok, false, 'one unusable field is enough to refuse the whole argv');
 });
 
 function refusal(config, ports) {
@@ -597,7 +569,7 @@ test('a ship port that is not a function is refused before any pull request is o
 });
 
 test('a msp whose mandated pull-request fields cannot be read composes no argv rather than a placeholder', () => {
-  const composed = composePrCreateArgv({ ...BETA_FACTS, base: null, title: null }, null);
+  const composed = composePrCreateArgv({ ...BETA_FACTS, base: null, title: null });
   assert.equal(composed.ok, false);
   assert.equal(composed.argv, null);
   assert.deepEqual([...composed.unusable], [

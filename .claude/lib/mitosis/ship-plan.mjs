@@ -13,7 +13,7 @@ import { PR_TOOL_DIRECTORY, buildNodeCommand } from './node-commands.mjs';
 import { LEGAL_STAGES, park } from './parking.mjs';
 import { branchToMspId, reconcileShippedSet } from './recovery.mjs';
 import { SHIP_PUBLISH_ACTIONS } from './ship-publish.mjs';
-import { inertValue, PR_CHANGED_LINES_PATTERN, PR_PROVENANCE_PATTERN, PR_TITLE_PATTERN, PR_VALUE_CAP } from '../git/pr-format.mjs';
+import { inertValue, PR_TITLE_PATTERN, PR_VALUE_CAP } from '../git/pr-format.mjs';
 
 const MODULE = 'ship-plan';
 
@@ -23,9 +23,6 @@ export const SHIPPED = 'shipped';
 export const PARKED = 'parked';
 export const SHIP_STATES = Object.freeze([SHIPPED, PARKED]);
 export const SHIP_PARK_STAGE = 'ship';
-
-export const PR_AGENT_LABEL = 'mitosis-engine';
-export const PR_MODEL_UNSPECIFIED = 'unspecified';
 
 export const RECEIPTS_NOT_VERIFIED = 'receipts enforcer - not run';
 export const BOUNDARY_VERIFIED = 'boundary gate - clean';
@@ -136,11 +133,6 @@ function outcome(entry, state, action, prUrl, diagnosis, msp = null, published =
   });
 }
 
-export function changedLinesValue(measured) {
-  if (!Number.isInteger(measured) || measured < 0) return null;
-  return PR_CHANGED_LINES_PATTERN.test(String(measured)) ? String(measured) : null;
-}
-
 export function headStands(published) {
   return isRecord(published)
     && HEAD_STANDS_ACTIONS.includes(published.action)
@@ -176,12 +168,6 @@ export function prTitleOf(msp) {
   return PR_TITLE_PATTERN.test(composed) ? composed : null;
 }
 
-export function provenanceOf(declared) {
-  const named = nonEmptyText(declared);
-  const composed = `agent=${PR_AGENT_LABEL} model=${named === null ? PR_MODEL_UNSPECIFIED : named}`;
-  return PR_PROVENANCE_PATTERN.test(composed) ? composed : null;
-}
-
 function verifiedLines(facts) {
   return facts.boundaryClean === true ? [BOUNDARY_VERIFIED] : [];
 }
@@ -192,34 +178,35 @@ export function unusableFields(facts) {
   if (nonEmptyText(facts.base) === null) unusable.push('--base from the manifest base branch');
   if (nonEmptyText(facts.head) === null) unusable.push('--head from the msp integration branch');
   if (nonEmptyText(facts.title) === null) unusable.push('--title from the msp change type, scope and title');
-  if (nonEmptyText(facts.provenance) === null) unusable.push('--provenance from the dispatch model');
   if (inertValue(facts.why, PR_VALUE_CAP) === null) unusable.push('--why from the msp rationale');
   if (inertValue(facts.what, PR_VALUE_CAP) === null) unusable.push('--what from the msp title');
   return unusable;
 }
 
-function dependsIds(facts) {
-  return Array.isArray(facts.depends) ? facts.depends.filter((id) => nonEmptyText(id) !== null) : [];
+function whatSentenceFrom(value) {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new TypeError(`${MODULE}: the pull-request what value must be a non-empty string, received ${describe(value)}`);
+  }
+  const capitalised = value.charAt(0).toUpperCase() + value.slice(1);
+  const last = capitalised.charAt(capitalised.length - 1);
+  return '.?!'.includes(last) ? capitalised : `${capitalised}.`;
 }
 
-function prCreateValues(facts, changedLines) {
+function prCreateValues(facts) {
   return {
     gitLibDir: PR_TOOL_DIRECTORY,
     repoSlug: facts.repo,
     integrationBranch: facts.head,
     baseBranch: facts.base,
     title: facts.title,
-    provenance: facts.provenance,
     why: facts.why,
-    what: facts.what,
+    what: whatSentenceFrom(facts.what),
     verified: verifiedLines(facts)[0] ?? null,
     notVerified: RECEIPTS_NOT_VERIFIED,
-    dependsIds: dependsIds(facts),
-    changedLines: changedLinesValue(changedLines),
   };
 }
 
-export function composePrCreateArgv(facts, changedLines) {
+export function composePrCreateArgv(facts) {
   if (!isRecord(facts)) {
     throw new TypeError(`${MODULE}: the pull-request facts must be a non-null, non-array object, received ${describe(facts)}`);
   }
@@ -231,7 +218,7 @@ export function composePrCreateArgv(facts, changedLines) {
     return Object.freeze({
       ok: true,
       unusable: EMPTY,
-      argv: Object.freeze([...buildNodeCommand(SHIP_KIND, PR_OPEN_STEP, prCreateValues(facts, changedLines))]),
+      argv: Object.freeze([...buildNodeCommand(SHIP_KIND, PR_OPEN_STEP, prCreateValues(facts))]),
       refusal: null,
     });
   } catch (error) {
@@ -256,10 +243,8 @@ function factsOf(entry, msp, settings, published) {
     base: nonEmptyText(published.base),
     head: nonEmptyText(published.head),
     title: prTitleOf(msp),
-    provenance: provenanceOf(settings.modelById.get(entry.unitId)),
     why: msp.rationale,
     what: msp.title,
-    depends: Array.isArray(msp.dependsOn) ? msp.dependsOn : EMPTY,
     boundaryClean: entry.state === INTEGRATED,
   });
 }
@@ -392,7 +377,7 @@ async function shipUnit(entry, settings, mergedIds, ports) {
   if (!headStands(published)) {
     return outcome(entry, PARKED, null, null, `no pull request was opened, because the head this unit would be opened on does not stand on the remote: ${nonEmptyText(published.detail) ?? 'the publish stage stated no reason'}`, msp, published);
   }
-  const composed = composePrCreateArgv(factsOf(entry, msp, settings, published), published.changedLines);
+  const composed = composePrCreateArgv(factsOf(entry, msp, settings, published));
   if (!composed.ok) {
     return outcome(entry, PARKED, null, null, refusedComposition(composed), msp, published);
   }

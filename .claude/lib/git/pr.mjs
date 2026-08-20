@@ -8,18 +8,16 @@ import { validateRefToken } from '../mitosis/checkpoint.mjs';
 import { validateRepoIdentity, parsePrRef } from '../mitosis/merge-watch.mjs';
 import {
   inertValue,
-  carriesToolTrailer,
+  carriesComposedSkeleton,
   renderPrCreateBody,
+  isSentenceShaped,
+  carriesReceiptLineToken,
   PR_TITLE_PATTERN,
   PR_TITLE_TYPES,
   PR_TITLE_CAP,
   PR_VALUE_CAP,
-  PR_ORIGINS,
-  PR_PROVENANCE_PATTERN,
-  PR_CHANGED_LINES_PATTERN,
   PR_MULTI_LIMITS,
   SUPERSEDES_PREFIX,
-  DEPENDS_PREFIX,
 } from './pr-format.mjs';
 
 export { inertValue, renderPrCreateBody, PR_TITLE_PATTERN, PR_TITLE_TYPES };
@@ -36,8 +34,8 @@ const GH_BINARY = 'gh';
 
 export const FLAG_SPEC = Object.freeze({
   'pr-create': Object.freeze({
-    required: Object.freeze(['--repo', '--head', '--base', '--title', '--origin', '--why', '--what']),
-    single: Object.freeze(['--repo', '--head', '--base', '--title', '--origin', '--provenance', '--risk', '--supersedes', '--depends', '--changed-lines']),
+    required: Object.freeze(['--repo', '--head', '--base', '--title', '--why', '--what']),
+    single: Object.freeze(['--repo', '--head', '--base', '--title', '--risk', '--supersedes']),
     multiple: Object.freeze(['--why', '--what', '--verified', '--not-verified', '--link']),
   }),
   'pr-close': Object.freeze({
@@ -61,9 +59,6 @@ const PR_NARRATIVE_FIELDS = Object.freeze([
 ]);
 
 const PR_NUMBER_PATTERN = /^[1-9][0-9]{0,9}$/;
-const DEPENDS_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
-const DEPENDS_CAP = 64;
-const DEPENDS_ID_CAP = 64;
 
 function rejection(error) {
   return Object.freeze({ ok: false, error, verb: null, opts: null });
@@ -73,12 +68,21 @@ function valueRejection(verb, flag, cap) {
   return `mitosis-git ${verb}: a ${flag} value is empty, over the ${cap}-character cap, or carries something a pull-request document may not carry: a leading field-indirection sigil, a non-ascii character, an html tag opener, a leading markdown block opener, or a setext underline`;
 }
 
-function parseDependsList(value) {
-  const parts = String(value).split(',').map((part) => part.trim());
-  if (parts.length === 0 || parts.length > DEPENDS_CAP) return null;
-  if (!parts.every((part) => part.length <= DEPENDS_ID_CAP && DEPENDS_ID_PATTERN.test(part))) return null;
-  if (inertValue(parts.join(', '), PR_VALUE_CAP - DEPENDS_PREFIX.length) === null) return null;
-  return parts;
+function sentenceRejection(flag, value) {
+  return `mitosis-git pr-create: a ${flag} value must begin with an uppercase letter and end with . ? or !, so the body reads as sentences; received ${JSON.stringify(value)}`;
+}
+
+function sentenceCheck(flag, value) {
+  if (flag === '--what') {
+    if (carriesReceiptLineToken(value)) {
+      return "mitosis-git pr-create: a --what value may not begin with a receipts line token; a bulleted line cannot satisfy the enforcer's line-start grammar. Pass it as --why instead.";
+    }
+    if (!isSentenceShaped(value)) return sentenceRejection(flag, value);
+    return null;
+  }
+  if (carriesReceiptLineToken(value)) return null;
+  if (!isSentenceShaped(value)) return sentenceRejection(flag, value);
+  return null;
 }
 
 function canonicalPrUrl(candidate) {
@@ -138,6 +142,10 @@ function collectInertList(multiple, flag) {
   for (const raw of raws) {
     const value = inertValue(raw, PR_VALUE_CAP);
     if (value === null) return { error: valueRejection('pr-create', flag, PR_VALUE_CAP) };
+    if (flag === '--why' || flag === '--what') {
+      const sentenceError = sentenceCheck(flag, value);
+      if (sentenceError !== null) return { error: sentenceError };
+    }
     values.push(value);
   }
   return { values: Object.freeze(values) };
@@ -155,11 +163,7 @@ function readPrCreateTarget(single) {
   if (!PR_TITLE_PATTERN.test(title)) {
     return { error: `mitosis-git pr-create: --title ${JSON.stringify(title)} is not a conventional-commits title of the form <type>(<scope>): <lowercase imperative summary>; the types are ${PR_TITLE_TYPES.join(' ')}, the scope is at most 16 lowercase characters, and the whole title is at most ${PR_TITLE_CAP} characters with no trailing period` };
   }
-  const origin = single.get('--origin');
-  if (!PR_ORIGINS.includes(origin)) {
-    return { error: `mitosis-git pr-create: --origin ${JSON.stringify(origin)} is not one of ${PR_ORIGINS.join(' ')}` };
-  }
-  return { target: Object.freeze({ repo, head, base, title, origin }) };
+  return { target: Object.freeze({ repo, head, base, title }) };
 }
 
 function readPrCreateNarrative(multiple) {
@@ -175,26 +179,15 @@ function readPrCreateNarrative(multiple) {
   return { narrative: Object.freeze(narrative) };
 }
 
-function readPrCreateAttribution(single, origin) {
-  let provenance = null;
-  if (single.has('--provenance')) {
-    if (origin === 'human') {
-      return { error: 'mitosis-git pr-create: --provenance belongs only to --origin machine; a human-directed pull request asserts no agent and no model' };
-    }
-    provenance = inertValue(single.get('--provenance'), PR_VALUE_CAP);
-    if (provenance === null) return { error: valueRejection('pr-create', '--provenance', PR_VALUE_CAP) };
-    if (!PR_PROVENANCE_PATTERN.test(provenance)) {
-      return { error: `mitosis-git pr-create: --provenance ${JSON.stringify(provenance)} is not of the form agent=<label> model=<model>` };
-    }
-  } else if (origin === 'machine') {
-    return { error: 'mitosis-git pr-create: --origin machine requires --provenance agent=<label> model=<model>; write model=unspecified when the calling site sets no model' };
-  }
+function readPrCreateRisk(single) {
   let risk = null;
   if (single.has('--risk')) {
     risk = inertValue(single.get('--risk'), PR_VALUE_CAP);
     if (risk === null) return { error: valueRejection('pr-create', '--risk', PR_VALUE_CAP) };
+    const sentenceError = sentenceCheck('--risk', risk);
+    if (sentenceError !== null) return { error: sentenceError };
   }
-  return { attribution: Object.freeze({ provenance, risk }) };
+  return { risk };
 }
 
 function readPrCreateReferences(single) {
@@ -204,21 +197,7 @@ function readPrCreateReferences(single) {
     supersedes = canonicalPrUrl(candidate);
     if (supersedes === null) return { error: `mitosis-git pr-create: --supersedes ${JSON.stringify(candidate)} is not a github pull-request url that composes an inert link line within the ${PR_VALUE_CAP}-character cap` };
   }
-  let depends = [];
-  if (single.has('--depends')) {
-    const ids = parseDependsList(single.get('--depends'));
-    if (ids === null) return { error: `mitosis-git pr-create: --depends ${JSON.stringify(single.get('--depends'))} is not a comma-separated list of MSP ids composing a link line within the ${PR_VALUE_CAP}-character value cap` };
-    depends = ids;
-  }
-  let changedLines = null;
-  if (single.has('--changed-lines')) {
-    const raw = single.get('--changed-lines');
-    if (!PR_CHANGED_LINES_PATTERN.test(raw)) {
-      return { error: `mitosis-git pr-create: --changed-lines ${JSON.stringify(raw)} is not a plain integer of at most seven digits; read it from git diff --shortstat or leave the flag out entirely, never estimate it` };
-    }
-    changedLines = Number(raw);
-  }
-  return { references: Object.freeze({ supersedes, depends: Object.freeze(depends), changedLines }) };
+  return { references: Object.freeze({ supersedes }) };
 }
 
 function parsePrCreate(single, multiple) {
@@ -226,15 +205,15 @@ function parsePrCreate(single, multiple) {
   if (target.error) return rejection(target.error);
   const narrative = readPrCreateNarrative(multiple);
   if (narrative.error) return rejection(narrative.error);
-  const attribution = readPrCreateAttribution(single, target.target.origin);
-  if (attribution.error) return rejection(attribution.error);
+  const risk = readPrCreateRisk(single);
+  if (risk.error) return rejection(risk.error);
   const references = readPrCreateReferences(single);
   if (references.error) return rejection(references.error);
   return Object.freeze({
     ok: true,
     error: null,
     verb: 'pr-create',
-    opts: Object.freeze({ ...target.target, ...narrative.narrative, ...attribution.attribution, ...references.references }),
+    opts: Object.freeze({ ...target.target, ...narrative.narrative, risk: risk.risk, ...references.references }),
   });
 }
 
@@ -376,7 +355,7 @@ function readPrEntry(entry, repo) {
   if (ref.ownerRepo.toLowerCase() !== repo.toLowerCase()) return null;
   const number = Number.isInteger(entry.number) ? entry.number : Number(ref.prNumber);
   if (!Number.isInteger(number)) return null;
-  return Object.freeze({ url: entry.url.trim(), number, toolComposed: carriesToolTrailer(entry.body) });
+  return Object.freeze({ url: entry.url.trim(), number, composedHere: carriesComposedSkeleton(entry.body) });
 }
 
 function readPrUrl(text, repo) {
@@ -423,8 +402,8 @@ function runPrCreate(ghBin, opts, out) {
       out.err('mitosis-git pr-create: an open pull request already exists on this head but its url could not be read; refusing to open a second one.\n');
       return MITOSIS_GIT_OBSERVE_EXIT;
     }
-    if (!existing.toolComposed) {
-      out.err(`mitosis-git pr-create: the open pull request already on this head (${existing.url}) does not end with a pr-create trailer, so this tool composed neither its title nor its body; reporting it as reused-unverified rather than asserting the mandated format. A human closes it and reopens it through this tool, or confirms it as it stands.\n`);
+    if (!existing.composedHere) {
+      out.err(`mitosis-git pr-create: the open pull request already on this head (${existing.url}) does not carry the composed section skeleton, so this tool composed neither its title nor its body; reporting it as reused-unverified rather than asserting the mandated format. A human closes it and reopens it through this tool, or confirms it as it stands.\n`);
       out.log(`${JSON.stringify({ action: 'reused-unverified', url: existing.url, number: existing.number })}\n`);
       return 0;
     }

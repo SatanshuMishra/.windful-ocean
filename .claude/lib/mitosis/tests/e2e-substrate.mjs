@@ -572,7 +572,7 @@ function prepFacts(sandbox, unit) {
 }
 
 export function rationaleOf(unitId) {
-  return `fixture rationale for unit ${unitId}`;
+  return `Fixture rationale for unit ${unitId}.`;
 }
 
 function manifestMsp(unit) {

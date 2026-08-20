@@ -556,15 +556,3 @@ test('a unit whose publish reports it already merged, and whose built sha the tr
   assert.deepEqual(plan.outcomes.map((entry) => [entry.unitId, entry.state, entry.prUrl]), [['alpha', 'shipped', url]]);
   assert.deepEqual(shipSummary(plan).mergeOrder, [], 'a unit that is already merged has nothing left to merge');
 });
-
-test('the changed-line count a pull request carries is the one the publish measured against the resolved base', async (t) => {
-  const fixture = fixtureRepo(t);
-  const graph = threeUnitGraph(fixture);
-  const wired = recorder(fixture);
-
-  await shipIntegrated(shipConfig(fixture, graph.msps, graph.integrated), wired.ports);
-
-  for (const argv of wired.nodeArgvs) {
-    assert.equal(flagValue(argv, '--changed-lines'), '1', `${flagValue(argv, '--head')} carried ${flagValue(argv, '--changed-lines')} changed lines against ${flagValue(argv, '--base')}`);
-  }
-});
