@@ -304,14 +304,14 @@
     {
       "id": "c44",
       "text": "The four blockers to a trustworthy live run are closed, and the harness is rebuilt into cost-ordered lanes whose cheapest crosses the whole pipeline in seconds at no cost.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
     {
       "id": "c41",
       "text": "Every mitosis test file is classified against the two-part bar with a stated reason, deleted only where both halves fail, and whatever survives is filed as housekeeping rather than correctness.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -329,9 +329,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the stacked-retarget fix on main, then run c41's test-suite cleanup. The engine's live behaviour is proven end to end; only that fix and the blind-test cleanup remain.",
-    "next_step": "MERGE PULL REQUEST 255 first - it is open, all twelve checks green including receipts at 1m49s, and human-gated. Then delete the two spent harness repos with the two commands in this session's log. Then start c41's cleanup batches. A fresh e2e run needs no setup at all: the substrate mitosis-live-pr-harness-r3 is pristine, run-live.sh points at it and needs no environment variable, so the trigger is one bash command.",
-    "last_session": "2026-08-20: the c28 live run passed 3 of 3 with failures=0. The merge half exposed a new engine defect at ship-plan.mjs:623, fixed in pull request 255 with all checks green. Substrate r3 staged pristine; evidence and the seed archived.",
+    "active_goal": "Prove mitosis works live: a spec-to-trunk run whose every opened pull request is green, driven through cost-ordered lanes rather than one long blind wait.",
+    "next_step": "START WITH THE SMOKE LANE: bash full-e2e.sh --lane smoke costs nothing and takes seconds, and confirms the two merged dispatch fixes behave. No billed lane can run until the provider spend limit resets on 2026-08-22 21:00 UTC unless the user raises it; then run --lane single before --lane full. Two design calls are the user's and both change the next run: whether dependsOn blocks at start or only orders the merge, and whether planning should run concurrently rather than eight minutes per unit.",
+    "last_session": "2026-08-20: the merge half completed without losing a stacked child, all four blockers closed, and the harness was rebuilt into three lanes after the user rejected an 80-minute worst case. Two live attempts went red; the second hit a spend limit, exposing two dispatch defects now merged.",
     "open_risks": [
       {
         "text": "Never let the engine merge a pull request — merge is refused at four independent layers by design, so c28 means serialized ship order plus a blocked-pending-approval handoff",
@@ -540,32 +540,6 @@
         ]
       },
       {
-        "text": "Retarget a stacked child explicitly before deleting its parent branch — GitHub's documented auto-retarget did not fire in either measured case, and closed the child instead",
-        "scope": "c43",
-        "refs": [
-          "0643",
-          "c28-rerun-RUNBOOK.md step 7",
-          "r2 pull requests 3 and 6"
-        ]
-      },
-      {
-        "text": "Re-pinning the engine past b70536fc breaks the harness merge-order shape check — the declared key set is compared exactly and the fix adds a key to every entry",
-        "scope": "c43",
-        "refs": [
-          "compare-declared-terminal-states.mjs:214",
-          "declared-terminal-states.json",
-          "PR 255"
-        ]
-      },
-      {
-        "text": "Hold the r2 harness repo until the urls in decisions 0641 to 0643 are no longer wanted live — its evidence is archived by path, but the links stop resolving once it is deleted",
-        "scope": "c43",
-        "refs": [
-          "m15/evidence-archive/",
-          "0645"
-        ]
-      },
-      {
         "text": "Expect G11 to block any unit that deletes test files — the pr-create tool renders every value as a bullet, so the enforcer never sees a bare test-removal line and the deletion is recorded as a tracked downgrade",
         "scope": "c41",
         "refs": [
@@ -613,6 +587,39 @@
           "c31",
           "live-github-substrate",
           "0636"
+        ]
+      },
+      {
+        "text": "Run the smoke lane before any billed lane — it crosses the whole pipeline in seconds for nothing and its red is definitive, while its green says nothing about live behaviour",
+        "scope": "c45",
+        "refs": [
+          "full-e2e.sh --lane smoke",
+          "0648"
+        ]
+      },
+      {
+        "text": "Expect every dispatched child to fail with HTTP 429 until the provider spend limit resets on 2026-08-22 21:00 UTC — the account crossed its monthly cap mid-run, so any billed lane reproduces that failure exactly",
+        "scope": "c45",
+        "refs": [
+          "claude.ai/settings/usage",
+          "resetsAt 1787432400"
+        ]
+      },
+      {
+        "text": "Decide whether dependsOn blocks a unit from starting or only orders its merge, before the next live run — the decomposer linked two units that merely share a file, so one rejected child took out two units",
+        "scope": "c45",
+        "refs": [
+          "journal genesis dependsOn",
+          "add-pad-to-strings"
+        ]
+      },
+      {
+        "text": "Expect roughly eight minutes of sequential planning per unit before the journal exists — prep runs entirely before the first journal byte, so a healthy four-unit run looks dead for half an hour",
+        "scope": "c45",
+        "refs": [
+          "unit-planning.mjs:301",
+          "engine.mjs:288-291",
+          "phase-driver.mjs:311-320"
         ]
       }
     ],
@@ -1382,5 +1389,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T22:16:09.889Z"
+  "updated_at": "2026-08-20T22:16:40.970Z"
 }
