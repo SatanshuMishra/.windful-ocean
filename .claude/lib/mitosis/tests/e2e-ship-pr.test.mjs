@@ -395,6 +395,7 @@ test('the ship summary names the units, their actions and the pull requests they
       head: 'mitosis/beta-integration',
       base: 'main',
       deleteAfterMerge: false,
+      retargetBeforeDelete: [],
     }],
     retired: [],
     awaiting: [],
