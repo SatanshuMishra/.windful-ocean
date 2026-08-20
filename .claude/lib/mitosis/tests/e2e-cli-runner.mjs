@@ -6,6 +6,7 @@ import { EXEC_COMPLETED, run as realRun } from '../exec-run.mjs';
 import { GH_COMMAND_BINARY } from '../gh-commands.mjs';
 import { PR_TOOL_PATH } from '../node-commands.mjs';
 import { FAKE_ENV_KEYS } from './e2e-fake-bin.mjs';
+import { sandboxedDispatch } from './e2e-sandbox-dispatch.mjs';
 
 const NODE_BINARY = 'node';
 const PR_CREATE_VERB = 'pr-create';
@@ -158,7 +159,7 @@ async function main() {
     err: (text) => process.stderr.write(text),
     readSpec: (path) => JSON.parse(readFileSync(path, 'utf8')),
   });
-  const deps = Object.freeze({ run: scriptedRun });
+  const deps = Object.freeze({ run: scriptedRun, dispatch: sandboxedDispatch().dispatch });
   process.exitCode = await runCli(process.argv.slice(2), io, (config) => realPorts(config, deps), deps);
 }
 
