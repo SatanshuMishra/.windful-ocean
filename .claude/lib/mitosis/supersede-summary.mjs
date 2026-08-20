@@ -85,10 +85,6 @@ function plural(count, noun) {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
-function nameable(path) {
-  return inertValue(path, SUPERSEDE_SUMMARY_CAP) === path;
-}
-
 function refusedSummary(error) {
   return Object.freeze({ ok: false, summary: null, bounded: false, error: `${MODULE}: ${error}` });
 }
@@ -97,23 +93,13 @@ export function composeSupersedeSummary(read) {
   if (read === null || typeof read !== 'object' || read.ok !== true) {
     return refusedSummary('no interdiff was read, so this stage composes no summary rather than a summary of an interdiff nobody measured');
   }
-  const binary = read.binaryCount > 0 ? `, ${plural(read.binaryCount, 'binary file')}` : '';
-  const paths = read.files.map((file) => file.path);
-  const named = paths.filter((path) => nameable(path));
-  const unnameable = paths.length - named.length;
-  const omitted = unnameable === 0 ? '' : `, ${plural(unnameable, 'path')} not nameable in a pull-request body`;
-  const listed = named.length === 0 ? '' : `: ${named.join(', ')}`;
-  const head = `${plural(read.fileCount, 'file')} changed, +${read.added}/-${read.deleted} since the superseded head${binary}${omitted}`;
-  const { summary, bounded } = bound(`${head}${listed}`.split('\n').join(' '));
+  const head = `This branch changes ${plural(read.fileCount, 'file')} since the superseded head, adding ${plural(read.added, 'line')} and removing ${plural(read.deleted, 'line')}.`;
+  const { summary, bounded } = bound(head);
   const inert = inertValue(summary, SUPERSEDE_SUMMARY_CAP);
   if (inert === summary) {
-    return Object.freeze({ ok: true, summary, bounded, unnameablePathCount: unnameable, composedLength: `${head}${listed}`.length });
+    return Object.freeze({ ok: true, summary, bounded, composedLength: head.length });
   }
-  const aggregate = inertValue(head, SUPERSEDE_SUMMARY_CAP);
-  if (aggregate !== head) {
-    return refusedSummary(`the composed summary ${JSON.stringify(head)} is not a value the pull-request tool would carry unchanged, and this stage publishes the branch before it opens the pull request, so it refuses here rather than composing a value that invocation rejects`);
-  }
-  return Object.freeze({ ok: true, summary: head, bounded: true, unnameablePathCount: unnameable, composedLength: `${head}${listed}`.length });
+  return refusedSummary(`the composed summary ${JSON.stringify(head)} is not a value the pull-request tool would carry unchanged, and this stage publishes the branch before it opens the pull request, so it refuses here rather than composing a value that invocation rejects`);
 }
 
 function ran(status, stdout) {
@@ -135,21 +121,22 @@ export function supersedeSummaryProbes() {
   return Object.freeze([
     Object.freeze({
       name: 'an ordinary interdiff composes the counts it measured',
-      ok: ordinary.ok === true && ordinary.summary.includes('2 files changed') && ordinary.summary.includes('+12/-10'),
+      ok: ordinary.ok === true
+        && ordinary.summary === 'This branch changes 2 files since the superseded head, adding 12 lines and removing 10 lines.',
       detail: ordinary.ok === true ? ordinary.summary : ordinary.error,
     }),
     Object.freeze({
       name: 'an empty interdiff composes a summary that says so',
-      ok: empty.ok === true && empty.summary.includes('0 files changed'),
+      ok: empty.ok === true
+        && empty.summary === 'This branch changes 0 files since the superseded head, adding 0 lines and removing 0 lines.',
       detail: empty.ok === true ? empty.summary : empty.error,
     }),
     Object.freeze({
-      name: `a summary past the pr-create value cap is cut here to ${SUPERSEDE_SUMMARY_CAP}`,
+      name: `a summary past the pr-create value cap would be cut here to ${SUPERSEDE_SUMMARY_CAP}, and one built from bare counts never reaches it`,
       ok: long.ok === true
         && long.summary.length <= SUPERSEDE_SUMMARY_CAP
-        && long.summary.startsWith('400 files changed')
-        && long.bounded === true
-        && long.summary.includes(': src/')
+        && long.summary.startsWith('This branch changes 400 files')
+        && long.bounded === false
         && inertValue(long.summary, SUPERSEDE_SUMMARY_CAP) === long.summary,
       detail: long.ok === true ? `${long.summary.length} character(s) from a composition of ${long.composedLength}` : long.error,
     }),
@@ -159,11 +146,11 @@ export function supersedeSummaryProbes() {
       detail: refusedRead.ok === false ? refusedRead.error : 'a line this reader cannot split was summarised anyway',
     }),
     Object.freeze({
-      name: 'a path the pull-request tool cannot carry is counted rather than named, and the summary stays a value that tool accepts',
+      name: 'a path this reader cannot carry inertly is counted rather than named, and the summary carries no path at all',
       ok: nonAscii.ok === true
-        && nonAscii.unnameablePathCount === 1
         && inertValue(nonAscii.summary, SUPERSEDE_SUMMARY_CAP) === nonAscii.summary
-        && !nonAscii.summary.includes('src/caf'),
+        && !nonAscii.summary.includes('src/caf')
+        && !nonAscii.summary.includes('src/a.ts'),
       detail: nonAscii.ok === true ? nonAscii.summary : nonAscii.error,
     }),
   ]);
