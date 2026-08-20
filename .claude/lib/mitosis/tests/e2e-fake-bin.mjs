@@ -19,6 +19,8 @@ export const FAKE_ENV_KEYS = Object.freeze({
   ghPlan: 'MITOSIS_FAKE_GH_PLAN',
 });
 
+export const FAKE_CLAUDE_CONTENT_MARKER = FAKE_ENV_KEYS.claudeRecord;
+
 export const CLAUDE_BEHAVIOURS = Object.freeze({
   succeed: 'succeed',
   succeedWithoutStructuredOutput: 'succeed-without-structured-output',
