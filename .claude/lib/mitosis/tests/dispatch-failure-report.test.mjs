@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { pack } from './file-scope-fixtures.mjs';
 import { realPorts, runCli } from '../cli.mjs';
 import { NeedsHuman } from '../boundary.mjs';
+import { refusingDispatch, validatingDispatch } from './dispatch-fixtures.mjs';
 
 const EXIT_INCOMPLETE = 3;
 
@@ -52,6 +53,7 @@ function inertDeps() {
     appendJournalLine: async () => {},
     execAllowed: () => '',
     run: () => ({ state: 'OPEN' }),
+    dispatch: validatingDispatch().dispatch,
   };
 }
 
@@ -67,7 +69,7 @@ function parkingPorts() {
 
 async function runWithRealPorts(root, spec) {
   const io = stubIo(spec);
-  const code = await runCli(fullArgv(root), io, (config) => realPorts(config, inertDeps()));
+  const code = await runCli(fullArgv(root), io, (config) => realPorts(config, inertDeps()), { dispatch: refusingDispatch().dispatch });
   return { code, stderr: io.errOut.join(''), stdout: io.out.join('') };
 }
 
@@ -91,7 +93,7 @@ test('UNDISPATCHABLE UNIT: a request that is not an object reports its cause on 
 
 test('HUMAN ESCALATION STAYS QUIET: a unit that parks for a human writes nothing to stderr', async (t) => {
   const io = stubIo(specWithUnit({ request: { prompt: 'do alpha' } }));
-  const code = await runCli(fullArgv(tempRoot(t)), io, () => parkingPorts());
+  const code = await runCli(fullArgv(tempRoot(t)), io, () => parkingPorts(), { dispatch: refusingDispatch().dispatch });
   assert.equal(io.errOut.join(''), '');
   assert.match(io.out.join(''), /"state": "parked"/);
   assert.equal(code, EXIT_INCOMPLETE);

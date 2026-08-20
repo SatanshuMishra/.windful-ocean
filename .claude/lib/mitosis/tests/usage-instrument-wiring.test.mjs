@@ -7,6 +7,7 @@ import { Built, Done } from '../boundary.mjs';
 import { realPorts, runCli } from '../cli.mjs';
 import { computeRunKey } from '../run-store.mjs';
 import { pack } from './file-scope-fixtures.mjs';
+import { refusingDispatch } from './dispatch-fixtures.mjs';
 
 const AT = '2026-08-16T09:30:00Z';
 
@@ -138,7 +139,7 @@ test('a completed engine run leaves one usage line per dispatch at the run store
     ['do beta', () => ({ ok: true, outcome: 'success', structured: { sha: 'b'.repeat(40) }, envelope: envelopeOf(BETA_USAGE, 0.0091) })],
   ]));
 
-  const code = await runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)));
+  const code = await runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)), { dispatch: refusingDispatch().dispatch });
   assert.equal(code, 3, `this spec declares no base branch, so both units park at Integrate and no pull request is opened: ${io.errOut.join('')}`);
 
   const lines = readUsage(usagePath(root, spec));
@@ -169,7 +170,7 @@ test('a redispatched unit contributes one usage line per dispatch attempt, so th
     return unit.id === 'alpha' && seen === 1 ? Built(value) : Done(value);
   };
 
-  const code = await runCli(argvFor(root), io, () => stubPorts(runUnit));
+  const code = await runCli(argvFor(root), io, () => stubPorts(runUnit), { dispatch: refusingDispatch().dispatch });
   assert.equal(code, 3, `this spec declares no base branch, so both units park at Integrate and no pull request is opened: ${io.errOut.join('')}`);
 
   const lines = readUsage(usagePath(root, spec));
@@ -194,7 +195,7 @@ test('a failed dispatch is counted with the envelope the child already billed', 
     ['do beta', () => ({ ok: true, outcome: 'success', structured: { sha: 'b'.repeat(40) }, envelope: envelopeOf(BETA_USAGE, 0.0091) })],
   ]));
 
-  const code = await runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)));
+  const code = await runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)), { dispatch: refusingDispatch().dispatch });
   assert.equal(code, 3, io.errOut.join(''));
 
   const lines = readUsage(usagePath(root, spec));
@@ -216,7 +217,7 @@ test('a checkpoint write that fails after the child was billed still records wha
     ['do beta', () => ({ ok: true, outcome: 'success', structured: { sha: 'b'.repeat(40) }, envelope: envelopeOf(BETA_USAGE, 0.0091) })],
   ]));
 
-  const code = await runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)));
+  const code = await runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)), { dispatch: refusingDispatch().dispatch });
   assert.equal(code, 3, 'a unit whose checkpoint never landed was reported complete');
 
   const lines = readUsage(usagePath(root, spec));
@@ -242,7 +243,7 @@ test('a run observer that throws cannot starve the durable usage writer', async 
     ['do alpha', () => { throw new Error('the adapter exploded'); }],
   ]));
 
-  await assert.rejects(runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch))));
+  await assert.rejects(runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)), { dispatch: refusingDispatch().dispatch }));
 
   const lines = readUsageIfAny(usagePath(root, spec));
   assert.equal(
@@ -261,7 +262,7 @@ test('the run summary names the run key and attempt the evidence was written und
     ['do beta', () => ({ ok: true, outcome: 'success', structured: { sha: 'b'.repeat(40) }, envelope: envelopeOf(BETA_USAGE, 0.0091) })],
   ]));
 
-  const code = await runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)));
+  const code = await runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)), { dispatch: refusingDispatch().dispatch });
   assert.equal(code, 3, `this spec declares no base branch, so both units park at Integrate and no pull request is opened: ${io.errOut.join('')}`);
 
   const summary = JSON.parse(io.out.join(''));
@@ -278,7 +279,7 @@ test('a billed and an unbilled usage line carry the same envelope key set', asyn
     ['do beta', () => ({ ok: true, outcome: 'success', structured: { sha: 'b'.repeat(40) }, envelope: envelopeOf(BETA_USAGE, 0.0091) })],
   ]));
 
-  const code = await runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)));
+  const code = await runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)), { dispatch: refusingDispatch().dispatch });
   assert.equal(code, 3, io.errOut.join(''));
 
   const lines = readUsage(usagePath(root, spec));
