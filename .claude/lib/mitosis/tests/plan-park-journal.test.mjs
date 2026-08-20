@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { realPorts } from '../cli.mjs';
 import { runEngine } from '../engine.mjs';
+import { normalizeEnvelope } from '../dispatch.mjs';
 
 const PLANNED_DISPATCH_FAILURE = Object.freeze({
   approved: false,
@@ -12,6 +13,17 @@ const PLANNED_DISPATCH_FAILURE = Object.freeze({
   iterations: 1,
   envelope: Object.freeze({ api_error_status: 429 }),
   retryable: true,
+});
+
+const PLANNED_UNAPPROVED = Object.freeze({
+  approved: false,
+  what: 'plan-unapproved',
+  detail: 'the plan for this unit was still not approved after the 1 revision this run allows, so it is parked rather than implemented against a plan the review stage refused',
+  findings: Object.freeze([]),
+  planPath: '/repo/.mitosis/plans/0a1b2c3d/alpha.md',
+  iterations: 2,
+  envelope: null,
+  retryable: false,
 });
 
 function baseRequest(journalled) {
@@ -45,7 +57,7 @@ test('PLAN PARK JOURNAL: a plan-stage dispatch failure carries its HTTP status a
   assert.equal(parkOutcome.tag, 'NeedsHuman');
   assert.equal(parkOutcome.request.detail.includes('HTTP 429'), true);
   assert.equal(parkOutcome.request.detail.includes('billing hit its monthly spend cap'), true);
-  assert.equal(parkOutcome.envelope.api_error_status, 429);
+  assert.deepStrictEqual(parkOutcome.envelope, normalizeEnvelope({ api_error_status: 429 }));
   assert.equal(parkOutcome.retryable, true);
 
   const journalled = [];
@@ -58,4 +70,25 @@ test('PLAN PARK JOURNAL: a plan-stage dispatch failure carries its HTTP status a
   assert.equal(record.request.detail.includes('HTTP 429'), true, 'the composed detail carries the status onto disk');
   assert.equal(record.request.detail.includes('billing hit its monthly spend cap'), true, 'the composed detail carries the child\'s own words onto disk');
   assert.equal(record.envelope.api_error_status, 429, 'the structured envelope also reaches the journal record, not only the composed text');
+});
+
+test('PLAN PARK JOURNAL: a plan park with no envelope composes an envelope of exactly null, not a normalized empty object', async () => {
+  const cliPorts = realPorts({
+    repoRoot: '/repo',
+    requestsById: new Map([['alpha', { prompt: 'do alpha' }]]),
+    planById: new Map([['alpha', PLANNED_UNAPPROVED]]),
+  }, { dispatch: async () => { throw new Error('a planned unit must park before any dispatch is attempted'); } });
+
+  const parkOutcome = await cliPorts.runUnit({ id: 'alpha' }, { signal: null });
+  assert.equal(parkOutcome.tag, 'NeedsHuman');
+  assert.equal(parkOutcome.envelope, null);
+  assert.equal(parkOutcome.retryable, false);
+
+  const journalled = [];
+  const { request, ports } = baseRequest(journalled);
+  await runEngine(request, { runUnit: cliPorts.runUnit, ...ports });
+
+  const parkLines = journalled.filter((line) => line.kind === 'park' && line.unitId === 'alpha');
+  assert.equal(parkLines.length, 1);
+  assert.equal(Object.hasOwn(parkLines[0], 'envelope'), false, 'an absent envelope is never written to the journal record at all');
 });

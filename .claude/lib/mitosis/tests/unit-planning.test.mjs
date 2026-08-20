@@ -107,6 +107,7 @@ test('PLANNING: a plan the second review also refuses is parked unapproved at tw
     'the plan for this unit was still not approved after the 1 revision this run allows, so it is parked rather than implemented against a plan the review stage refused',
   );
   assert.deepStrictEqual(planned.findings, [{ axis: 'necessity', severity: 'high', detail: 'step three earns nothing' }]);
+  assert.equal(planned.retryable, false, 'a review that judges needs-changes twice is not a dispatch failure, so the exhausted park must not be retryable');
 });
 
 test('PLANNING: a plan dispatch failing every attempt is retried once under the engine\'s own attempt budget, is marked retryable, and composes the park detail from the child\'s own HTTP status and its own words', async () => {
