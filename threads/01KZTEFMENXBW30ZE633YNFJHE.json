@@ -314,6 +314,13 @@
       "done": false,
       "kind": "planned",
       "struck_by": null
+    },
+    {
+      "id": "c45",
+      "text": "A live run reaches a merged trunk from a written spec: every declared unit ships, every pull request it opens is green including receipts, and the engine observes CI rather than shrugging.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
     }
   ],
   "vcs_ref": null,
@@ -1375,5 +1382,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T22:15:08.848Z"
+  "updated_at": "2026-08-20T22:16:09.889Z"
 }
