@@ -493,6 +493,7 @@ export function driverPorts(io, makePorts, deps, repoRoot) {
   const teardownHeadWorktreeFn = deps.teardownHeadWorktree === undefined ? removeHeadWorktree : deps.teardownHeadWorktree;
   const dispatchFn = deps.dispatch === undefined ? dispatch : deps.dispatch;
   const appendJournalFn = deps.appendJournalLine === undefined ? appendJournalLine : deps.appendJournalLine;
+  const writeGenesisFn = deps.writeGenesis === undefined ? writeGenesis : deps.writeGenesis;
   const skillPointersFn = deps.skillPointers === undefined ? defaultSkillPointers : deps.skillPointers;
   const observePlanFn = deps.observePlan === undefined ? defaultObservePlan : deps.observePlan;
   const waitFn = deps.wait === undefined ? realWait : deps.wait;
@@ -507,6 +508,7 @@ export function driverPorts(io, makePorts, deps, repoRoot) {
     dispatchPrompt: (request) => dispatchFn(request),
     openPullRequest: (request) => runFn(NODE_BINARY, request.argv, { cwd: request.cwd, deadlineMs: GH_DEADLINE_MS }),
     appendJournal: (request) => appendJournalFn(request),
+    writeGenesis: (request) => writeGenesisFn(request),
     publishHead: publishHeadPort(runFn, repoRoot),
     mergedIntoBase: mergedIntoBasePort(runFn),
     retireHead: retireHeadPort(runFn),
