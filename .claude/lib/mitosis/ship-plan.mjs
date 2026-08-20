@@ -612,16 +612,36 @@ export async function shipIntegrated(config, ports) {
   return produced(outcomes, awaiting, blocked, retired, watched);
 }
 
+function retargetOf(baseByHead, base) {
+  const visited = new Set();
+  let current = base;
+  while (baseByHead.has(current) && !visited.has(current)) {
+    visited.add(current);
+    current = baseByHead.get(current);
+  }
+  return current;
+}
+
 export function mergeOrderOf(plan) {
   const stacked = plan.opened.filter((entry) => nonEmptyText(entry.head) !== null && nonEmptyText(entry.base) !== null);
-  return stacked.map((entry, index) => Object.freeze({
-    position: index + 1,
-    unitId: entry.unitId,
-    prUrl: entry.prUrl,
-    head: entry.head,
-    base: entry.base,
-    deleteAfterMerge: stacked.some((other) => other.base === entry.head),
-  }));
+  const baseByHead = new Map(stacked.map((entry) => [entry.head, entry.base]));
+  return stacked.map((entry, index) => {
+    const children = stacked.filter((other) => other.base === entry.head);
+    return Object.freeze({
+      position: index + 1,
+      unitId: entry.unitId,
+      prUrl: entry.prUrl,
+      head: entry.head,
+      base: entry.base,
+      deleteAfterMerge: children.length > 0,
+      retargetBeforeDelete: Object.freeze(children.map((child) => Object.freeze({
+        unitId: child.unitId,
+        prUrl: child.prUrl,
+        from: entry.head,
+        to: retargetOf(baseByHead, entry.base),
+      }))),
+    });
+  });
 }
 
 export function shipSummary(plan) {

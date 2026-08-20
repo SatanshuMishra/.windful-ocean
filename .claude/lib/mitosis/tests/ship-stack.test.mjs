@@ -527,6 +527,89 @@ test('the merge order the summary publishes replays with real git and leaves eve
   assert.equal(remoteHead(fixture, integrationBranchOf('alpha')), null, 'the parent branch survived its own merge order, so the stacked child would have merged into a dead branch');
 });
 
+test('the entry a stacked unit depends on carries a retarget instruction naming the dependent and the base it must move to, and an entry with no dependent carries none', async (t) => {
+  const fixture = fixtureRepo(t);
+  const graph = threeUnitGraph(fixture);
+  const wired = recorder(fixture);
+
+  const plan = await shipIntegrated(shipConfig(fixture, graph.msps, graph.integrated), wired.ports);
+  const summary = shipSummary(plan);
+
+  const alphaEntry = summary.mergeOrder.find((entry) => entry.unitId === 'alpha');
+  const betaEntry = summary.mergeOrder.find((entry) => entry.unitId === 'beta');
+  const gammaEntry = summary.mergeOrder.find((entry) => entry.unitId === 'gamma');
+
+  assert.equal(alphaEntry.deleteAfterMerge, true);
+  assert.deepEqual(alphaEntry.retargetBeforeDelete, [
+    { unitId: 'beta', prUrl: betaEntry.prUrl, from: alphaEntry.head, to: BASE_BRANCH },
+  ]);
+
+  assert.equal(gammaEntry.deleteAfterMerge, false);
+  assert.deepEqual(gammaEntry.retargetBeforeDelete, []);
+});
+
+test('a three-deep chain resolves the middle unit retarget past the parent head that the same merge order also deletes', async (t) => {
+  const fixture = fixtureRepo(t);
+  const alpha = buildUnit(fixture, 'alpha');
+  const beta = buildUnit(fixture, 'beta');
+  const gamma = buildUnit(fixture, 'gamma');
+  const msps = [mspOf('alpha', alpha), mspOf('beta', beta, ['alpha']), mspOf('gamma', gamma, ['beta'])];
+  const integrated = [integratedEntry('alpha'), integratedEntry('beta'), integratedEntry('gamma')];
+  const wired = recorder(fixture);
+
+  const plan = await shipIntegrated(shipConfig(fixture, msps, integrated), wired.ports);
+  const summary = shipSummary(plan);
+
+  const alphaEntry = summary.mergeOrder.find((entry) => entry.unitId === 'alpha');
+  const betaEntry = summary.mergeOrder.find((entry) => entry.unitId === 'beta');
+  const gammaEntry = summary.mergeOrder.find((entry) => entry.unitId === 'gamma');
+
+  assert.equal(betaEntry.base, alphaEntry.head, 'beta was not stacked on alpha, so this fixture does not exercise a three-deep chain');
+  assert.equal(betaEntry.deleteAfterMerge, true);
+  assert.deepEqual(betaEntry.retargetBeforeDelete, [
+    { unitId: 'gamma', prUrl: gammaEntry.prUrl, from: betaEntry.head, to: BASE_BRANCH },
+  ]);
+});
+
+test('when two units stack directly on the same parent, the parent retarget instructions carry both children in merge-order position with neither dropped nor reordered', async (t) => {
+  const fixture = fixtureRepo(t);
+  const alpha = buildUnit(fixture, 'alpha');
+  const beta = buildUnit(fixture, 'beta');
+  const gamma = buildUnit(fixture, 'gamma');
+  const msps = [mspOf('alpha', alpha), mspOf('beta', beta, ['alpha']), mspOf('gamma', gamma, ['alpha'])];
+  const integrated = [integratedEntry('alpha'), integratedEntry('beta'), integratedEntry('gamma')];
+  const wired = recorder(fixture);
+
+  const plan = await shipIntegrated(shipConfig(fixture, msps, integrated), wired.ports);
+  const summary = shipSummary(plan);
+
+  const alphaEntry = summary.mergeOrder.find((entry) => entry.unitId === 'alpha');
+  const betaEntry = summary.mergeOrder.find((entry) => entry.unitId === 'beta');
+  const gammaEntry = summary.mergeOrder.find((entry) => entry.unitId === 'gamma');
+
+  assert.equal(betaEntry.base, alphaEntry.head, 'beta was not stacked on alpha, so this fixture does not exercise a fan-out');
+  assert.equal(gammaEntry.base, alphaEntry.head, 'gamma was not stacked on alpha, so this fixture does not exercise a fan-out');
+  assert.deepEqual(alphaEntry.retargetBeforeDelete, [
+    { unitId: 'beta', prUrl: `https://github.com/${REPO_SLUG}/pull/2`, from: integrationBranchOf('alpha'), to: BASE_BRANCH },
+    { unitId: 'gamma', prUrl: `https://github.com/${REPO_SLUG}/pull/3`, from: integrationBranchOf('alpha'), to: BASE_BRANCH },
+  ]);
+});
+
+test('a unit stacked on a parent but claimed by no dependent of its own carries an empty retarget instruction list', async (t) => {
+  const fixture = fixtureRepo(t);
+  const graph = threeUnitGraph(fixture);
+  const wired = recorder(fixture);
+
+  const plan = await shipIntegrated(shipConfig(fixture, graph.msps, graph.integrated), wired.ports);
+  const summary = shipSummary(plan);
+
+  const alphaEntry = summary.mergeOrder.find((entry) => entry.unitId === 'alpha');
+  const betaEntry = summary.mergeOrder.find((entry) => entry.unitId === 'beta');
+
+  assert.equal(betaEntry.base, alphaEntry.head, 'beta was not stacked on alpha, so this fixture does not exercise the case of a non-root entry with no child of its own');
+  assert.deepEqual(betaEntry.retargetBeforeDelete, []);
+});
+
 test('the publish outcome is what the ship walk reads, and a ship port that is not a function is refused before anything is published', async (t) => {
   const fixture = fixtureRepo(t);
   const alpha = buildUnit(fixture, 'alpha');
