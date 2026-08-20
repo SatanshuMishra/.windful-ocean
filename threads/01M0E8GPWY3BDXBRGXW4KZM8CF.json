@@ -17,28 +17,28 @@
     {
       "id": "c2",
       "text": "All AI/agent/model attribution is removed from the PR tool and made permanent by a source-level census test",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c3",
       "text": "The body renders in the reviewer-first order with the sentence-form rule enforced on the fields the SPEC names",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c4",
       "text": "The unenforceable readability rules land in the prose layer: agent prompt fixtures, the pr skill, and the global PR rule doc",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c5",
       "text": "Both PR tool test files pass with the golden-body test rewritten rather than deleted",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     }
@@ -49,23 +49,19 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Rebuild the pull request body composer to lead with what changed, read as plain sentences, and carry no agent or model attribution.",
-    "next_step": "START HERE IN A FRESH SESSION. Read the specification at docs/superpowers/specs/2026-08-19-reviewer-first-pr-body-composer.md end to end, then execute it exactly as written. No open questions remain and nothing needs re-deciding. Begin at section 5.1, the format module, and land each numbered subsection as its own commit. The branch docs/pr-body-reviewer-first-spec already holds the specification.",
-    "last_session": "Audited the tool against the owner's three concerns, recorded decisions 0631 and 0632, and authored, placed and committed the executable specification. No production code changed.",
+    "active_goal": "Ship the reviewer-first pull request body composer with every trace of agent and model attribution removed.",
+    "next_step": "Nothing remains on this thread: all five criteria are met and the work is merged into main, verified present there rather than inferred from the merged status. Confirm it can be closed. The one red on main is unrelated and belongs to its own unit.",
+    "last_session": "Executed the frozen specification end to end through dedicated subagents: fourteen commits, all eleven acceptance criteria cleared, opened through the central tool as PR 251 and merged into main.",
     "open_risks": [
       {
-        "text": "Land this change only when no unit is mid-ship — every currently open tool-composed pull request stops matching the new reuse detector, so its unit parks until a human confirms or reopens it.",
+        "text": "The enforcer blocked PR 251 on G11 naming seven deleted test files — not one was ever on this branch, because it diffs the base tip, so any branch cut behind main reads main's newer files as its own deletions.",
         "scope": "thread",
-        "refs": [
-          "docs/superpowers/specs/2026-08-19-reviewer-first-pr-body-composer.md"
-        ]
+        "refs": []
       },
       {
-        "text": "Stop and raise it if the attribution census fires on an unrelated use of the word provenance — adding an exception converts a closed census into an allowlist and destroys what makes the removal permanent.",
+        "text": "Main carries a red this work did not cause — the gate's schema census still expects a dispatch table from an engine module main deleted; it fails at main's own parent and passes at this branch's head.",
         "scope": "thread",
-        "refs": [
-          ".claude/lib/git/tests/attribution-census.test.mjs"
-        ]
+        "refs": []
       }
     ],
     "key_decisions": [
@@ -81,7 +77,7 @@
       },
       {
         "ref": "0637-reword-unrelated-prose-rather-than-except-the-census",
-        "title": "Reword unrelated prose rather than grant the attribution census an exception",
+        "title": "Reword unrelated prose rather than grant the census an exception",
         "scope": "c2"
       }
     ],
@@ -92,5 +88,5 @@
     ]
   },
   "created_at": "2026-08-20T00:18:13.533Z",
-  "updated_at": "2026-08-20T03:28:36.858Z"
+  "updated_at": "2026-08-20T03:29:03.419Z"
 }
