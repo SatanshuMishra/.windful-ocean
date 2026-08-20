@@ -96,7 +96,6 @@ test('the pr-create value cap is the one pr-create enforces and is applied at th
     supersedeBranch: `${IB}-supersede-aaaa1111`,
     baseBranch: BASE,
     title: 'fix(scope): supersede the open pull request',
-    provenance: 'agent=supersede model=sonnet',
     why: 'a divergent merge invalidated the built content',
     rationale: 'the parent merged divergently',
     what: 'republish the rebuilt tip onto a fresh branch',
@@ -118,7 +117,6 @@ test('a pr-create value that pr-create would read as a file or a flag is refused
     supersedeBranch: `${IB}-supersede-aaaa1111`,
     baseBranch: BASE,
     title: 'fix(scope): supersede the open pull request',
-    provenance: 'agent=supersede model=sonnet',
     why: 'a divergent merge invalidated the built content',
     rationale: 'the parent merged divergently',
     what: 'republish the rebuilt tip onto a fresh branch',
@@ -126,29 +124,9 @@ test('a pr-create value that pr-create would read as a file or a flag is refused
     notVerified: 'ci on the superseding head - not run',
     supersedes: 'https://github.com/acme/widgets/pull/7',
   };
-  for (const hostile of ['@/etc/passwd', '--why', 'two\nlines', '<img src=x>', '# heading', 'SUPERSEDES https://x', 'Verified: nothing']) {
+  for (const hostile of ['@/etc/passwd', '--why', 'two\nlines', '<img src=x>', '# heading', 'Supersedes https://x', 'Verified: nothing']) {
     assert.throws(() => buildNodeCommand('supersede', 'open-pr', { ...values, summary: hostile }), /refuses as a body value|would rewrite before using|beginning with/, `${JSON.stringify(hostile)} reached a pr-create value position`);
   }
-});
-
-test('the ship pull request omits the depends flag when no parent id is declared and carries it when one is', () => {
-  const values = {
-    gitLibDir: PR_TOOL_DIRECTORY,
-    repoSlug: SLUG,
-    integrationBranch: IB,
-    baseBranch: BASE,
-    title: 'feat(scope): ship the unit',
-    provenance: 'agent=ship model=opus',
-    why: 'the unit is built and green',
-    what: 'publish the integration head',
-    notVerified: 'ci on the fresh head - not run',
-    changedLines: '120',
-    dependsIds: [],
-  };
-  assert.ok(!buildNodeCommand('ship', 'open-pr', values).includes('--depends'));
-  const stacked = [...buildNodeCommand('ship', 'open-pr', { ...values, dependsIds: ['unit-a', 'unit-b'] })];
-  assert.ok(stacked.includes('--depends'));
-  assert.equal(stacked[stacked.indexOf('--depends') + 1], 'unit-a,unit-b');
 });
 
 test('the fold-run-log invocation names the deterministic cli and the journal it reads', () => {

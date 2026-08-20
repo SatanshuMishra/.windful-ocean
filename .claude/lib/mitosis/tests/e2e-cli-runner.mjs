@@ -1,6 +1,6 @@
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { buildGhArgv, MITOSIS_GIT_CONVERGE_EXIT, MITOSIS_GIT_OBSERVE_EXIT, MITOSIS_GIT_USAGE_EXIT, parseMitosisGitArgv } from '../../git/pr.mjs';
-import { carriesToolTrailer } from '../../git/pr-format.mjs';
+import { carriesComposedSkeleton } from '../../git/pr-format.mjs';
 import { realPorts, runCli } from '../cli.mjs';
 import { EXEC_COMPLETED, run as realRun } from '../exec-run.mjs';
 import { GH_COMMAND_BINARY } from '../gh-commands.mjs';
@@ -110,7 +110,7 @@ function readObservedEntry(observed) {
   if (url === null || number === null) {
     return { error: 'an open pull request already exists on this head but its url could not be read; refusing to open a second one' };
   }
-  return { entry: Object.freeze({ url, number, toolComposed: carriesToolTrailer(entry !== null && typeof entry === 'object' ? entry.body : null) }) };
+  return { entry: Object.freeze({ url, number, toolComposed: carriesComposedSkeleton(entry !== null && typeof entry === 'object' ? entry.body : null) }) };
 }
 
 function scriptedOpenPullRequest(argv) {
