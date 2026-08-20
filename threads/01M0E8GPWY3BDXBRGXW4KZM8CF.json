@@ -78,6 +78,11 @@
         "ref": "0632-compose-pr-bodies-what-first-with-typographic-sentence-rule",
         "title": "Compose PR bodies what-first, with a typographic sentence rule and no opening summary",
         "scope": "c1"
+      },
+      {
+        "ref": "0637-reword-unrelated-prose-rather-than-except-the-census",
+        "title": "Reword unrelated prose rather than grant the attribution census an exception",
+        "scope": "c2"
       }
     ],
     "out_of_scope": [
@@ -87,5 +92,5 @@
     ]
   },
   "created_at": "2026-08-20T00:18:13.533Z",
-  "updated_at": "2026-08-20T00:37:57.753Z"
+  "updated_at": "2026-08-20T03:28:36.858Z"
 }
