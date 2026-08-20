@@ -302,8 +302,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Ship the frozen 24-unit whole solution, waves 6 through 9, closing all thirteen boundary root causes.",
-    "next_step": "THREE USER ACTIONS; no agent may do any. (1) Merge PR 250 - M16 is green, 17 of 17, but not on main. (2) Trigger the M15 re-run from m15/c28-rerun-RUNBOOK.md - the corrected run document is staged and passes the census; expect 3 pull requests opened, none parked, then merge those three by hand since the engine never merges. (3) Rule on the required-check blocker: the ~/.claude/lib symlink makes one commit red locally and green in CI, so the E2E cannot be required yet. c41 waits on it.",
-    "last_session": "2026-08-20: c40 closed as already shipped. c28's Ship park root-caused to a 226-character rationale against a 200-character cap - architecture, filed. Two harness defects repaired. The c28 re-run is staged. M16 shipped as PR 250; its inertness red was vacuous by unreachability and was really fixed.",
+    "next_step": "THREE USER ACTIONS, in order; no agent may do any. (1) MERGE PR 250 - it is still OPEN and CLEAN despite being reported merged; verify by content on origin/main, not by the label. (2) Trigger the M15 re-run from m15/c28-rerun-RUNBOOK.md, then merge the three pull requests it opens by hand. (3) Make the test check REQUIRED - 0635 withdrew the blocker, so this is executable once 250 lands. Then c41 is the only agent work left, and it is the last criterion.",
+    "last_session": "2026-08-20: M16 built and green, 17 of 17, but PR 250 never merged - still OPEN. c28's re-run staged. The gate red was measured to be git commondir, not the home symlink, and a deliberate invariant; 0635 withdraws 0634's claim that it blocks the required check. User ruled it stays filed.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -1325,5 +1325,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T03:20:21.880Z"
+  "updated_at": "2026-08-20T03:20:30.463Z"
 }
