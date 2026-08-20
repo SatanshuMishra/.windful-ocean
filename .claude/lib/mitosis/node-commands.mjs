@@ -1,9 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { validateRefToken } from './checkpoint.mjs';
 import {
-  PR_CHANGED_LINES_PATTERN,
-  PR_ORIGINS,
-  PR_PROVENANCE_PATTERN,
   PR_TITLE_CAP,
   PR_TITLE_PATTERN,
   PR_VALUE_CAP,
@@ -20,9 +17,6 @@ const MODULE = 'node-commands';
 const NUL = String.fromCharCode(0);
 const OPTION_LEAD = '-';
 const PR_CREATE = 'pr-create';
-const PR_ORIGIN_MACHINE = PR_ORIGINS[0];
-const DEPENDS_SEPARATOR = ',';
-const UNIT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const PATH_SEPARATOR = '/';
 const PARENT_SEGMENT = '..';
 const PATH_METACHARACTER = /[\s;&|<>$`'"()*?![\]{}\\]/;
@@ -115,40 +109,10 @@ function prTitleIn(where, field, value) {
   return text;
 }
 
-function prProvenanceIn(where, field, value) {
-  const text = prValueIn(where, field, value);
-  if (!PR_PROVENANCE_PATTERN.test(text)) {
-    refuse(where, `was handed a ${field} that is not an agent and model provenance token: ${JSON.stringify(text)}`);
-  }
-  return text;
-}
-
 function prUrlIn(where, field, value) {
   const text = prValueIn(where, field, value, NODE_SUPERSEDES_CAP);
   if (!HTTPS_PR_URL.test(text)) {
     refuse(where, `was handed a ${field} that is not a canonical ${PR_URL_HOST} pull-request url: ${JSON.stringify(text)}; the pull-request tool canonicalises this value against that same host, so a url this builder admits and that tool rewrites would name a different pull request`);
-  }
-  return text;
-}
-
-function dependsIn(where, field, value) {
-  if (!Array.isArray(value)) {
-    refuse(where, `needs ${field} as an array of unit ids, received ${JSON.stringify(value)}; the incumbent emits the flag only when the unit declares parents, and a value that is not a list cannot say whether it does`);
-  }
-  return value.map((entry, index) => {
-    const text = textIn(where, `${field}[${index}]`, entry);
-    if (!UNIT_ID_PATTERN.test(text)) {
-      refuse(where, `was handed a ${field}[${index}] that is not a unit id: ${JSON.stringify(text)}`);
-    }
-    return text;
-  });
-}
-
-function changedLinesIn(where, field, value) {
-  if (value === null || value === undefined) return null;
-  const text = textIn(where, field, value);
-  if (!PR_CHANGED_LINES_PATTERN.test(text)) {
-    refuse(where, `was handed a ${field} that is not the changed-lines integer the pull-request tool accepts: ${JSON.stringify(text)}; the incumbent tells the caller to delete both tokens rather than estimate one, so an unreadable count omits the flag instead of guessing it`);
   }
   return text;
 }
@@ -169,8 +133,6 @@ const SUPERSEDE = Object.freeze({
     '--head', t.ref('supersedeBranch', v.supersedeBranch),
     '--base', t.ref('baseBranch', v.baseBranch),
     '--title', t.prTitle('title', v.title),
-    '--origin', PR_ORIGIN_MACHINE,
-    '--provenance', t.prProvenance('provenance', v.provenance),
     '--why', t.prValue('why', v.why),
     '--why', t.prValue('rationale', v.rationale),
     '--what', t.prValue('what', v.what),
@@ -182,8 +144,6 @@ const SUPERSEDE = Object.freeze({
 
 const SHIP = Object.freeze({
   'open-pr': (v, t) => {
-    const depends = t.depends('dependsIds', v.dependsIds);
-    const changedLines = t.changedLines('changedLines', v.changedLines);
     const verified = v.verified === null || v.verified === undefined ? null : t.prValue('verified', v.verified);
     return [
       NODE_END_OF_OPTIONS,
@@ -192,14 +152,10 @@ const SHIP = Object.freeze({
       '--head', t.ref('integrationBranch', v.integrationBranch),
       '--base', t.ref('baseBranch', v.baseBranch),
       '--title', t.prTitle('title', v.title),
-      '--origin', PR_ORIGIN_MACHINE,
-      '--provenance', t.prProvenance('provenance', v.provenance),
       '--why', t.prValue('why', v.why),
       '--what', t.prValue('what', v.what),
       ...(verified === null ? [] : ['--verified', verified]),
       '--not-verified', t.prValue('notVerified', v.notVerified),
-      ...(depends.length === 0 ? [] : ['--depends', depends.join(DEPENDS_SEPARATOR)]),
-      ...(changedLines === null ? [] : ['--changed-lines', changedLines]),
     ];
   },
 });
@@ -232,10 +188,7 @@ export function buildNodeCommand(site, step, values) {
     ref: (field, value) => refIn(where, field, value),
     prValue: (field, value) => prValueIn(where, field, value),
     prTitle: (field, value) => prTitleIn(where, field, value),
-    prProvenance: (field, value) => prProvenanceIn(where, field, value),
     prUrl: (field, value) => prUrlIn(where, field, value),
-    depends: (field, value) => dependsIn(where, field, value),
-    changedLines: (field, value) => changedLinesIn(where, field, value),
   });
   return Object.freeze(build(values, validator));
 }
