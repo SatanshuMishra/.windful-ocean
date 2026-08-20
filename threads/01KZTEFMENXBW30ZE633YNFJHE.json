@@ -1342,6 +1342,11 @@
         "ref": "0647-why-sentence-gate-corrects-the-input",
         "title": "The new sentence gate on why is met by correcting the input, and the engine's why-versus-what asymmetry is filed",
         "scope": "c43"
+      },
+      {
+        "ref": "0648-e2e-harness-splits-into-cost-ordered-lanes",
+        "title": "The end-to-end harness splits into cost-ordered lanes with live visibility, not one long blind wait",
+        "scope": "c43"
       }
     ],
     "out_of_scope": [
@@ -1353,5 +1358,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T17:37:03.559Z"
+  "updated_at": "2026-08-20T22:13:59.334Z"
 }
