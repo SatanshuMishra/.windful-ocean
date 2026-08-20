@@ -52,9 +52,15 @@
     "next_step": "",
     "last_session": "",
     "open_risks": [],
-    "key_decisions": [],
+    "key_decisions": [
+      {
+        "ref": "0638-untrack-only-keep-files-on-disk",
+        "title": "Untrack the AI-generated documents without rewriting history or deleting them",
+        "scope": "c2"
+      }
+    ],
     "out_of_scope": []
   },
   "created_at": "2026-08-20T04:51:30.743Z",
-  "updated_at": "2026-08-20T04:51:30.743Z"
+  "updated_at": "2026-08-20T04:52:05.349Z"
 }
