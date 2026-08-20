@@ -485,7 +485,7 @@ function defaultObservePlan(probe) {
   return observePlanArtifact(probe.repoRoot, probe.planPath);
 }
 
-function driverPorts(io, makePorts, deps, repoRoot) {
+export function driverPorts(io, makePorts, deps, repoRoot) {
   const openRunFn = deps.openRun === undefined ? openRun : deps.openRun;
   const foldJournalFn = deps.foldJournal === undefined ? foldFile : deps.foldJournal;
   const runFn = deps.run === undefined ? run : deps.run;

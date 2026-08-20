@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pack } from './file-scope-fixtures.mjs';
-import { CLI_USAGE, exitCodeOf, parseCliArgv, realPorts, realWait, runCli } from '../cli.mjs';
+import { CLI_USAGE, driverPorts, exitCodeOf, parseCliArgv, realPorts, realWait, runCli } from '../cli.mjs';
 import { runVerdictOf } from '../run-verdict.mjs';
 import { Done, NeedsHuman } from '../boundary.mjs';
 import { refusingDispatch } from './dispatch-fixtures.mjs';
@@ -620,4 +620,22 @@ test('realWait genuinely delays resolution by the requested count of real millis
   await realWait(20);
   const elapsedMs = Date.now() - startedAt;
   assert.ok(elapsedMs >= 15, `realWait(20) resolved after only ${elapsedMs}ms, so the requested pause was not actually honoured`);
+});
+
+function noopDriverIo() {
+  return Object.freeze({ log: () => {}, err: () => {}, readSpec: () => ({}) });
+}
+
+test('driverPorts selects an injected wait over the real one, proven by the injected call being recorded with the exact millisecond count it was asked for', async () => {
+  const calls = [];
+  const injected = async (ms) => { calls.push(ms); };
+  const ports = driverPorts(noopDriverIo(), () => ({}), { wait: injected }, '/repo');
+  await ports.wait(5);
+  assert.deepEqual(calls, [5]);
+});
+
+test('driverPorts selects the real wait when none is injected, proven by the exact refusal only realWait produces', async () => {
+  const ports = driverPorts(noopDriverIo(), () => ({}), {}, '/repo');
+  assert.throws(() => ports.wait(0), /wait needs a positive integer count of milliseconds/);
+  await assert.doesNotReject(ports.wait(1));
 });
