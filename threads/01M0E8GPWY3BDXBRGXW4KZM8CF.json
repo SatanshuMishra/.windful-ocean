@@ -3,7 +3,7 @@
   "id": "01M0E8GPWY3BDXBRGXW4KZM8CF",
   "slug": "pr-body-redesign-attribution-removal",
   "title": "PR body redesign: reviewer-first structure and attribution removal",
-  "status": "paused",
+  "status": "done",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -47,7 +47,7 @@
   "external_refs": [],
   "blocked_by": null,
   "abandoned_reason": null,
-  "closure_statement": null,
+  "closure_statement": "The reviewer-first pull request body composer shipped. A body now opens with what changed and closes with the evidence, carries no agent or model attribution anywhere, and rejects a prose value that is not a full sentence. A closed source census with no exceptions and no suppressions fails if attribution ever returns, proven by reinserting a banned token, reading the failure it named, and confirming green again once removed. Fourteen commits landed through dedicated subagents against a frozen specification; all eleven acceptance criteria cleared; the work merged into main as PR 251, with its arrival on the default branch asserted directly rather than inferred from the merged status. Two files outside the specification's inventory were brought in because its own acceptance criteria required them, and the one census stall the specification predicted was resolved by rewording unrelated prose rather than granting an exception, recorded as decision 0637. The seven follow-ups stay filed in the specification as separate future units, and the single red on main is pre-existing on main's own side and unrelated to this work.",
   "spine": {
     "active_goal": "Ship the reviewer-first pull request body composer with every trace of agent and model attribution removed.",
     "next_step": "Nothing remains on this thread: all five criteria are met and the work is merged into main, verified present there rather than inferred from the merged status. Confirm it can be closed. The one red on main is unrelated and belongs to its own unit.",
@@ -88,5 +88,5 @@
     ]
   },
   "created_at": "2026-08-20T00:18:13.533Z",
-  "updated_at": "2026-08-20T03:29:03.419Z"
+  "updated_at": "2026-08-20T03:38:08.534Z"
 }
