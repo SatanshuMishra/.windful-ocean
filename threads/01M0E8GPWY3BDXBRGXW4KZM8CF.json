@@ -53,9 +53,15 @@
     "next_step": "",
     "last_session": "",
     "open_risks": [],
-    "key_decisions": [],
+    "key_decisions": [
+      {
+        "ref": "0631-remove-all-attribution-from-pr-bodies",
+        "title": "Remove all agent and model attribution from PR bodies, reversing 0597",
+        "scope": "c1"
+      }
+    ],
     "out_of_scope": []
   },
   "created_at": "2026-08-20T00:18:13.533Z",
-  "updated_at": "2026-08-20T00:18:13.533Z"
+  "updated_at": "2026-08-20T00:18:33.837Z"
 }
