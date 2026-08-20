@@ -8,6 +8,7 @@ import { pack } from './file-scope-fixtures.mjs';
 import { CLI_USAGE, exitCodeOf, parseCliArgv, realPorts, runCli } from '../cli.mjs';
 import { runVerdictOf } from '../run-verdict.mjs';
 import { Done, NeedsHuman } from '../boundary.mjs';
+import { refusingDispatch } from './dispatch-fixtures.mjs';
 
 function fullArgv(extra = [], root = '/repo') {
   return [
@@ -113,7 +114,7 @@ test('ARGV PARSE: a missing, unknown, repeated or valueless flag is refused', ()
 test('USAGE EXIT: a parse failure writes the usage line and exits 2 without reading the spec', async () => {
   const io = stubIo(specDocument());
   const makePorts = () => { throw new Error('makePorts must not be called on a usage failure'); };
-  const code = await runCli(['--bogus'], io, makePorts);
+  const code = await runCli(['--bogus'], io, makePorts, { dispatch: refusingDispatch().dispatch });
   assert.equal(code, 2);
   assert.ok(io.errOut.join('').includes(CLI_USAGE));
   assert.deepEqual(io.out, []);
@@ -203,7 +204,7 @@ test('ONE RESOLVER: the read port and every write port receive the identical abs
 test('THE INSTANT ARRIVES AS ARGV: the --at value is the at the engine writes into the quiescent-exit record', async (t) => {
   const io = stubIo(specDocument());
   const stub = stubPorts(async () => Done({ sha: 'sha-alpha' }));
-  const code = await runCli(tempArgv(t), io, () => stub.ports);
+  const code = await runCli(tempArgv(t), io, () => stub.ports, { dispatch: refusingDispatch().dispatch });
   const appendCalls = stub.calls.filter((call) => call.port === 'appendJournal');
   const lastRecord = JSON.parse(appendCalls[appendCalls.length - 1].value.line);
   assert.equal(lastRecord.kind, 'quiescent-exit');
@@ -214,7 +215,7 @@ test('THE INSTANT ARRIVES AS ARGV: the --at value is the at the engine writes in
 test('EXIT 3: a run that reaches quiescence with a unit short of done reports incomplete', async (t) => {
   const io = stubIo(specDocument());
   const stub = stubPorts(async () => NeedsHuman({ kind: 'ask' }, []));
-  const code = await runCli(tempArgv(t), io, () => stub.ports);
+  const code = await runCli(tempArgv(t), io, () => stub.ports, { dispatch: refusingDispatch().dispatch });
   assert.equal(code, 3);
   assert.match(io.out.join(''), /"state": "parked"/);
 });
@@ -222,7 +223,7 @@ test('EXIT 3: a run that reaches quiescence with a unit short of done reports in
 test('EXIT 3: a run that built every unit and opened no pull request is never reported clean', async (t) => {
   const io = stubIo(specDocument());
   const stub = stubPorts(async () => Done({ sha: 'sha-alpha' }));
-  const code = await runCli(tempArgv(t), io, () => stub.ports);
+  const code = await runCli(tempArgv(t), io, () => stub.ports, { dispatch: refusingDispatch().dispatch });
   const summary = JSON.parse(io.out.join(''));
   assert.deepEqual(summary.units, [{ id: 'alpha', state: 'done' }], 'every unit reached done, which is all the unit disposition alone can see');
   assert.deepEqual(summary.ship.opened, [], 'the run opened no pull request at all');
@@ -284,7 +285,7 @@ test('EXIT MAPPING: an unfinished build is still short-circuited before shipping
 test('SUMMARY: the verdict is the first key an operator reads, and it names every top-level field the skill relays', async (t) => {
   const io = stubIo(specDocument());
   const stub = stubPorts(async () => Done({ sha: 'sha-alpha' }));
-  const code = await runCli(tempArgv(t), io, () => stub.ports);
+  const code = await runCli(tempArgv(t), io, () => stub.ports, { dispatch: refusingDispatch().dispatch });
   const summary = JSON.parse(io.out.join(''));
   assert.equal(Object.keys(summary)[0], 'verdict', 'the terminal state is what the operator reads first, not a field buried under the phase reports');
   assert.deepEqual(Object.keys(summary), ['verdict', 'runKey', 'attempt', 'quiescent', 'aborted', 'ticks', 'units', 'prep', 'resume', 'integrate', 'ship']);
@@ -295,7 +296,7 @@ test('SUMMARY: the verdict is the first key an operator reads, and it names ever
 
 test('EXIT 1: a throw from the engine is reported on stderr rather than crashing the process', async (t) => {
   const io = stubIo(specDocument());
-  const code = await runCli(tempArgv(t), io, () => ({}));
+  const code = await runCli(tempArgv(t), io, () => ({}), { dispatch: refusingDispatch().dispatch });
   assert.equal(code, 1);
   assert.match(io.errOut.join(''), /mitosis-cli:/);
   assert.match(io.errOut.join(''), /runUnit/);
@@ -304,7 +305,7 @@ test('EXIT 1: a throw from the engine is reported on stderr rather than crashing
 test('EXIT 1: a thrown value with no message property is stringified rather than read as undefined', async (t) => {
   const io = stubIo(specDocument());
   io.readSpec = () => { throw { code: 'EACCES' }; };
-  const code = await runCli(tempArgv(t), io, () => ({}));
+  const code = await runCli(tempArgv(t), io, () => ({}), { dispatch: refusingDispatch().dispatch });
   assert.equal(code, 1);
   assert.equal(io.errOut.join(''), 'mitosis-cli: [object Object]\n');
 });
@@ -399,7 +400,7 @@ test('REAL PORTS: a unit with no request in the spec is refused rather than repo
 test('REAL PORTS: a checkpoint ref is written with git update-ref and refused when there is no commit to point at', () => {
   const calls = [];
   const execAllowed = (binary, argv, cwd) => { calls.push([binary, argv, cwd]); return ''; };
-  const ports = realPorts({ repoRoot: '/repo', requestsById: new Map() }, { execAllowed });
+  const ports = realPorts({ repoRoot: '/repo', requestsById: new Map() }, { execAllowed, dispatch: refusingDispatch().dispatch });
   ports.writeRef({ ref: 'refs/mitosis/0a1b2c3d/alpha', unitId: 'alpha', sha: 'abc123' });
   assert.deepEqual(calls[0], ['git', ['update-ref', 'refs/mitosis/0a1b2c3d/alpha', 'abc123'], '/repo']);
   assert.throws(
@@ -411,7 +412,7 @@ test('REAL PORTS: a checkpoint ref is written with git update-ref and refused wh
 test('REAL PORTS: the pull request probe runs the gh argv it is handed inside the repository root', () => {
   const calls = [];
   const run = (binary, argv, options) => { calls.push([binary, argv, options]); return {}; };
-  const ports = realPorts({ repoRoot: '/repo', requestsById: new Map() }, { run });
+  const ports = realPorts({ repoRoot: '/repo', requestsById: new Map() }, { run, dispatch: refusingDispatch().dispatch });
   ports.gh(['pr', 'view']);
   const [binary, argv, options] = calls[0];
   assert.equal(binary, 'gh');
