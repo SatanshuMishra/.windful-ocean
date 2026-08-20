@@ -10,28 +10,28 @@
     {
       "id": "c1",
       "text": "Audit git tracking and identify every AI-generated document that should not be tracked, separated from real configuration.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c2",
       "text": "Untrack those documents without deleting them from disk, and add ignore rules so the trees cannot creep back.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c3",
       "text": "Repair any live consumer the untracking broke, proven green on a pristine clone rather than the live checkout.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
     {
       "id": "c4",
       "text": "Open a pull request carrying the change, with an honest verification section.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     }
@@ -48,10 +48,26 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
+    "active_goal": "The repository tracks actual configuration only; assistant-generated documents stay on disk and out of git.",
+    "next_step": "Merge pull request 252 after reading its CI checks directly — the test workflow is not a required status check on this repository, so a red pull request will still merge on one click. Then start the filed follow-up: enumerate tracked programs no CI job invokes, and repair the two tracked prose files that cite now-absent paths.",
+    "last_session": "Audited tracking, untracked 92 documents while keeping them on disk, extracted the retired agent roster into tracked config after the untracking broke a gate and two tests, and opened pull request 252.",
+    "open_risks": [
+      {
+        "text": "Read the checks on pull request 252 before merging — the test workflow is not a required status check here, so GitHub will merge a red pull request on one click.",
+        "scope": "thread",
+        "refs": [
+          "https://github.com/SatanshuMishra/.windful-ocean/pull/252"
+        ]
+      },
+      {
+        "text": "A tracked program can still read a path into the untracked document trees and go unnoticed if no CI job runs it — a text search cannot find these reliably, because the one consumer that was missed builds its path from two separate string literals.",
+        "scope": "thread",
+        "refs": [
+          "68aacf5d",
+          "task_2dfd84aa"
+        ]
+      }
+    ],
     "key_decisions": [
       {
         "ref": "0638-untrack-only-keep-files-on-disk",
@@ -64,8 +80,11 @@
         "scope": "c3"
       }
     ],
-    "out_of_scope": []
+    "out_of_scope": [
+      "Extending CI coverage to tracked programs no CI job currently invokes, and repairing tracked prose that cites now-absent paths — filed as its own unit.",
+      "The modified sound file sitting in the working tree, which predates this work and was never staged."
+    ]
   },
   "created_at": "2026-08-20T04:51:30.743Z",
-  "updated_at": "2026-08-20T04:52:15.304Z"
+  "updated_at": "2026-08-20T04:52:39.137Z"
 }
