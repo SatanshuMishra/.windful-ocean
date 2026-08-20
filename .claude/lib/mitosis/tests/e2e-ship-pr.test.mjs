@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EXEC_ALLOWLIST, resolveSpawn } from '../exec-policy.mjs';
+import { parseMitosisGitArgv } from '../../git/pr.mjs';
 import {
   BOUNDARY_VERIFIED,
   PR_TOOL_PATH,
@@ -170,7 +171,7 @@ test('the composed argv carries every mandated field once, in the order the tool
     '--head', 'mitosis/beta-integration',
     '--base', 'main',
     '--title', 'feat(beta): unit beta',
-    '--why', 'fixture rationale for unit beta',
+    '--why', 'Fixture rationale for unit beta.',
     '--what', 'Unit beta.',
     '--verified', 'boundary gate - clean',
     '--not-verified', 'receipts enforcer - not run',
@@ -567,6 +568,26 @@ test('a ship port that is not a function is refused before any pull request is o
     );
   }
   await assert.rejects(() => shipIntegrated(SHIP_CONFIG, null), /ship ports must be a non-null, non-array object, received null$/);
+});
+
+test('a rationale a live decomposer emits lowercase and unpunctuated is repaired into a sentence the centralized pull-request tool accepts, so the unit ships rather than parking on formatting', async () => {
+  const spawnedArgv = [];
+  const shipped = shippingPorts({
+    openPullRequest: (request) => {
+      spawnedArgv.push(request.argv);
+      const verbAt = request.argv.indexOf('pr-create');
+      const parsed = parseMitosisGitArgv(request.argv.slice(verbAt));
+      if (!parsed.ok) return { status: 2, stdout: '', stderr: `${parsed.error}\n` };
+      return { status: 0, stdout: CREATED_LINE, stderr: '' };
+    },
+  });
+  const plan = await shipIntegrated(shippingConfig({
+    manifest: { baseBranch: 'main', sourcePrefix: 'mitosis', msps: [{ ...BETA_MSP, rationale: 'fixture rationale for unit beta' }] },
+  }), shipped.ports);
+
+  assert.deepEqual(plan.opened.map((entry) => entry.unitId), ['beta']);
+  assert.deepEqual(plan.parked, []);
+  assert.equal(spawnedArgv[0][spawnedArgv[0].indexOf('--why') + 1], 'Fixture rationale for unit beta.');
 });
 
 test('a msp whose mandated pull-request fields cannot be read composes no argv rather than a placeholder', () => {

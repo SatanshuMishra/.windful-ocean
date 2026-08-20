@@ -199,7 +199,7 @@ function prCreateValues(facts) {
     integrationBranch: facts.head,
     baseBranch: facts.base,
     title: facts.title,
-    why: facts.why,
+    why: whatSentenceFrom(facts.why),
     what: whatSentenceFrom(facts.what),
     verified: verifiedLines(facts)[0] ?? null,
     notVerified: RECEIPTS_NOT_VERIFIED,
