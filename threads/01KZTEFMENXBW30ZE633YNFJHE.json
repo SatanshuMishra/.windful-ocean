@@ -248,7 +248,7 @@
     {
       "id": "c42",
       "text": "The suite can no longer spawn the real billed claude binary: 19 cli call sites bound behind a closed census, the e2e harness pinned to the sandbox fake by content identity, the PATH fallthrough filed.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -308,161 +308,10 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship the frozen 24-unit whole solution, waves 6 through 9, closing all thirteen boundary root causes.",
-    "next_step": "THREE USER ACTIONS, in order; no agent may do any. (1) MERGE PR 250 - it is still OPEN and CLEAN despite being reported merged; verify by content on origin/main, not by the label. (2) Trigger the M15 re-run from m15/c28-rerun-RUNBOOK.md, then merge the three pull requests it opens by hand. (3) Make the test check REQUIRED - 0635 withdrew the blocker, so this is executable once 250 lands. Then c41 is the only agent work left, and it is the last criterion.",
-    "last_session": "2026-08-20: M16 built and green, 17 of 17, but PR 250 never merged - still OPEN. c28's re-run staged. The gate red was measured to be git commondir, not the home symlink, and a deliberate invariant; 0635 withdraws 0634's claim that it blocks the required check. User ruled it stays filed.",
+    "active_goal": "Prove mitosis works end to end on a live run, then finish the test-suite cleanup. All 24 units are built and merged.",
+    "next_step": "TRIGGER THE LIVE RUN. Nothing in the repo blocks it. Follow m15/c28-rerun-RUNBOOK.md: reset the substrate repo mitosis-live-pr-harness to seed fe0dff16 and drop last run's branches, settle the done-oracle question with the one-command check, then trigger. Pass is 3 pull requests opened and none parked; merge those three by hand because the engine never merges. Then c41's remaining batches, and the PATH fallthrough filed under c42.",
+    "last_session": "2026-08-20: c40, c31 and c42 closed. M16 merged (PR 250), plus PRs 253 and 254 closing two of three paths by which the suite could spawn the real billed binary. c28's park root-caused to a 226-char rationale against a 200-char cap and filed as architecture. Three merged worktrees cleaned.",
     "open_risks": [
-      {
-        "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
-        "scope": "thread",
-        "refs": [
-          "0472",
-          "0445"
-        ]
-      },
-      {
-        "text": "A merged pull request is not an in-force config change — the global agents, rules, skills and lib all symlink into the primary checkout's working tree, so fast-forward it and grep the live file rather than trusting a MERGED label",
-        "scope": "thread",
-        "refs": [
-          "0488",
-          "memory: merged-config-is-not-in-force-until-pull"
-        ]
-      },
-      {
-        "text": "Run the local G14 replica before pushing rather than after — the enforcer draws its mutation sample only once the pull request exists, so an implementer that finishes at creation never sees its own gate and a one-attempt policy silently never fires",
-        "scope": "thread",
-        "refs": [
-          "0516",
-          "scratchpad g14-replica.js"
-        ]
-      },
-      {
-        "text": "Re-run a stacked pull request's CI only when you must — the enforcer diffs two-dot from base.sha, so a green child can turn red after its parent branch moves, through no fault of its own",
-        "scope": "thread",
-        "refs": [
-          "enforcer/verify.js:912"
-        ]
-      },
-      {
-        "text": "Stub dispatch explicitly in any test that drives runCli in process — without a dispatch dependency it falls through to the real dispatcher and spawns the REAL claude binary",
-        "scope": "thread",
-        "refs": [
-          "unit-verdict-sha.test.mjs"
-        ]
-      },
-      {
-        "text": "Write G14 assertions that pin an exact value before you push — three pull requests in a row survived mutation until a test pinned an exact count instead of asserting not-the-old-value",
-        "scope": "thread",
-        "refs": [
-          "gates.G14.mode block",
-          "0516"
-        ]
-      },
-      {
-        "text": "Prefer deleting an unassertable line over pinning it — a line no test can distinguish usually carries no behaviour, and deletion shrinks the mutable surface permanently",
-        "scope": "thread",
-        "refs": [
-          "0516"
-        ]
-      },
-      {
-        "text": "Read the receipts BLOCK verdict line itself, never a warning printed next to it — emit() concatenates warnings onto the verdict, so an unknown-key warning sits beside exit code 1 and looks like the cause",
-        "scope": "thread",
-        "refs": [
-          "memory: receipts-warnings-render-inside-the-block-line"
-        ]
-      },
-      {
-        "text": "Treat an unknown receipts config key as enforcer-pin drift before treating it as a typo — the pinned action SHA can predate a valid newer key, and deleting it discards a correct forward-compatible setting",
-        "scope": "thread",
-        "refs": [
-          "gates.G17.downgrade_threshold",
-          ".github/workflows/receipts.yml"
-        ]
-      },
-      {
-        "text": "Derive a deletion exposure set by comparing TREES, never by a two-dot range diff — a file deleted before the base is invisible to the range while the other branch still carries it, so it returns through automerge",
-        "scope": "thread",
-        "refs": [
-          "0444",
-          "dead-export-lint.test.mjs"
-        ]
-      },
-      {
-        "text": "Dispatch every child with run_in_background false — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran; what it returns when it DOES finish is trusted, never re-run",
-        "scope": "thread",
-        "refs": [
-          "0446"
-        ]
-      },
-      {
-        "text": "Work in a worktree rather than switching the primary checkout — the global rules, CLAUDE.md, skills and agents are symlinks into its working tree, so a checkout there silently changes the live global config",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/rules"
-        ]
-      },
-      {
-        "text": "Read every request.prompt in a run document before executing it — the engine hands that text verbatim to a real child holding its own Bash tool, so the document is the entire blast radius",
-        "scope": "thread",
-        "refs": [
-          "0478",
-          "cli.mjs specs[].request.prompt"
-        ]
-      },
-      {
-        "text": "Discard and redo any run that does not reach quiescence cleanly — a dispatch whose start was recorded but whose finish never arrived leaves no usage line at all, so a torn-down run silently undercounts instead of failing loudly",
-        "scope": "thread",
-        "refs": [
-          "c25 filed item 2",
-          "usageRecorder"
-        ]
-      },
-      {
-        "text": "Clear a poisoned lock with the run-store retire verb — a killed run never breaks its own lock, so the next run on the same spec refuses until an operator intervenes",
-        "scope": "thread",
-        "refs": [
-          "run-store.mjs",
-          "PR 179 lock scope"
-        ]
-      },
-      {
-        "text": "Expect no ESLint and no tsconfig anywhere in this repo — the function, file and nesting caps are advisory with no enforcing check, and the lint hook skips every path under .claude",
-        "scope": "thread",
-        "refs": [
-          ".claude/rules/common/coding-style.md"
-        ]
-      },
-      {
-        "text": "Assume a new top-level .mjs under lib/mitosis needs no registration, but a new SUBDIRECTORY or non-.mjs file halts the determinism verb — and any clock or randomness read reddens it, so take timestamps as validated arguments",
-        "scope": "thread",
-        "refs": [
-          "determinism-lint.mjs"
-        ]
-      },
-      {
-        "text": "Rehome ci-escalation's exports before deleting run-engine.mjs — ci-facts.mjs consumes them and ci-escalation consumes run-engine's, so the three legacy modules need a prior extraction MSP, not a direct deletion",
-        "scope": "thread",
-        "refs": [
-          "ceiling doc item F1",
-          "run-engine.mjs",
-          "engine-args.mjs"
-        ]
-      },
-      {
-        "text": "Filter the agent ledger to this project before rendering anything from it — thousands of rows carry a confidential cross-project codename, and an unfiltered count or cwd histogram leaks it into a tracked artifact",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/agent-ledger/events/"
-        ]
-      },
-      {
-        "text": "Copy no fanout source into this repo — it is PolyForm Noncommercial, so the architecture may be adopted and cited as prior art but a verbatim lift is a licensing decision, not a coding one",
-        "scope": "thread",
-        "refs": [
-          "0373"
-        ]
-      },
       {
         "text": "Never let the engine merge a pull request — merge is refused at four independent layers by design, so c28 means serialized ship order plus a blocked-pending-approval handoff",
         "scope": "c27",
@@ -623,6 +472,160 @@
           "parking.mjs:115",
           "tests/progress-token-census.mjs",
           "M4b report"
+        ]
+      },
+      {
+        "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by a MERGED label or a SHA — a pull request reported as merged this session was still OPEN, and a squash rewrites commits so a pre-merge SHA fails ancestry on a merge that lost nothing",
+        "scope": "thread",
+        "refs": [
+          "0472",
+          "0445",
+          "PR 250"
+        ]
+      },
+      {
+        "text": "A merged pull request is not an in-force config change — the global agents, rules, skills and lib all symlink into the primary checkout's working tree, so fast-forward it and grep the live file rather than trusting a MERGED label",
+        "scope": "thread",
+        "refs": [
+          "0488",
+          "memory: merged-config-is-not-in-force-until-pull"
+        ]
+      },
+      {
+        "text": "Never pass --provenance, --origin, --depends or --changed-lines to pr-create — all four were removed and now exit 2; two dispatches lost a round to the stale form",
+        "scope": "thread",
+        "refs": [
+          "pr-format.mjs",
+          "rules/common/git/pull-requests.md"
+        ]
+      },
+      {
+        "text": "Compose pr-create values within the measured caps — why max 3, what max 3, verified 8, not-verified 8, each value 200 characters, and why, what and risk must start uppercase and end in a full stop",
+        "scope": "thread",
+        "refs": [
+          "pr-format.mjs:5-11"
+        ]
+      },
+      {
+        "text": "Read per-check conclusions individually rather than any aggregate — no check is required on main, so a pull request merges on one click over a red check, and one did this session",
+        "scope": "thread",
+        "refs": [
+          "PR 253",
+          "receipts BLOCK"
+        ]
+      },
+      {
+        "text": "Expect three gate verbs to census the PRIMARY CHECKOUT from inside any linked worktree — dispatchable-agent-schema-capable, name-integrity and retirement-census, so their local green is evidence about that checkout and not about the commit under test",
+        "scope": "thread",
+        "refs": [
+          "canonical-config-dir.mjs:78",
+          "0635"
+        ]
+      },
+      {
+        "text": "Run the local G14 replica before pushing rather than after — the enforcer draws its mutation sample only once the pull request exists, so an implementer that finishes at creation never sees its own gate",
+        "scope": "thread",
+        "refs": [
+          "0516",
+          "scratchpad g14-replica.js"
+        ]
+      },
+      {
+        "text": "Treat a fast receipts PASS as a short-circuit and say so — a tests-only or docs-only diff returns PASS in seconds with G14 never refereeing anything, which is not a cleared gate",
+        "scope": "thread",
+        "refs": [
+          "memory: receipts-short-circuits-on-non-source-diffs"
+        ]
+      },
+      {
+        "text": "Stub dispatch explicitly in any test that drives runCli in process — cli.mjs defaults deps.dispatch to the real billed binary, and spawnChild converts the failure into an ordinary verdict so the suite still reads green",
+        "scope": "thread",
+        "refs": [
+          "cli.mjs:487",
+          "cli.mjs:677",
+          "0640"
+        ]
+      },
+      {
+        "text": "Write G14 assertions that pin an exact value before you push — three pull requests in a row survived mutation until a test pinned an exact count instead of asserting not-the-old-value",
+        "scope": "thread",
+        "refs": [
+          "gates.G14.mode block",
+          "0516"
+        ]
+      },
+      {
+        "text": "Dispatch every child with run_in_background false — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran; what it returns when it DOES finish is trusted, never re-run",
+        "scope": "thread",
+        "refs": [
+          "0446"
+        ]
+      },
+      {
+        "text": "Work in a worktree rather than switching the primary checkout — the global rules, CLAUDE.md, skills and agents are symlinks into its working tree, and another session moves it between branches without warning",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/rules"
+        ]
+      },
+      {
+        "text": "Read every request.prompt in a run document before executing it — the engine hands that text verbatim to a real child holding its own Bash tool, so the document is the entire blast radius",
+        "scope": "thread",
+        "refs": [
+          "0478",
+          "cli.mjs specs[].request.prompt"
+        ]
+      },
+      {
+        "text": "Discard and redo any run that does not reach quiescence cleanly — a dispatch whose start was recorded but whose finish never arrived leaves no usage line at all, so a torn-down run silently undercounts instead of failing loudly",
+        "scope": "thread",
+        "refs": [
+          "c25 filed item 2",
+          "usageRecorder"
+        ]
+      },
+      {
+        "text": "Clear a poisoned lock with the run-store retire verb — a killed run never breaks its own lock, so the next run on the same spec refuses until an operator intervenes",
+        "scope": "thread",
+        "refs": [
+          "run-store.mjs",
+          "PR 179 lock scope"
+        ]
+      },
+      {
+        "text": "Assume a new top-level .mjs under lib/mitosis needs no registration, but a new SUBDIRECTORY or non-.mjs file halts the determinism verb — and any clock or randomness read reddens it, so take timestamps as validated arguments",
+        "scope": "thread",
+        "refs": [
+          "determinism-lint.mjs"
+        ]
+      },
+      {
+        "text": "Use command grep -a on any test output — grep here is a shell function wrapping ugrep with -I, so output carrying control bytes is silently skipped as binary with no warning, including under grep -c",
+        "scope": "thread",
+        "refs": [
+          "measured 2026-08-20"
+        ]
+      },
+      {
+        "text": "Capture a verification command's exit code separately and page the output separately — a background wrapper reported exit 0 this session for a run that actually exited 1",
+        "scope": "thread",
+        "refs": [
+          "memory: piping-a-verification-command-masks-its-exit-code"
+        ]
+      },
+      {
+        "text": "Filter the agent ledger to this project before rendering anything from it — thousands of rows carry a confidential cross-project codename, and an unfiltered count or cwd histogram leaks it into a tracked artifact",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/agent-ledger/events/"
+        ]
+      },
+      {
+        "text": "Remove a worktree before deleting its branch and prune afterwards — git refuses to delete a worktree-held branch, and orphaned worktree gitlinks have failed actions/checkout on this repo before",
+        "scope": "thread",
+        "refs": [
+          "c13",
+          "git worktree prune"
         ]
       }
     ],
@@ -1342,5 +1345,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T06:24:39.953Z"
+  "updated_at": "2026-08-20T06:26:10.228Z"
 }
