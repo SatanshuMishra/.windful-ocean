@@ -231,23 +231,20 @@ const SUPERSEDE_FIXTURES = [
 
 const PR_CREATE_VALUES = Object.freeze({
   title: 'fix(supersede): republish the rebuilt integration tip',
-  provenance: 'agent=supersede model=sonnet',
   why: 'a divergent merge on a parent invalidated the built content of the open pull request',
   rationale: 'the parent merged divergently and this unit was rebuilt on the new tip',
   what: 'publish the rebuilt tip onto a fresh branch',
-  summary: '2 files changed, +12/-10 since the superseded head: src/a.ts, src/b.ts',
+  summary: 'This branch changes 2 files since the superseded head, adding 12 lines and removing 10 lines.',
   notVerified: 'ci on the superseding head - not run',
   supersedes: 'https://github.com/acme/widgets/pull/7',
 });
 
 const SHIP_PR_VALUES = Object.freeze({
   title: 'feat(ship): publish the integration head',
-  provenance: 'agent=ship model=opus',
   why: 'the unit is built and its parents are merged',
   what: 'open one pull request on the rebased integration head',
   verified: 'boundary gate - clean',
   notVerified: 'ci on the fresh head - not run',
-  changedLines: '120',
 });
 
 const DERIVED_SHIP_VERIFIED = Object.freeze({
@@ -255,24 +252,20 @@ const DERIVED_SHIP_VERIFIED = Object.freeze({
   '<verified>': 'the same emitted verification; the value is the boundary gate verdict the host read for this unit rather than a line the incumbent spells, and no other check reaches the body as verified',
 });
 
-const OMITTED_DEPENDS = Object.freeze({
-  '${prDependsFlag(msp.dependsOn)}': 'the incumbent emits the depends flag only when the unit declares parent ids and emits nothing at all when it does not; this fixture binds the no-parent shape, and the builder emits the flag and its joined ids when the list is not empty',
-});
+const PR_BODY_WRITING_RULE = 'Write each --what and --why value as a full sentence a reviewer who has never seen this code would understand: start with a capital letter, end with a full stop, and name no file, line number or internal id.';
 
 const NODE_PR_FIXTURES = [
   fixture({
     binary: NODE_COMMAND_BINARY,
     site: 'supersede',
     step: 'open-pr',
-    anchor: 'changing NOTHING except the quoted summary placeholder and chaining nothing onto it: \\`node ${GIT_LIB_DIR}/pr.mjs pr-create --repo ${repoSlug} --head ${supersedeBranch} --base ${baseBranch} --title ${JSON.stringify(supersedePrTitleFor(msp))} --origin machine --provenance ${JSON.stringify(prProvenanceFor(`supersede:${msp.id}`, null))} --why ${JSON.stringify(PR_SUPERSEDE_WHY)} --why ${JSON.stringify(msp.rationale)} --what ${JSON.stringify(msp.title)} --what "<your one-line interdiff summary from step 2>" --not-verified ${JSON.stringify(PR_NOT_VERIFIED_SUPERSEDE_CI)} --supersedes ${JSON.stringify(canonicalPriorPrUrl)}\\`',
+    anchor: PR_BODY_WRITING_RULE + ' changing NOTHING except the quoted summary placeholder and chaining nothing onto it: \\`node ${GIT_LIB_DIR}/pr.mjs pr-create --repo ${repoSlug} --head ${supersedeBranch} --base ${baseBranch} --title ${JSON.stringify(supersedePrTitleFor(msp))} --why ${JSON.stringify(PR_SUPERSEDE_WHY)} --why ${JSON.stringify(msp.rationale)} --what ${JSON.stringify(msp.title)} --what "<your one-line interdiff summary from step 2>" --not-verified ${JSON.stringify(PR_NOT_VERIFIED_SUPERSEDE_CI)} --supersedes ${JSON.stringify(canonicalPriorPrUrl)}\\`',
     argv: [
       '--', '<gitLibDir>/pr.mjs', 'pr-create',
       '--repo', '<repoSlug>',
       '--head', '<supersedeBranch>',
       '--base', '<baseBranch>',
       '--title', '<title>',
-      '--origin', 'machine',
-      '--provenance', '<provenance>',
       '--why', '<why>',
       '--why', '<rationale>',
       '--what', '<what>',
@@ -287,7 +280,6 @@ const NODE_PR_FIXTURES = [
       ...SUPERSEDE_PLACEHOLDER,
       ...BASE_PLACEHOLDER,
       '<title>': Object.freeze({ incumbent: '${JSON.stringify(supersedePrTitleFor(msp))}', field: 'title', value: PR_CREATE_VALUES.title }),
-      '<provenance>': Object.freeze({ incumbent: '${JSON.stringify(prProvenanceFor(`supersede:${msp.id}`, null))}', field: 'provenance', value: PR_CREATE_VALUES.provenance }),
       '<why>': Object.freeze({ incumbent: '${JSON.stringify(PR_SUPERSEDE_WHY)}', field: 'why', value: PR_CREATE_VALUES.why }),
       '<rationale>': Object.freeze({ incumbent: '${JSON.stringify(msp.rationale)}', field: 'rationale', value: PR_CREATE_VALUES.rationale }),
       '<what>': Object.freeze({ incumbent: '${JSON.stringify(msp.title)}', field: 'what', value: PR_CREATE_VALUES.what }),
@@ -300,20 +292,17 @@ const NODE_PR_FIXTURES = [
     binary: NODE_COMMAND_BINARY,
     site: 'ship',
     step: 'open-pr',
-    anchor: 'substituting ONLY the digits for <N>: \\`node ${GIT_LIB_DIR}/pr.mjs pr-create --repo ${repoSlug} --head ${integrationBranch} --base ${baseBranch} --title ${JSON.stringify(prTitleFor(msp))} --origin machine --provenance ${JSON.stringify(prProvenanceFor(`ship:${msp.id}`, shipModel))} --why ${JSON.stringify(msp.rationale)} --what ${JSON.stringify(msp.title)} --not-verified ${JSON.stringify(PR_NOT_VERIFIED_OPEN_CI)}${prDependsFlag(msp.dependsOn)} --changed-lines <N>\\`',
+    anchor: PR_BODY_WRITING_RULE + ' \\`node ${GIT_LIB_DIR}/pr.mjs pr-create --repo ${repoSlug} --head ${integrationBranch} --base ${baseBranch} --title ${JSON.stringify(prTitleFor(msp))} --why ${JSON.stringify(msp.rationale)} --what ${JSON.stringify(msp.title)} --not-verified ${JSON.stringify(PR_NOT_VERIFIED_OPEN_CI)}\\`',
     argv: [
       '--', '<gitLibDir>/pr.mjs', 'pr-create',
       '--repo', '<repoSlug>',
       '--head', '<integrationBranch>',
       '--base', '<baseBranch>',
       '--title', '<title>',
-      '--origin', 'machine',
-      '--provenance', '<provenance>',
       '--why', '<why>',
       '--what', '<what>',
       '--verified', '<verified>',
       '--not-verified', '<notVerified>',
-      '--changed-lines', '<changedLines>',
     ],
     derived: { ...DERIVED_NODE_SEPARATOR, ...DERIVED_SHIP_VERIFIED },
     placeholders: {
@@ -322,15 +311,11 @@ const NODE_PR_FIXTURES = [
       ...IB_PLACEHOLDER,
       ...BASE_PLACEHOLDER,
       '<title>': Object.freeze({ incumbent: '${JSON.stringify(prTitleFor(msp))}', field: 'title', value: SHIP_PR_VALUES.title }),
-      '<provenance>': Object.freeze({ incumbent: '${JSON.stringify(prProvenanceFor(`ship:${msp.id}`, shipModel))}', field: 'provenance', value: SHIP_PR_VALUES.provenance }),
       '<why>': Object.freeze({ incumbent: '${JSON.stringify(msp.rationale)}', field: 'why', value: SHIP_PR_VALUES.why }),
       '<what>': Object.freeze({ incumbent: '${JSON.stringify(msp.title)}', field: 'what', value: SHIP_PR_VALUES.what }),
       '<verified>': Object.freeze({ field: 'verified', value: SHIP_PR_VALUES.verified }),
       '<notVerified>': Object.freeze({ incumbent: '${JSON.stringify(PR_NOT_VERIFIED_OPEN_CI)}', field: 'notVerified', value: SHIP_PR_VALUES.notVerified }),
-      '<changedLines>': Object.freeze({ incumbent: '<N>', field: 'changedLines', value: SHIP_PR_VALUES.changedLines }),
     },
-    omitted: OMITTED_DEPENDS,
-    bound: { dependsIds: [] },
   }),
 ];
 
