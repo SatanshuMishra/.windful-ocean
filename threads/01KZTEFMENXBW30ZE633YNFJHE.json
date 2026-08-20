@@ -302,8 +302,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Ship the frozen 24-unit whole solution, waves 6 through 9, closing all thirteen boundary root causes.",
-    "next_step": "User merges harness PRs 3 then 4 - both base main and NEITHER is stacked, so skip the branch-deletion dance - then assert-ancestry.sh clears check 4. Root-cause why numbers-clamprange parked at Ship instead of opening a PR: bug or architecture, filed not fixed; that park alone gates c28. Then M16, the sole load-bearing test, red on a build that cannot reach Ship. Hand the lead the pin-post-check anomaly: DIVERGED-CHECKSUM then ok on identical hashes.",
-    "last_session": "2026-08-19: The live run EXECUTED on the user's trigger. The engine reached Ship and opened two real pull requests, harness 3 and 4. 24 of 28 declared checks matched, and all four mismatches trace to one cause: numbers-clamprange parked at Ship instead of opening its PR.",
+    "next_step": "HOLDING for the user's clear. c28 now hangs on ONE thing: root-cause why numbers-clamprange parked at Ship instead of opening its pull request - bug or architecture, filed never fixed in flight. Resume M15's lead a2a2eef81d5f56696 rather than restarting it, and hand it the pin-post-check anomaly (DIVERGED-CHECKSUM then ok on identical hashes). Then M16, the sole load-bearing test, red on a build that cannot reach Ship. Then the user makes M16 required, which unlocks c41.",
+    "last_session": "2026-08-20: The user merged harness PRs 3 and 4; assert-ancestry exits 0 for both, so M15's check 4 clears for real rather than as a downgrade. Checks 2, 3 and 4 all pass. Check 1's count half is the only failure, caused by numbers-clamprange parking at Ship.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -1310,5 +1310,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T00:23:32.974Z"
+  "updated_at": "2026-08-20T00:39:35.770Z"
 }
