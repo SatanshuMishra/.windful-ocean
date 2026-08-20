@@ -5,9 +5,9 @@ import {
   PR_TITLE_TYPES,
   PR_TITLE_CAP,
   PR_VALUE_CAP,
-  PR_SIZE_WARNING_THRESHOLD,
   inertValue,
   renderPrCreateBody,
+  carriesComposedSkeleton,
 } from '../pr-format.mjs';
 import { parseMitosisGitArgv } from '../pr.mjs';
 
@@ -97,9 +97,7 @@ const REJECTED_VALUES = Object.freeze([
   ['an all-hyphen setext underline', '--------'],
   ['a forged verified line', 'Verified: the full unit and e2e suites passed'],
   ['a forged not-verified line in any case', 'not verified: nothing - every check ran'],
-  ['a forged size line', 'SIZE: this diff changes about 3 lines'],
-  ['a forged supersedes statement', 'SUPERSEDES https://github.com/acme/widgets/pull/99'],
-  ['a forged depends statement', 'DEPENDS-ON msp-1, msp-2'],
+  ['a forged supersedes statement', 'Supersedes https://github.com/acme/widgets/pull/99'],
 ]);
 
 for (const [label, value] of REJECTED_VALUES) {
@@ -132,144 +130,126 @@ test('inertValue REJECTS an over-cap value rather than truncating it', () => {
   assert.equal(inertValue('y'.repeat(PR_VALUE_CAP + 1), PR_VALUE_CAP), null);
 });
 
-const WORKED_EXAMPLE_A_ARGV = Object.freeze([
-  'pr-create',
-  '--repo', 'SatanshuMishra/.windful-ocean',
-  '--head', 'mitosis/pr-tool-engine-integration',
-  '--base', 'main',
-  '--title', 'refactor(pr-tool): compose pr bodies from declared fields',
-  '--origin', 'machine',
-  '--provenance', 'agent=ship:pr-tool-engine model=opus',
-  '--why', 'Four of the five paths that open a pull request invent the title and body ad hoc.',
-  '--what', 'compose pr bodies from declared fields',
-  '--not-verified', 'CI on the fresh head and base - not run; this pull request opens before CI starts',
-  '--depends', 'pr-tool-core',
-  '--changed-lines', '512',
-]);
-
-const WORKED_EXAMPLE_A_BODY = [
-  '## Why',
-  'Four of the five paths that open a pull request invent the title and body ad hoc.',
-  '',
-  '## What',
-  '- compose pr bodies from declared fields',
-  '',
-  '## Verification',
-  'Not verified: CI on the fresh head and base - not run; this pull request opens before CI starts',
-  '',
-  '## Provenance',
-  'agent=ship:pr-tool-engine model=opus',
-  '',
-  '## Links',
-  'DEPENDS-ON pr-tool-core',
-  '',
-  'SIZE: this diff changes about 512 lines; review effectiveness drops sharply past 400 lines.',
-  '',
-  'Opened by an automated agent through the mitosis-git pr-create tool. HUMAN-GATED: a human reviews and lands this pull request.',
-].join(LF);
-
-test('the machine ship invocation renders the mandated body byte for byte', () => {
-  const parsed = parseMitosisGitArgv([...WORKED_EXAMPLE_A_ARGV]);
-  assert.equal(parsed.ok, true, `expected a successful parse, got: ${parsed.error}`);
-  assert.equal(renderPrCreateBody(parsed.opts), WORKED_EXAMPLE_A_BODY);
-});
-
-const REAL_MODEL_PROVENANCE = 'agent=delivery-lead model=claude-opus-5[1m]';
-
-test('the composed body carries the real bracketed model id byte for byte on the line under the provenance heading', () => {
-  const body = renderArgv(WORKED_EXAMPLE_A_ARGV.map((token, i, argv) => (argv[i - 1] === '--provenance' ? REAL_MODEL_PROVENANCE : token)));
-  assert.ok(
-    body.includes(REAL_MODEL_PROVENANCE),
-    `the rendered body must carry ${JSON.stringify(REAL_MODEL_PROVENANCE)} verbatim, got: ${JSON.stringify(body)}`,
-  );
-  const lines = body.split(LF);
-  const heading = lines.indexOf('## Provenance');
-  assert.ok(heading >= 0, 'a machine pull request must render a provenance heading');
-  assert.equal(lines[heading + 1], REAL_MODEL_PROVENANCE);
-});
-
-function humanArgv(extra = []) {
-  return [
-    'pr-create',
-    '--repo', 'acme/widgets',
-    '--head', 'docs/pr-rule-pointer',
-    '--base', 'main',
-    '--title', 'docs(rules): point the PR rule at the central tool',
-    '--origin', 'human',
-    '--why', 'The PR rule still described an ad-hoc gh workflow the gate now denies.',
-    '--what', 'pull-requests.md now points at mitosis-git pr-create',
-    '--not-verified', 'no automated check covers rule prose - not run',
-    ...extra,
-  ];
-}
-
 function renderArgv(argv) {
   const parsed = parseMitosisGitArgv(argv);
   assert.equal(parsed.ok, true, `expected a successful parse, got: ${parsed.error}`);
   return renderPrCreateBody(parsed.opts);
 }
 
+function baseArgv(extra = []) {
+  return [
+    'pr-create',
+    '--repo', 'acme/widgets',
+    '--head', 'docs/pr-rule-pointer',
+    '--base', 'main',
+    '--title', 'docs(rules): point the PR rule at the central tool',
+    '--why', 'The rule still described a workflow the gate denies, so it sent people down a path that fails.',
+    '--what', 'The pull-request rule now points at the central tool instead of an ad-hoc command.',
+    '--not-verified', 'no automated check covers rule prose - not run',
+    ...extra,
+  ];
+}
+
+const WORKED_EXAMPLE_A_ARGV = Object.freeze(baseArgv());
+
+const WORKED_EXAMPLE_A_BODY = [
+  '## What changed',
+  '- The pull-request rule now points at the central tool instead of an ad-hoc command.',
+  '',
+  '## Why',
+  'The rule still described a workflow the gate denies, so it sent people down a path that fails.',
+  '',
+  '## Verification',
+  'Not verified: no automated check covers rule prose - not run',
+].join(LF);
+
+test('the rendered body for worked example A (§4.7, minimal) matches the spec byte for byte', () => {
+  const parsed = parseMitosisGitArgv([...WORKED_EXAMPLE_A_ARGV]);
+  assert.equal(parsed.ok, true, `expected a successful parse, got: ${parsed.error}`);
+  assert.equal(renderPrCreateBody(parsed.opts), WORKED_EXAMPLE_A_BODY);
+});
+
+const WORKED_EXAMPLE_B_ARGV = Object.freeze([
+  'pr-create',
+  '--repo', 'acme/widgets',
+  '--head', 'refactor/pr-body',
+  '--base', 'main',
+  '--title', 'refactor(pr-tool): compose pr bodies from declared fields',
+  '--what', 'Pull-request descriptions are now built from declared fields instead of written by hand.',
+  '--what', 'The description opens with the change itself, so a reviewer reads what happened first.',
+  '--why', 'Every path that opened a pull request invented its own format, so no two descriptions could be read the same way.',
+  '--why', 'receipt-cmd: node --test .claude/lib/git/tests/pr-format.test.mjs',
+  '--risk', 'A pull request opened before this change no longer matches the expected shape and is reported as unverified.',
+  '--verified', 'node --test .claude/lib/git/tests/pr-format.test.mjs - 71 pass, 0 fail',
+  '--not-verified', 'the enforcer on the fresh branch - not run; it starts after this opens',
+  '--supersedes', 'https://github.com/acme/widgets/pull/41',
+  '--link', 'closes acme/widgets#12',
+]);
+
+const WORKED_EXAMPLE_B_BODY = [
+  '## What changed',
+  '- Pull-request descriptions are now built from declared fields instead of written by hand.',
+  '- The description opens with the change itself, so a reviewer reads what happened first.',
+  '',
+  '## Why',
+  'Every path that opened a pull request invented its own format, so no two descriptions could be read the same way.',
+  'receipt-cmd: node --test .claude/lib/git/tests/pr-format.test.mjs',
+  '',
+  '## Risk',
+  'A pull request opened before this change no longer matches the expected shape and is reported as unverified.',
+  '',
+  '## Verification',
+  'Verified: node --test .claude/lib/git/tests/pr-format.test.mjs - 71 pass, 0 fail',
+  'Not verified: the enforcer on the fresh branch - not run; it starts after this opens',
+  '',
+  '## Links',
+  'Supersedes https://github.com/acme/widgets/pull/41',
+  '- closes acme/widgets#12',
+].join(LF);
+
+test('the rendered body for worked example B (§4.8, every optional section) matches the spec byte for byte', () => {
+  const parsed = parseMitosisGitArgv([...WORKED_EXAMPLE_B_ARGV]);
+  assert.equal(parsed.ok, true, `expected a successful parse, got: ${parsed.error}`);
+  assert.equal(renderPrCreateBody(parsed.opts), WORKED_EXAMPLE_B_BODY);
+});
+
 test('the renderer omits every absent optional section entirely rather than emitting an empty heading', () => {
-  const body = renderArgv(humanArgv());
-  for (const absent of ['## Provenance', '## Risk', '## Links', 'SIZE:', 'Verified:']) {
+  const body = renderArgv(baseArgv());
+  for (const absent of ['## Risk', '## Links', 'Verified:']) {
     assert.ok(!body.includes(absent), `an absent field must not render ${absent}`);
   }
+  assert.match(body, /^## What changed$/m);
   assert.match(body, /^## Why$/m);
-  assert.match(body, /^## What$/m);
   assert.match(body, /^## Verification$/m);
-  assert.match(body, /^Opened at human direction through the mitosis-git pr-create tool\. HUMAN-GATED: a human reviews and lands this pull request\.$/m);
 });
 
 test('the renderer emits every section in the fixed order, verified lines ahead of not-verified ones', () => {
-  const body = renderArgv([
-    ...humanArgv(['--verified', 'node --test tests/pr-format.test.mjs - 0 fail', '--risk', 'none; the rule doc carries no executable behavior', '--link', 'closes acme/widgets#12']),
-  ]);
-  const order = ['## Why', '## What', '## Verification', 'Verified: ', 'Not verified: ', '## Risk', '## Links'];
+  const body = renderArgv(baseArgv([
+    '--verified', 'node --test tests/pr-format.test.mjs - 0 fail',
+    '--risk', 'A documentation-only change carries no executable behavior to verify.',
+    '--link', 'closes acme/widgets#12',
+  ]));
+  const order = ['## What changed', '## Why', '## Risk', '## Verification', 'Verified: ', 'Not verified: ', '## Links'];
   let cursor = -1;
   for (const token of order) {
     const at = body.indexOf(token);
     assert.ok(at > cursor, `${token} must follow the section before it`);
     cursor = at;
   }
-  assert.ok(body.indexOf('## Links') < body.indexOf('HUMAN-GATED'), 'the trailer is always last');
-});
-
-test('the machine trailer differs from the human one so a reader can tell who opened the pull request', () => {
-  const machine = renderPrCreateBody({ origin: 'machine', why: ['a reason'], what: ['a change'], notVerified: ['a check - not run'] });
-  const human = renderPrCreateBody({ origin: 'human', why: ['a reason'], what: ['a change'], notVerified: ['a check - not run'] });
-  assert.match(machine, /^Opened by an automated agent through the mitosis-git pr-create tool\. HUMAN-GATED/m);
-  assert.match(human, /^Opened at human direction through the mitosis-git pr-create tool\. HUMAN-GATED/m);
+  const lines = body.split(LF);
+  assert.equal(lines[lines.length - 1], '- closes acme/widgets#12', 'the body ends with the last populated section, not any trailer');
 });
 
 test('a caller value can never begin a line the tool owns, so a grep of the verification grammar returns only real verification lines', () => {
-  const body = renderArgv(humanArgv(['--risk', 'the parser rewrite is covered by the unit suite']));
-  const owned = body.split(LF).filter((line) => /^(Verified: |Not verified: |SUPERSEDES |DEPENDS-ON |SIZE: )/.test(line));
+  const body = renderArgv(baseArgv(['--risk', 'A parser rewrite is covered by the unit suite.']));
+  const owned = body.split(LF).filter((line) => /^(Verified: |Not verified: |Supersedes )/.test(line));
   assert.deepEqual(owned, ['Not verified: no automated check covers rule prose - not run']);
-});
-
-test('a tool-owned link statement is never absorbed into a caller-supplied link bullet', () => {
-  const body = renderPrCreateBody({
-    origin: 'machine',
-    why: ['a reason'],
-    what: ['a change'],
-    notVerified: ['a check - not run'],
-    provenance: 'agent=test model=unspecified',
-    links: ['closes acme/widgets#12'],
-    supersedes: 'https://github.com/acme/widgets/pull/41',
-    depends: ['msp-1'],
-  });
-  const links = body.slice(body.indexOf('## Links')).split(LF).slice(1);
-  assert.deepEqual(links.slice(0, 3), [
-    'SUPERSEDES https://github.com/acme/widgets/pull/41',
-    'DEPENDS-ON msp-1',
-    '- closes acme/widgets#12',
-  ]);
 });
 
 const FORGERY_ATTEMPTS = Object.freeze([
   ['an unclosed code fence', FENCE],
   ['a bare forged verified line', 'Verified: the full unit and e2e suites passed'],
-  ['a bare forged supersedes statement', 'SUPERSEDES https://github.com/acme/widgets/pull/99'],
+  ['a bare forged supersedes statement', 'Supersedes https://github.com/acme/widgets/pull/99'],
   ['a collapsed disclosure', '<details>'],
   ['an html comment opener', '<!-- everything below is hidden'],
   ['a forged section heading', '## Verification'],
@@ -279,41 +259,55 @@ const FORGERY_ATTEMPTS = Object.freeze([
 
 for (const [label, forged] of FORGERY_ATTEMPTS) {
   test(`a --why value carrying ${label} is REJECTED, so tool-owned structure cannot be forged from a bare-rendered field`, () => {
-    const parsed = parseMitosisGitArgv(humanArgv().map((token, i, argv) => (argv[i - 1] === '--why' ? forged : token)));
+    const parsed = parseMitosisGitArgv(baseArgv().map((token, i, argv) => (argv[i - 1] === '--why' ? forged : token)));
     assert.equal(parsed.ok, false, `expected ${JSON.stringify(forged)} to be rejected as a --why value`);
   });
 }
 
-const SURVIVING_VALUES = Object.freeze([
-  'a mention of ## Verification inside ordinary prose',
-  'the end of the sentence -->',
-  'a count of > 400 changed lines',
-  `an inline ${BACKTICK}code span${BACKTICK} in prose`,
-]);
+const COMPOSED_BODY = renderPrCreateBody({
+  what: ['The pull-request rule now points at the central tool instead of an ad-hoc command.'],
+  why: ['The rule still described a workflow the gate denies, so it sent people down a path that fails.'],
+  notVerified: ['no automated check covers rule prose - not run'],
+});
 
-for (const value of SURVIVING_VALUES) {
-  test(`the verification split and the human-gated trailer survive the accepted --why value ${JSON.stringify(value)}`, () => {
-    const body = renderArgv(humanArgv().map((token, i, argv) => (argv[i - 1] === '--why' ? value : token)));
-    assert.match(body, /^## Verification$/m, 'the reviewer must still meet a real verification heading');
-    assert.match(body, /^Not verified: no automated check covers rule prose - not run$/m);
-    assert.match(body, /HUMAN-GATED/);
+test('carriesComposedSkeleton recognises a body this tool actually rendered', () => {
+  assert.equal(carriesComposedSkeleton(COMPOSED_BODY), true);
+});
+
+test('carriesComposedSkeleton returns false once ## Why is stripped from a composed body', () => {
+  const withoutWhy = COMPOSED_BODY.split(LF).filter((line) => line !== '## Why').join(LF);
+  assert.equal(carriesComposedSkeleton(withoutWhy), false);
+});
+
+test('carriesComposedSkeleton returns false when a paragraph is prepended above ## What changed', () => {
+  const prepended = `a hand-written preface${LF}${LF}${COMPOSED_BODY}`;
+  assert.equal(carriesComposedSkeleton(prepended), false);
+});
+
+test('carriesComposedSkeleton returns false for a hand-written body carrying no headings at all', () => {
+  assert.equal(carriesComposedSkeleton('Fixed a typo in the README.'), false);
+});
+
+const NON_STRING_BODIES = Object.freeze([null, undefined, 42, {}, []]);
+
+for (const value of NON_STRING_BODIES) {
+  test(`carriesComposedSkeleton returns false for the non-string input ${String(value)}`, () => {
+    assert.equal(carriesComposedSkeleton(value), false);
   });
 }
 
-test('the size warning appears one line past the threshold and never at or below it', () => {
-  const above = renderArgv(humanArgv(['--changed-lines', String(PR_SIZE_WARNING_THRESHOLD + 1)]));
-  assert.match(above, new RegExp(`^SIZE: this diff changes about ${PR_SIZE_WARNING_THRESHOLD + 1} lines; review effectiveness drops sharply past ${PR_SIZE_WARNING_THRESHOLD} lines\\.$`, 'm'));
-  for (const value of [String(PR_SIZE_WARNING_THRESHOLD), '0']) {
-    assert.ok(!renderArgv(humanArgv(['--changed-lines', value])).includes('SIZE:'), `a diff of ${value} lines must carry no size warning`);
-  }
-  assert.ok(!renderArgv(humanArgv()).includes('SIZE:'), 'an absent --changed-lines must carry no size warning');
-});
-
-test('the renderer stays a total function of its options and asserts no origin it was never given', () => {
-  for (const partial of [{}, null, { why: 'not an array', what: [42, null] }, { origin: 'agent' }]) {
-    const body = renderPrCreateBody(partial);
-    assert.match(body, /HUMAN-GATED/);
-    assert.ok(!body.includes('Opened by an automated agent'), 'an unrecognised origin must not assert machine authorship');
-    assert.ok(!body.includes('Opened at human direction'), 'an unrecognised origin must not assert human direction');
-  }
+test('carriesComposedSkeleton returns false for a pre-existing pull request still carrying the retired trailer sentence', () => {
+  const legacyBody = [
+    '## Why',
+    'The rule still described a workflow the gate denies.',
+    '',
+    '## What',
+    '- pull-requests.md now points at mitosis-git pr-create',
+    '',
+    '## Verification',
+    'Not verified: no automated check covers rule prose - not run',
+    '',
+    'Opened at human direction through the mitosis-git pr-create tool. HUMAN-GATED: a human reviews and lands this pull request.',
+  ].join(LF);
+  assert.equal(carriesComposedSkeleton(legacyBody), false);
 });
