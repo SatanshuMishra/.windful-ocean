@@ -1,0 +1,24 @@
+Session of 2026-08-20. Four criteria closed, three pull requests merged, and one whole class of hazard retired that nobody had been looking for.
+
+SHIPPED
+- c40 closed as already complete. PR 220 was merged, its content verified on the trunk by content, and the sibling-field Markdown exposure already filed. It had only ever been unmarked in the ledger.
+- c28's remaining question answered. numbers-clamprange parked at Ship because its rationale is 226 characters against the 200-character cap every pull-request body value carries. composePrCreateArgv returned not-ok and ship-plan.mjs:395-397 parked rather than truncate a field it would then have to stand behind. That refusal is correct; the inadequacy is that a statically checkable constraint is only enforced after a billed dispatch, a checkpoint, an integrate pass, a rebase and a push. Classified ARCHITECTURE, filed, not fixed. Recorded as 0633.
+- c31 closed. M16 shipped as PR 250 and merged at a44f5fac. Its inertness red turned out VACUOUS: under the stub the only assertion that fired was a generic clean-exit proxy, and because node:assert throws, every Ship-facing assertion was unreachable. The gap was reachability, not greenness. The fix hoists the per-MSP pr-create assertion above the proxy. Recorded as 0634.
+- The test suite could spawn the REAL billed claude binary. Two of three paths closed and merged. PR 253 bound 19 unbound cli call sites behind a closed census; the filing said 17, the census found two more, and it was correct to fold them in because a guard that reds on any unbound site is unsatisfiable while a known unbound site is left alone. PR 254 pinned the e2e harness to the sandboxed fake, proving the binary's identity by FILE CONTENT after two reviewers defeated a first attempt that merely checked a file NAMED claude existed.
+- The c28 re-run is fully staged: a closed census over all 68 flag-bound values across 6 units found exactly one failure, the corrected run document passes with zero, and a runbook carries the reset commands, the trigger, the pass criteria and the merge handoff.
+- Two harness defects repaired and proven: run-live.sh printed result=ok unconditionally after its divergence branch already fired, and its tree_hash folded the absolute directory path into the digest, making the engine-pin check structurally incapable of ever passing.
+- Cleaned three worktrees whose branches were merged, with their branches deleted. Orphaned worktree gitlinks have broken actions/checkout on this repo before.
+
+WHAT FAILED, AND WHY
+- I asserted twice that the ~/.claude/lib symlink caused the local gate failure and that it blocked making the check required. Both were wrong, and the first had already been written into memory where it would have misled the next session. Measured with HOME pointed at an empty directory, the gate still targets the primary checkout: the redirect is git, because a linked worktree's .git is a FILE pointing at the primary checkout's git directory. And a required status check is evaluated on CI's run, never a developer's, so a local red gates nothing. Memory corrected, 0635 withdraws the blocker claim.
+- I briefed a lead to bind a REFUSING dispatch in the e2e harness. That was wrong: it breaks 31 of 79 tests, because that harness exists to drive the REAL dispatcher against a sandboxed FAKE binary, and refusing there would have deleted the only end-to-end coverage in the repository. The lead diverged on measured evidence and was right to.
+- I reported PR 250 as merged on the user's word without checking. It was still OPEN, mergedAt null, and the trunk unchanged. Caught only because the standing rule says prove arrival by content. The same check later caught nothing wrong on the real merge.
+- The third spawn path is NOT closed. dispatch-fixtures.mjs envWith builds a PATH ending in the developer's real PATH and spreads the full ambient environment; if a sandbox stub write or chmod ever fails, resolution falls through to a real billed claude. Latent, never observed firing. The dispatch to close it was interrupted by the user and is filed, not lost.
+
+CORRECTIONS TO STANDING FACTS
+- --provenance, --origin, --depends and --changed-lines no longer exist on pr-create and exit 2 if passed. Measured caps: --why max 3, --what max 3, each value 200 characters, and --why/--what/--risk must be sentence-shaped. The rules file on disk is already correct; two dispatches lost a round to the stale form.
+- THREE gate verbs census the primary checkout, not one: dispatchable-agent-schema-capable, name-integrity and retirement-census. Their local green is evidence about that checkout, not about the commit under test.
+- The suite is 3082 tests across 153 files, not the 3177 previously reported.
+- Merges are landing over red checks. PR 253 merged while receipts was failing, which is possible because no check is required on main.
+
+NOTHING LEFT RUNNING. No background tasks, no shells, no subagents in flight.
