@@ -302,8 +302,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Ship the frozen 24-unit whole solution, waves 6 through 9, closing all thirteen boundary root causes.",
-    "next_step": "HOLDING for the user's clear. c28 now hangs on ONE thing: root-cause why numbers-clamprange parked at Ship instead of opening its pull request - bug or architecture, filed never fixed in flight. Resume M15's lead a2a2eef81d5f56696 rather than restarting it, and hand it the pin-post-check anomaly (DIVERGED-CHECKSUM then ok on identical hashes). Then M16, the sole load-bearing test, red on a build that cannot reach Ship. Then the user makes M16 required, which unlocks c41.",
-    "last_session": "2026-08-20: The user merged harness PRs 3 and 4; assert-ancestry exits 0 for both, so M15's check 4 clears for real rather than as a downgrade. Checks 2, 3 and 4 all pass. Check 1's count half is the only failure, caused by numbers-clamprange parking at Ship.",
+    "next_step": "THREE USER ACTIONS; no agent may do any. (1) Merge PR 250 - M16 is green, 17 of 17, but not on main. (2) Trigger the M15 re-run from m15/c28-rerun-RUNBOOK.md - the corrected run document is staged and passes the census; expect 3 pull requests opened, none parked, then merge those three by hand since the engine never merges. (3) Rule on the required-check blocker: the ~/.claude/lib symlink makes one commit red locally and green in CI, so the E2E cannot be required yet. c41 waits on it.",
+    "last_session": "2026-08-20: c40 closed as already shipped. c28's Ship park root-caused to a 226-character rationale against a 200-character cap - architecture, filed. Two harness defects repaired. The c28 re-run is staged. M16 shipped as PR 250; its inertness red was vacuous by unreachability and was really fixed.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -1320,5 +1320,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T01:52:44.681Z"
+  "updated_at": "2026-08-20T01:53:02.536Z"
 }
