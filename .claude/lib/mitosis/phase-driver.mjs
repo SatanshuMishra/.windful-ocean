@@ -38,6 +38,7 @@ const REQUIRED_PORTS = Object.freeze([
   'skillPointers',
   'observePlan',
   'ciRead',
+  'wait',
   'switchBranch',
   'recordFix',
   'pushFix',
@@ -282,6 +283,7 @@ async function shipPhase(completed, request, ports) {
     reconcile: (values) => ports.reconcile(values),
     watchCi: (watch) => driveCiToGreen(watch, {
       ciRead: (read) => ports.ciRead(read),
+      wait: (ms) => ports.wait(ms),
       dispatchPrompt: (dispatched) => ports.dispatchPrompt(dispatched),
       switchBranch: (checkout) => ports.switchBranch(checkout),
       recordFix: (record) => ports.recordFix(record),

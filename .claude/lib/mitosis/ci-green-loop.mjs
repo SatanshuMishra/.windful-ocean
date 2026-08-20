@@ -15,8 +15,13 @@ export const CI_FACT_EXTRACT_KIND = 'ci-fact-extract';
 export const CI_FIX_KIND = 'ci-fix';
 
 export const RESOLVE_RUN_STEP = 'resolve-run';
+export const WATCH_STATUS_STEP = 'watch-status';
 export const READ_CONCLUSION_STEP = 'read-conclusion';
 export const READ_JOBS_STEP = 'read-jobs';
+
+export const CI_WATCH_MAX_ATTEMPTS = 40;
+export const CI_WATCH_INTERVAL_MS = 15000;
+const CI_RUN_SETTLED_STATUS = 'completed';
 
 export const CI_FACT_SCHEMA = Object.freeze({
   type: 'object',
@@ -40,7 +45,7 @@ export const CI_FIX_SCHEMA = Object.freeze({
 
 export const CI_FIX_COMMIT_PREFIX = 'mitosis ci fix';
 
-const REQUIRED_PORTS = Object.freeze(['ciRead', 'dispatchPrompt', 'switchBranch', 'recordFix', 'pushFix']);
+const REQUIRED_PORTS = Object.freeze(['ciRead', 'wait', 'dispatchPrompt', 'switchBranch', 'recordFix', 'pushFix']);
 const RUN_ID_PATTERN = /^[1-9][0-9]*$/;
 const SLUG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const UNIT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
@@ -159,6 +164,34 @@ async function readConclusion(runId, settings, ports) {
   }));
 }
 
+function settledStatus(read) {
+  return ran(read) && typeof read.stdout === 'string' && read.stdout.trim() === CI_RUN_SETTLED_STATUS;
+}
+
+async function awaitSettledRun(runId, settings, ports) {
+  for (let attempt = 1; attempt <= CI_WATCH_MAX_ATTEMPTS; attempt += 1) {
+    const read = await ports.ciRead({
+      step: WATCH_STATUS_STEP,
+      values: { repoSlug: settings.repoSlug, runId },
+    });
+    if (settledStatus(read)) return true;
+    if (attempt < CI_WATCH_MAX_ATTEMPTS) await ports.wait(CI_WATCH_INTERVAL_MS);
+  }
+  return false;
+}
+
+async function awaitConclusion(runId, settings, ports) {
+  const settled = await awaitSettledRun(runId, settings, ports);
+  if (!settled) {
+    return Object.freeze({
+      ok: false,
+      ciConclusion: null,
+      error: `the run did not settle within ${CI_WATCH_MAX_ATTEMPTS} watch attempt(s) at ${CI_WATCH_INTERVAL_MS}ms apart, so its conclusion was never asked for`,
+    });
+  }
+  return await readConclusion(runId, settings, ports);
+}
+
 async function readJobs(runId, settings, ports) {
   const read = await ports.ciRead({
     step: READ_JOBS_STEP,
@@ -240,7 +273,7 @@ async function settleAfterFix(entry, settings, ports) {
   if (runId === null) {
     return outcome(entry, CI_RED_EXHAUSTED, CI_FIX_ATTEMPT_BOUND, `the ci fix was published on ${entry.head} but no run could be resolved for it afterwards, so whether the fix made the check green is unknown and an unread check is not a green one`);
   }
-  const concluded = await readConclusion(runId, settings, ports);
+  const concluded = await awaitConclusion(runId, settings, ports);
   if (concluded.ok !== true) {
     return outcome(entry, CI_RED_EXHAUSTED, CI_FIX_ATTEMPT_BOUND, `the ci fix was published on ${entry.head} but the run that followed it could not be read: ${concluded.error}`);
   }
@@ -253,7 +286,7 @@ async function watchUnit(entry, settings, ports) {
   if (runId === null) {
     return outcome(entry, CI_UNWATCHED, 0, `no workflow run could be resolved for ${entry.head}, so this run reports the check as unwatched rather than as one it read`);
   }
-  const concluded = await readConclusion(runId, settings, ports);
+  const concluded = await awaitConclusion(runId, settings, ports);
   if (concluded.ok !== true) {
     return outcome(entry, CI_UNWATCHED, 0, `the conclusion of run ${runId} on ${entry.head} could not be read: ${concluded.error}`);
   }

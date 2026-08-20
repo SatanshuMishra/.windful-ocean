@@ -268,6 +268,11 @@ export function ciPlanSteps(declared) {
       exitCode: declared.resolveExitCode === undefined ? 0 : declared.resolveExitCode,
     },
     {
+      argvPrefix: ['run', 'view', CI_RUN_ID, '-R', REPO_SLUG, '--json', 'status'],
+      stdout: 'completed\n',
+      exitCode: 0,
+    },
+    {
       argvPrefix: ['run', 'view', CI_RUN_ID, '-R', REPO_SLUG, '--json', 'jobs'],
       stdout: `${ciJobsBody(declared.failingConclusion === undefined ? 'failure' : declared.failingConclusion)}\n`,
       exitCode: 0,

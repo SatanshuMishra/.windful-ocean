@@ -91,6 +91,7 @@ function stubbedPorts(overrides = {}) {
       mergedIntoBase: (probe) => { contained.push(probe); return false; },
       retireHead: (request) => { retired.push(request); return false; },
       ciRead: () => ({ outcome: 'completed', status: 1, stdout: '', stderr: 'no run', signal: null, error: null }),
+      wait: async () => {},
       switchBranch: () => ({ outcome: 'completed', status: 1, stdout: '', stderr: 'no branch', signal: null, error: null }),
       recordFix: () => ({ outcome: 'completed', status: 1, stdout: '', stderr: 'nothing staged', signal: null, error: null }),
       pushFix: () => ({ outcome: 'completed', status: 1, stdout: '', stderr: 'no upstream', signal: null, error: null }),
