@@ -110,6 +110,14 @@ test('one cycle carries a spec from the real decomposer through execute and inte
     assert.deepEqual(document.specs.map((unit) => unit.prep.dependsList), ['(none)', '(none)']);
 
     const cycle = runMitosisCli(sandbox);
+
+    const created = ghArgvsMatching(sandbox, PR_CREATE_PREFIX);
+    assert.equal(
+      created.length,
+      2,
+      `the centralized pr-create tool must receive one pull request per msp (2 total); it received ${created.length}, so no pull request reached the centralized tool for the msps left unshipped — an empty recorder would also mean the real gh binary ran instead of the stub. cli stderr: ${cycle.stderr}`,
+    );
+
     assert.equal(cycle.status, 0, `the cycle must reach a clean exit on the emitted document: ${cycle.stderr}`);
     assert.deepEqual(cycle.summary.units, [{ id: 'alpha', state: 'done' }, { id: 'beta', state: 'done' }]);
     assert.deepEqual(cycle.summary.prep, [
@@ -125,8 +133,6 @@ test('one cycle carries a spec from the real decomposer through execute and inte
     assert.deepEqual(ship.summary.resume.built, [], 'nothing was built when this invocation planned, so the units Integrate gates can only have come from the Execute it just ran');
     assert.deepEqual(ship.summary.integrate.integrated, ['alpha', 'beta']);
 
-    const created = ghArgvsMatching(sandbox, PR_CREATE_PREFIX);
-    assert.equal(created.length, 2, 'one pull request per msp reaches the centralized tool; an empty recorder would mean the real gh binary ran instead');
     assert.deepEqual(created.map((argv) => flagValue(argv, '--head')), [integrationBranchOf('alpha'), integrationBranchOf('beta')]);
     assert.deepEqual(created.map((argv) => flagValue(argv, '--base')), [BASE_BRANCH, BASE_BRANCH]);
     assert.deepEqual(created.map((argv) => flagValue(argv, '--title')), ['feat(alpha): unit alpha', 'feat(beta): unit beta']);
