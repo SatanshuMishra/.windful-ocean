@@ -1334,6 +1334,11 @@
         "ref": "0640-suite-spawn-hazard-closed-at-call-sites-not-at-the-seam",
         "title": "The real-binary spawn hazard is closed at the call sites and the sandbox, not at the production seam that causes it",
         "scope": "c42"
+      },
+      {
+        "ref": "0641-c28-live-run-passes-on-a-fresh-substrate",
+        "title": "The c28 live run passes 3 of 3 on a fresh substrate, and the reset denial is routed by creating one",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1345,5 +1350,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T06:26:10.228Z"
+  "updated_at": "2026-08-20T06:56:17.810Z"
 }
