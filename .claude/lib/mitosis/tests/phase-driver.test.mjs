@@ -147,21 +147,11 @@ function shippableJournal() {
   };
 }
 
-function requestWithModel(model) {
-  const base = runRequest();
-  return { ...base, spec: { ...base.spec, specs: [{ id: 'alpha', fileScope: pack(['alpha.mjs']), request: { prompt: 'do alpha', ...(model === null ? {} : { model }) } }] } };
-}
-
-test('the provenance names the model the unit request declares, and says unspecified when it declares none', async () => {
-  const declared = stubbedPorts({ readJournal: shippableJournal });
-  await runPhases(requestWithModel('claude-opus-5'), declared.ports);
-  assert.deepEqual(declared.opened.map((request) => request.argv[request.argv.indexOf('--provenance') + 1]), ['agent=mitosis-engine model=claude-opus-5']);
-
-  const undeclared = stubbedPorts({ readJournal: shippableJournal });
-  const driven = await runPhases(requestWithModel(null), undeclared.ports);
-  assert.deepEqual(undeclared.opened.map((request) => request.argv[request.argv.indexOf('--provenance') + 1]), ['agent=mitosis-engine model=unspecified']);
+test('a built unit that ships opens a pull request and journals the ship record', async () => {
+  const stub = stubbedPorts({ readJournal: shippableJournal });
+  const driven = await runPhases(runRequest(), stub.ports);
   assert.deepEqual(driven.phases.Ship.opened.map((entry) => [entry.unitId, entry.action, entry.prUrl]), [['alpha', 'created', 'https://github.com/acme/widgets/pull/3']]);
-  assert.deepEqual(undeclared.journalled.map((write) => JSON.parse(write.line).kind), ['ship']);
+  assert.deepEqual(stub.journalled.map((write) => JSON.parse(write.line).kind), ['ship']);
 });
 
 test('an integrated unit whose manifest names no change type parks rather than guessing a pull-request title', async () => {

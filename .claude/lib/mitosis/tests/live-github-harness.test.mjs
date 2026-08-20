@@ -70,9 +70,8 @@ const VALID_TARGET = Object.freeze({
   head: 'live-harness/proof-a1b2c3d4',
   base: BASE_BRANCH,
   title: 'test(live): prove the pr harness against real github',
-  provenance: 'agent=tester model=claude-sonnet-5',
-  why: ['prove the pr-create path against a live repository'],
-  what: ['pushes a real branch and opens a real pull request'],
+  why: ['Prove the pr-create path against a live repository.'],
+  what: ['Pushes a real branch and opens a real pull request.'],
   notVerified: ['CI checks on this pull request - not run'],
 });
 
@@ -83,10 +82,8 @@ test('buildPrCreateArgv composes the full pr-create argv in field order and refu
     '--head', 'live-harness/proof-a1b2c3d4',
     '--base', 'main',
     '--title', 'test(live): prove the pr harness against real github',
-    '--origin', 'machine',
-    '--provenance', 'agent=tester model=claude-sonnet-5',
-    '--why', 'prove the pr-create path against a live repository',
-    '--what', 'pushes a real branch and opens a real pull request',
+    '--why', 'Prove the pr-create path against a live repository.',
+    '--what', 'Pushes a real branch and opens a real pull request.',
     '--not-verified', 'CI checks on this pull request - not run',
   ]);
   assert.throws(() => buildPrCreateArgv({ ...VALID_TARGET, repo: 'not-owner-slash-repo' }), TypeError);
@@ -200,9 +197,8 @@ test('live github pr harness: prove a real pull request against a real disposabl
       head: branch,
       base: BASE_BRANCH,
       title: 'test(live): prove the pr harness against real github',
-      provenance: 'agent=tester model=claude-sonnet-5',
-      why: ['prove the mitosis-git pr-create path against a genuinely live github repository rather than a fake gh double'],
-      what: ['pushes a real branch, opens a real pull request through pr.mjs, and reads both back independently'],
+      why: ['Prove the mitosis-git pr-create path against a genuinely live github repository rather than a fake gh double.'],
+      what: ['Pushes a real branch, opens a real pull request through pr.mjs, and reads both back independently.'],
       notVerified: ['CI checks on this pull request - not run; this harness never merges and never waits on checks'],
     });
     const createdPr = parseOpenedPr(opened.stdout);
@@ -226,9 +222,8 @@ test('live github pr harness: prove a real pull request against a real disposabl
         head: unpushedBranch,
         base: BASE_BRANCH,
         title: 'test(live): probe the never-pushed head rejection',
-        provenance: 'agent=tester model=claude-sonnet-5',
-        why: ['prove pr.mjs genuinely rejects a head branch this run never pushed, the precondition a fake gh double never checks'],
-        what: ['no repository state change is expected; the create call must fail before anything is created'],
+        why: ['Prove pr.mjs genuinely rejects a head branch this run never pushed, the precondition a fake gh double never checks.'],
+        what: ['No repository state change is expected; the create call must fail before anything is created.'],
         notVerified: ['nothing else about this call - it exists only to prove the rejection'],
       });
       assert.notEqual(rejected.status, 0, 'pr-create for a never-pushed head must not exit 0');

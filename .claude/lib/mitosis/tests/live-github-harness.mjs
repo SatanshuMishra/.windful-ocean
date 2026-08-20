@@ -65,14 +65,14 @@ export function deriveRunBranch(label, nonceHex) {
   return branch;
 }
 
-export function buildPrCreateArgv({ repo, head, base, title, provenance, why, what, notVerified }) {
+export function buildPrCreateArgv({ repo, head, base, title, why, what, notVerified }) {
   if (!validateRepoIdentity(repo)) {
     throw new TypeError(`live-github-harness: refusing to build a pr-create argv for a repo that is not owner/repo: ${JSON.stringify(repo)}`);
   }
   if (!PR_TITLE_PATTERN.test(title)) {
     throw new TypeError(`live-github-harness: refusing to build a pr-create argv for a title that fails the conventional-commits pattern: ${JSON.stringify(title)}`);
   }
-  const argv = ['pr-create', '--repo', repo, '--head', head, '--base', base, '--title', title, '--origin', 'machine', '--provenance', provenance];
+  const argv = ['pr-create', '--repo', repo, '--head', head, '--base', base, '--title', title];
   for (const value of why) argv.push('--why', value);
   for (const value of what) argv.push('--what', value);
   for (const value of notVerified) argv.push('--not-verified', value);
