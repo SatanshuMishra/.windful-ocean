@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { setTimeout as delay } from 'node:timers/promises';
+import { dispatch as dispatchReal } from '../dispatch.mjs';
 
 export function createScratch() {
   const scratchDirs = [];
@@ -77,6 +78,26 @@ export function alive(pid) {
 
 export async function waitUntilDead(pid, ms, label) {
   await waitUntil(() => !alive(pid), ms, `${label}: pid ${pid} is still alive`);
+}
+
+export function refusingDispatch() {
+  const reached = [];
+  const dispatch = async (request) => {
+    reached.push(request);
+    throw new Error('dispatch-fixtures: refusingDispatch must not be reached');
+  };
+  return { reached, dispatch };
+}
+
+export function validatingDispatch() {
+  const spawnAttempts = [];
+  const spawn = (binary, argv, options) => {
+    spawnAttempts.push({ binary, argv: [...argv], cwd: options === undefined || options === null ? null : options.cwd });
+    throw new Error('dispatch-fixtures: validatingDispatch refuses to spawn a real process');
+  };
+  const agentCapability = () => ({ ok: true, path: 'dispatch-fixtures:validatingDispatch' });
+  const dispatch = (request) => dispatchReal(request, { spawn, agentCapability });
+  return { spawnAttempts, dispatch };
 }
 
 export function fakeChild(pid) {
