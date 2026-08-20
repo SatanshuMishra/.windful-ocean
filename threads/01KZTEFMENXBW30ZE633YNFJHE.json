@@ -1314,6 +1314,11 @@
         "ref": "0635-gate-census-red-blocks-nothing-and-stays-filed",
         "title": "The worktree gate red is a deliberate invariant, blocks no ruling, and stays filed; 0634's blocker claim is withdrawn",
         "scope": "c41"
+      },
+      {
+        "ref": "0636-c41-required-half-waived-cleanup-starts-on-green-alone",
+        "title": "User waives c41's required-check precondition; the cleanup starts on M16 green alone",
+        "scope": "c41"
       }
     ],
     "out_of_scope": [
@@ -1325,5 +1330,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T03:23:32.744Z"
+  "updated_at": "2026-08-20T03:27:17.438Z"
 }
