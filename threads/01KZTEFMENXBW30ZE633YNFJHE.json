@@ -1309,6 +1309,11 @@
         "ref": "0634-m16-red-was-vacuous-and-the-lib-symlink-blocks-required",
         "title": "M16's inertness red was vacuous by unreachability, and the lib symlink blocks making the check required",
         "scope": "c31"
+      },
+      {
+        "ref": "0635-gate-census-red-blocks-nothing-and-stays-filed",
+        "title": "The worktree gate red is a deliberate invariant, blocks no ruling, and stays filed; 0634's blocker claim is withdrawn",
+        "scope": "c41"
       }
     ],
     "out_of_scope": [
@@ -1320,5 +1325,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T01:53:02.536Z"
+  "updated_at": "2026-08-20T03:20:21.880Z"
 }
