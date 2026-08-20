@@ -262,7 +262,7 @@ export function couplingSerializeAssertions(resolution, positionOf) {
   for (const record of resolution) {
     const label = record.pair.join('/');
     if (!COUPLING_RESOLUTION_SOURCES.includes(record.source)) {
-      throw new Error(`derive-edges: coupling pair ${label} resolved through the source "${record.source}", which is none of ${COUPLING_RESOLUTION_SOURCES.join(', ')}; a resolution whose provenance cannot be named cannot be audited back to the verdict or the default that produced it`);
+      throw new Error(`derive-edges: coupling pair ${label} resolved through the source "${record.source}", which is none of ${COUPLING_RESOLUTION_SOURCES.join(', ')}; a resolution whose origin cannot be named cannot be audited back to the verdict or the default that produced it`);
     }
     if (!Object.prototype.hasOwnProperty.call(COUPLING_EDGE_RULE, record.decision)) {
       throw new Error(`derive-edges: coupling pair ${label} resolved to the decision "${record.decision}", which this pass carries no arm for; the vocabulary is ${COUPLING_DECISIONS.join(', ')} and a decision outside it must halt here, because skipping it ships the pair co-scheduled in one wave under a name nobody reads as parallel`);
