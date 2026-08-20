@@ -3,17 +3,18 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { realResolverIo, resolveCanonicalConfigDir } from './canonical-config-dir.mjs';
 import { REFERENCE_TREES, resolveCensusScope } from './name-integrity-census.mjs';
-import { readRosterDeclarations, reconcileRetirementSet } from './retirement-set.mjs';
+import { readRetiredRoster, reconcileRetirementSet } from './retirement-set.mjs';
 
-const AGENT_EXTENSION = '.md';
+const AGENT_SPEC_EXTENSION = '.spec.json';
+const AGENT_SPEC_DIRECTORY = 'agent-specs';
 const SCANNED_EXTENSIONS = Object.freeze(['.md', '.mjs']);
 export const EXCLUDED_DIRECTORIES = Object.freeze(new Set(['fixtures', 'prompt-snapshots', 'tests']));
-const SPEC_SEGMENTS = Object.freeze(['docs', 'specs']);
-const ROSTER_SPEC_FILE = '2026-08-17-agent-roster-rebuild.md';
+const SPEC_SEGMENTS = Object.freeze(['lib', 'mitosis']);
+const RETIRED_ROSTER_FILE = 'retired-roster.json';
 const SPEC_SUBJECT = Object.freeze({
-  canonical: 'the canonical roster specification',
-  bare: 'specification tree',
-  served: 'roster declarations are read from',
+  canonical: 'the tracked retired-roster configuration',
+  bare: 'retirement configuration tree',
+  served: 'the retired roster and agent-spec store are read from',
 });
 
 const MODULE_ANCHOR = fileURLToPath(new URL('./', import.meta.url));
@@ -48,7 +49,11 @@ export function resolveRetirementScope(anchorDir, io) {
   if (!specs.ok) return failure('halt', specs.error);
   return Object.freeze({
     ok: true,
-    scope: Object.freeze({ dirs: trees.dirs, specPath: join(specs.dir, ROSTER_SPEC_FILE) }),
+    scope: Object.freeze({
+      dirs: trees.dirs,
+      retiredRosterPath: join(specs.dir, RETIRED_ROSTER_FILE),
+      agentSpecDir: join(specs.dir, AGENT_SPEC_DIRECTORY),
+    }),
   });
 }
 
@@ -105,17 +110,17 @@ export function scanSourceForNames(path, source, names) {
   return Object.freeze(sites);
 }
 
-function readAgentStems(agentDir, io) {
+function readAgentStems(directory, suffix, io) {
   let entries;
   try {
-    entries = io.readDir(agentDir);
+    entries = io.readDir(directory);
   } catch (error) {
-    return failure('read', `the canonical agent roster ${agentDir} could not be read: ${failureText(error)}`);
+    return failure('read', `${directory} could not be read: ${failureText(error)}`);
   }
   const names = new Set();
   for (const entry of entries) {
-    if (entry.isFile() && entry.name.endsWith(AGENT_EXTENSION)) {
-      names.add(entry.name.slice(0, -AGENT_EXTENSION.length));
+    if (entry.isFile() && entry.name.endsWith(suffix)) {
+      names.add(entry.name.slice(0, -suffix.length));
     }
   }
   return Object.freeze({ ok: true, names });
@@ -124,15 +129,17 @@ function readAgentStems(agentDir, io) {
 export function deriveRetirementSet(scope, io) {
   let source;
   try {
-    source = io.readSource(scope.specPath);
+    source = io.readSource(scope.retiredRosterPath);
   } catch (error) {
-    return failure('read', `the roster specification ${scope.specPath} could not be read: ${failureText(error)}`);
+    return failure('read', `the retired roster ${scope.retiredRosterPath} could not be read: ${failureText(error)}`);
   }
-  const declared = readRosterDeclarations(scope.specPath, source);
+  const declared = readRetiredRoster(scope.retiredRosterPath, source);
   if (!declared.ok) return failure('halt', declared.error);
-  const roster = readAgentStems(scope.dirs.agents, io);
-  if (!roster.ok) return roster;
-  return reconcileRetirementSet(declared.retained, declared.retiring, roster.names);
+  const onDisk = readAgentStems(scope.dirs.agents, '.md', io);
+  if (!onDisk.ok) return onDisk;
+  const retainedSpecs = readAgentStems(scope.agentSpecDir, AGENT_SPEC_EXTENSION, io);
+  if (!retainedSpecs.ok) return retainedSpecs;
+  return reconcileRetirementSet([...retainedSpecs.names], declared.names, onDisk.names);
 }
 
 export function censusRetirement(scope, io) {

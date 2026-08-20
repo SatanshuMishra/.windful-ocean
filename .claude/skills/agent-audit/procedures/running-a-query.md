@@ -3,7 +3,7 @@
 Every question is one command:
 
 ```
-node .claude/lib/observer-audit/run.mjs <question-id> [--log-root PATH] [--roster PATH] [--horizon-ms N]
+node .claude/lib/observer-audit/run.mjs <question-id> [--log-root PATH] [--roster PATH] [--horizon-ms N] [--retired-roster PATH]
 ```
 
 The question id is one of six, exactly: `ran-and-duration`, `fell-back`, `blocked`, `failed`,

@@ -20,29 +20,10 @@ function writeRoster(dir, names) {
   return rosterDir;
 }
 
-function writeRetiredRosterSpec(dir, { retained = ['keeper-one', 'keeper-two'], retiring = ['debugger'] } = {}) {
-  const specPath = join(dir, 'roster-spec.md');
-  const rows = retained.map((name, index) => `| ${index + 1} | ${name} |`).join('\n');
-  const body = [
-    '# fixture roster specification',
-    '',
-    '## 5b. The roster, exactly',
-    '',
-    'Prose introducing the table.',
-    '',
-    '| # | Agent |',
-    '|---|---|',
-    rows,
-    '',
-    `**Deleted in the contract wave (${retiring.length}):** ${retiring.map((name) => `\`${name}\``).join(', ')}.`,
-    '',
-    '## 6. Unit sequence',
-    '',
-    'Prose after the section.',
-    '',
-  ].join('\n');
-  writeFileSync(specPath, body);
-  return specPath;
+function writeRetiredRoster(dir, { retiring = ['debugger'] } = {}) {
+  const retiredRosterPath = join(dir, 'retired-roster.json');
+  writeFileSync(retiredRosterPath, JSON.stringify({ retired: retiring }));
+  return retiredRosterPath;
 }
 
 function row({ ts, event, sessionId, agentId, agentType, depth = 1 }) {
@@ -77,7 +58,7 @@ function ask(id, dir, options = {}) {
   if (options.roster !== undefined) args.push('--roster', options.roster);
   if (options.barPct !== undefined) args.push('--bar-pct', String(options.barPct));
   if (options.minN !== undefined) args.push('--min-n', String(options.minN));
-  if (options.retiredRosterSpec !== undefined) args.push('--retired-roster-spec', options.retiredRosterSpec);
+  if (options.retiredRoster !== undefined) args.push('--retired-roster', options.retiredRoster);
   const result = spawnSync(process.execPath, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   const parsed = (() => {
     try {
@@ -92,19 +73,19 @@ function ask(id, dir, options = {}) {
 function cleanFixtureDir() {
   const dir = scratch('clean');
   const roster = writeRoster(dir, ['implementer', 'code-reviewer']);
-  const retiredRosterSpec = writeRetiredRosterSpec(dir);
+  const retiredRoster = writeRetiredRoster(dir);
   writeEvents(dir, [
     ...pairRows('s1', 'a-lead', 'architect', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:05.000Z'),
     ...pairRows('s1', 'a-roster', 'implementer', '2026-10-01T00:01:00.000Z', '2026-10-01T00:01:05.000Z'),
     ...pairRows('s1', 'a-fallback', 'general-purpose', '2026-10-01T00:02:00.000Z', '2026-10-01T00:02:05.000Z'),
     ...pairRows('s1', 'a-retired', 'debugger', '2026-10-01T00:03:00.000Z', '2026-10-01T00:03:05.000Z'),
   ]);
-  return { dir, roster, retiredRosterSpec };
+  return { dir, roster, retiredRoster };
 }
 
 test('agent-type-census answers cleanly when every observed agent_type classifies', () => {
-  const { dir, roster, retiredRosterSpec } = cleanFixtureDir();
-  const got = ask('agent-type-census', dir, { roster, retiredRosterSpec });
+  const { dir, roster, retiredRoster } = cleanFixtureDir();
+  const got = ask('agent-type-census', dir, { roster, retiredRoster });
   assert.equal(got.code, EXIT.OK, got.stderr);
   assert.ok(got.json, 'expected a JSON answer');
   assert.equal(got.json.rows.length, 4);
@@ -116,34 +97,34 @@ test('agent-type-census answers cleanly when every observed agent_type classifie
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('agent-type-census USAGE: exit 2 when --retired-roster-spec is missing, with no default silently substituted', () => {
+test('agent-type-census USAGE: exit 2 when --retired-roster is missing, with no default silently substituted', () => {
   const dir = scratch('no-retired-spec');
   const roster = writeRoster(dir, ['implementer']);
   writeEvents(dir, pairRows('s1', 'a-lead', 'architect', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:05.000Z'));
   const got = ask('agent-type-census', dir, { roster });
   assert.equal(got.code, EXIT.USAGE, got.stdout);
-  assert.match(got.stderr, /--retired-roster-spec is required and has no default/);
+  assert.match(got.stderr, /--retired-roster is required and has no default/);
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('agent-type-census USAGE: exit 2 when --retired-roster-spec names a file the section 5b reader cannot parse', () => {
-  const dir = scratch('bad-retired-spec');
+test('agent-type-census USAGE: exit 2 when --retired-roster names a file the JSON reader cannot parse', () => {
+  const dir = scratch('bad-retired-roster');
   const roster = writeRoster(dir, ['implementer']);
-  const badSpec = join(dir, 'bad-spec.md');
-  writeFileSync(badSpec, 'this markdown file names no section 5b heading at all\n');
+  const badRetiredRoster = join(dir, 'bad-retired-roster.json');
+  writeFileSync(badRetiredRoster, 'this is not JSON at all\n');
   writeEvents(dir, pairRows('s1', 'a-lead', 'architect', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:05.000Z'));
-  const got = ask('agent-type-census', dir, { roster, retiredRosterSpec: badSpec });
+  const got = ask('agent-type-census', dir, { roster, retiredRoster: badRetiredRoster });
   assert.equal(got.code, EXIT.USAGE, got.stdout);
-  assert.match(got.stderr, /--retired-roster-spec names .* which could not be parsed/);
+  assert.match(got.stderr, /--retired-roster names .* which could not be parsed/);
   rmSync(dir, { recursive: true, force: true });
 });
 
 test('HALT trigger 1: agent-type-census hard-halts on a value reaching none of C1-C4, naming it verbatim, no stdout, exit 6', () => {
   const dir = scratch('unclassifiable');
   const roster = writeRoster(dir, ['implementer']);
-  const retiredRosterSpec = writeRetiredRosterSpec(dir);
+  const retiredRoster = writeRetiredRoster(dir);
   writeEvents(dir, pairRows('s1', 'a-mystery', 'totally-unknown-agent', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:05.000Z'));
-  const got = ask('agent-type-census', dir, { roster, retiredRosterSpec });
+  const got = ask('agent-type-census', dir, { roster, retiredRoster });
   assert.equal(got.code, EXIT.CENSUS_HALT, got.stdout);
   assert.equal(got.stdout, '', 'a halt must never emit stdout, even partial JSON');
   assert.match(got.stderr, /^AGENT-TYPE CENSUS HALT/);
@@ -154,9 +135,9 @@ test('HALT trigger 1: agent-type-census hard-halts on a value reaching none of C
 test('HALT trigger 2: agent-type-census hard-halts on a NULL agent_type, distinguished from the literal sentinel string', () => {
   const dir = scratch('null-type');
   const roster = writeRoster(dir, ['implementer']);
-  const retiredRosterSpec = writeRetiredRosterSpec(dir);
+  const retiredRoster = writeRetiredRoster(dir);
   writeEvents(dir, pairRows('s1', 'a-null', null, '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:05.000Z'));
-  const got = ask('agent-type-census', dir, { roster, retiredRosterSpec });
+  const got = ask('agent-type-census', dir, { roster, retiredRoster });
   assert.equal(got.code, EXIT.CENSUS_HALT, got.stdout);
   assert.equal(got.stdout, '');
   assert.match(got.stderr, /^AGENT-TYPE CENSUS HALT/);
@@ -167,12 +148,12 @@ test('HALT trigger 2: agent-type-census hard-halts on a NULL agent_type, disting
 test('HALT trigger 3: agent-type-census hard-halts on a group whose rows disagree on agent_type, naming its session_id and agent_id', () => {
   const dir = scratch('mixed-type');
   const roster = writeRoster(dir, ['implementer', 'code-reviewer']);
-  const retiredRosterSpec = writeRetiredRosterSpec(dir);
+  const retiredRoster = writeRetiredRoster(dir);
   writeEvents(dir, [
     row({ ts: '2026-10-01T00:00:00.000Z', event: 'SubagentStart', sessionId: 's1', agentId: 'a-mixed', agentType: 'implementer' }),
     row({ ts: '2026-10-01T00:00:05.000Z', event: 'SubagentStop', sessionId: 's1', agentId: 'a-mixed', agentType: 'code-reviewer' }),
   ]);
-  const got = ask('agent-type-census', dir, { roster, retiredRosterSpec });
+  const got = ask('agent-type-census', dir, { roster, retiredRoster });
   assert.equal(got.code, EXIT.CENSUS_HALT, got.stdout);
   assert.equal(got.stdout, '');
   assert.match(got.stderr, /^AGENT-TYPE CENSUS HALT/);
@@ -184,9 +165,9 @@ test('HALT trigger 3: agent-type-census hard-halts on a group whose rows disagre
 test('the agent-type census halt message opens with a phrase distinct from the key-shape census', () => {
   const dir = scratch('distinct-phrase');
   const roster = writeRoster(dir, ['implementer']);
-  const retiredRosterSpec = writeRetiredRosterSpec(dir);
+  const retiredRoster = writeRetiredRoster(dir);
   writeEvents(dir, pairRows('s1', 'a-mystery', 'totally-unknown-agent', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:05.000Z'));
-  const got = ask('agent-type-census', dir, { roster, retiredRosterSpec });
+  const got = ask('agent-type-census', dir, { roster, retiredRoster });
   assert.equal(got.code, EXIT.CENSUS_HALT);
   assert.doesNotMatch(got.stderr, /the key census halts on an event shape/, 'the agent-type census must never be mistaken for the key-shape census');
   const keyCensusGot = ask('blocked', dir, { roster });
@@ -197,19 +178,19 @@ test('the agent-type census halt message opens with a phrase distinct from the k
 function straddleFixtureDir() {
   const dir = scratch('straddle');
   const roster = writeRoster(dir, ['implementer']);
-  const retiredRosterSpec = writeRetiredRosterSpec(dir);
+  const retiredRoster = writeRetiredRoster(dir);
   writeEvents(dir, [
     ...pairRows('s1', 'a-lead-1', 'architect', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:05.000Z'),
     ...pairRows('s1', 'a-lead-2', 'investigator', '2026-10-01T00:01:00.000Z', '2026-10-01T00:01:05.000Z'),
     ...pairRows('s1', 'a-roster', 'implementer', '2026-10-01T00:02:00.000Z', '2026-10-01T00:02:05.000Z'),
     ...pairRows('s1', 'a-mystery', 'totally-unknown-agent', '2026-10-01T00:03:00.000Z', '2026-10-01T00:03:05.000Z'),
   ]);
-  return { dir, roster, retiredRosterSpec };
+  return { dir, roster, retiredRoster };
 }
 
 test('lead-share PASS: exit 0 when both bounds fall at or above the bar, and the unclassifiable set is enumerated by name', () => {
-  const { dir, roster, retiredRosterSpec } = straddleFixtureDir();
-  const got = ask('lead-share', dir, { roster, retiredRosterSpec, barPct: 40, minN: 1 });
+  const { dir, roster, retiredRoster } = straddleFixtureDir();
+  const got = ask('lead-share', dir, { roster, retiredRoster, barPct: 40, minN: 1 });
   assert.equal(got.code, EXIT.OK, got.stderr);
   assert.equal(got.json.n, 4);
   assert.equal(got.json.lead_dispatch_groups, 2);
@@ -221,16 +202,16 @@ test('lead-share PASS: exit 0 when both bounds fall at or above the bar, and the
 });
 
 test('lead-share decides below the bar (also exit 0) when both bounds fall under it', () => {
-  const { dir, roster, retiredRosterSpec } = straddleFixtureDir();
-  const got = ask('lead-share', dir, { roster, retiredRosterSpec, barPct: 80, minN: 1 });
+  const { dir, roster, retiredRoster } = straddleFixtureDir();
+  const got = ask('lead-share', dir, { roster, retiredRoster, barPct: 80, minN: 1 });
   assert.equal(got.code, EXIT.OK, got.stderr);
   assert.equal(got.json.decision, 'below-bar');
   rmSync(dir, { recursive: true, force: true });
 });
 
 test('lead-share REFUSE: exit 6 naming the values to classify when the bar sits inside the band', () => {
-  const { dir, roster, retiredRosterSpec } = straddleFixtureDir();
-  const got = ask('lead-share', dir, { roster, retiredRosterSpec, barPct: 60, minN: 1 });
+  const { dir, roster, retiredRoster } = straddleFixtureDir();
+  const got = ask('lead-share', dir, { roster, retiredRoster, barPct: 60, minN: 1 });
   assert.equal(got.code, EXIT.CENSUS_HALT, got.stdout);
   assert.equal(got.stdout, '');
   assert.match(got.stderr, /LEAD-SHARE REFUSAL/);
@@ -240,8 +221,8 @@ test('lead-share REFUSE: exit 6 naming the values to classify when the bar sits 
 });
 
 test('lead-share REFUSE: exit 6 when n falls under the declared --min-n floor', () => {
-  const { dir, roster, retiredRosterSpec } = straddleFixtureDir();
-  const got = ask('lead-share', dir, { roster, retiredRosterSpec, barPct: 40, minN: 1000 });
+  const { dir, roster, retiredRoster } = straddleFixtureDir();
+  const got = ask('lead-share', dir, { roster, retiredRoster, barPct: 40, minN: 1000 });
   assert.equal(got.code, EXIT.CENSUS_HALT, got.stdout);
   assert.match(got.stderr, /LEAD-SHARE REFUSAL/);
   assert.match(got.stderr, /under the declared floor --min-n 1000/);
@@ -249,16 +230,16 @@ test('lead-share REFUSE: exit 6 when n falls under the declared --min-n floor', 
 });
 
 test('lead-share USAGE: exit 2 when --bar-pct is missing, with no default silently substituted', () => {
-  const { dir, roster, retiredRosterSpec } = straddleFixtureDir();
-  const got = ask('lead-share', dir, { roster, retiredRosterSpec, minN: 1 });
+  const { dir, roster, retiredRoster } = straddleFixtureDir();
+  const got = ask('lead-share', dir, { roster, retiredRoster, minN: 1 });
   assert.equal(got.code, EXIT.USAGE, got.stderr);
   assert.match(got.stderr, /--bar-pct is required and has no default/);
   rmSync(dir, { recursive: true, force: true });
 });
 
 test('lead-share USAGE: exit 2 when --min-n is unparseable', () => {
-  const { dir, roster, retiredRosterSpec } = straddleFixtureDir();
-  const got = ask('lead-share', dir, { roster, retiredRosterSpec, barPct: 40, minN: 'not-a-number' });
+  const { dir, roster, retiredRoster } = straddleFixtureDir();
+  const got = ask('lead-share', dir, { roster, retiredRoster, barPct: 40, minN: 'not-a-number' });
   assert.equal(got.code, EXIT.USAGE, got.stderr);
   assert.match(got.stderr, /--min-n must be a finite number/);
   rmSync(dir, { recursive: true, force: true });
@@ -276,8 +257,8 @@ test('dispatchGroupAgentTypesSql denominator: sum(dispatch_groups) equals the tr
 });
 
 test('lead-share USAGE: exit 2 when --bar-pct is an empty string, never coerced to 0 and never a silent PASS', () => {
-  const { dir, roster, retiredRosterSpec } = straddleFixtureDir();
-  const got = ask('lead-share', dir, { roster, retiredRosterSpec, barPct: '', minN: 1 });
+  const { dir, roster, retiredRoster } = straddleFixtureDir();
+  const got = ask('lead-share', dir, { roster, retiredRoster, barPct: '', minN: 1 });
   assert.equal(got.code, EXIT.USAGE, got.stdout);
   assert.equal(got.stdout, '', 'a usage rejection must never emit a JSON answer, blank or otherwise');
   assert.match(got.stderr, /--bar-pct is required and has no default/);
@@ -285,40 +266,40 @@ test('lead-share USAGE: exit 2 when --bar-pct is an empty string, never coerced 
 });
 
 test('lead-share USAGE: exit 2 when --bar-pct is whitespace only', () => {
-  const { dir, roster, retiredRosterSpec } = straddleFixtureDir();
-  const got = ask('lead-share', dir, { roster, retiredRosterSpec, barPct: '   ', minN: 1 });
+  const { dir, roster, retiredRoster } = straddleFixtureDir();
+  const got = ask('lead-share', dir, { roster, retiredRoster, barPct: '   ', minN: 1 });
   assert.equal(got.code, EXIT.USAGE, got.stdout);
   assert.match(got.stderr, /--bar-pct is required and has no default/);
   rmSync(dir, { recursive: true, force: true });
 });
 
 test('lead-share USAGE: exit 2 when --bar-pct is above 100', () => {
-  const { dir, roster, retiredRosterSpec } = straddleFixtureDir();
-  const got = ask('lead-share', dir, { roster, retiredRosterSpec, barPct: 1000, minN: 1 });
+  const { dir, roster, retiredRoster } = straddleFixtureDir();
+  const got = ask('lead-share', dir, { roster, retiredRoster, barPct: 1000, minN: 1 });
   assert.equal(got.code, EXIT.USAGE, got.stdout);
   assert.match(got.stderr, /--bar-pct must be between 0 and 100 inclusive, got "1000"/);
   rmSync(dir, { recursive: true, force: true });
 });
 
 test('lead-share USAGE: exit 2 when --bar-pct is negative', () => {
-  const { dir, roster, retiredRosterSpec } = straddleFixtureDir();
-  const got = ask('lead-share', dir, { roster, retiredRosterSpec, barPct: -10, minN: 1 });
+  const { dir, roster, retiredRoster } = straddleFixtureDir();
+  const got = ask('lead-share', dir, { roster, retiredRoster, barPct: -10, minN: 1 });
   assert.equal(got.code, EXIT.USAGE, got.stdout);
   assert.match(got.stderr, /--bar-pct must be between 0 and 100 inclusive, got "-10"/);
   rmSync(dir, { recursive: true, force: true });
 });
 
 test('lead-share USAGE: exit 2 when --min-n is 0', () => {
-  const { dir, roster, retiredRosterSpec } = straddleFixtureDir();
-  const got = ask('lead-share', dir, { roster, retiredRosterSpec, barPct: 40, minN: 0 });
+  const { dir, roster, retiredRoster } = straddleFixtureDir();
+  const got = ask('lead-share', dir, { roster, retiredRoster, barPct: 40, minN: 0 });
   assert.equal(got.code, EXIT.USAGE, got.stdout);
   assert.match(got.stderr, /--min-n must be an integer of at least 1, got "0"/);
   rmSync(dir, { recursive: true, force: true });
 });
 
 test('lead-share USAGE: exit 2 when --min-n is not an integer', () => {
-  const { dir, roster, retiredRosterSpec } = straddleFixtureDir();
-  const got = ask('lead-share', dir, { roster, retiredRosterSpec, barPct: 40, minN: 1.5 });
+  const { dir, roster, retiredRoster } = straddleFixtureDir();
+  const got = ask('lead-share', dir, { roster, retiredRoster, barPct: 40, minN: 1.5 });
   assert.equal(got.code, EXIT.USAGE, got.stdout);
   assert.match(got.stderr, /--min-n must be an integer of at least 1, got "1.5"/);
   rmSync(dir, { recursive: true, force: true });
@@ -327,21 +308,21 @@ test('lead-share USAGE: exit 2 when --min-n is not an integer', () => {
 function stopOnlyMixedFixtureDir() {
   const dir = scratch('stop-only-mixed');
   const roster = writeRoster(dir, ['implementer']);
-  const retiredRosterSpec = writeRetiredRosterSpec(dir);
+  const retiredRoster = writeRetiredRoster(dir);
   writeEvents(dir, [
     ...pairRows('s1', 'a-lead', 'architect', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:05.000Z'),
     ...pairRows('s1', 'a-roster', 'implementer', '2026-10-01T00:01:00.000Z', '2026-10-01T00:01:05.000Z'),
     row({ ts: '2026-10-01T00:02:05.000Z', event: 'SubagentStop', sessionId: 's1', agentId: 'a-stop-only', agentType: 'implementer' }),
   ]);
-  return { dir, roster, retiredRosterSpec };
+  return { dir, roster, retiredRoster };
 }
 
 test('lead-share REFUSAL: exit 6 naming zero dispatch groups, never NaN, when every dispatch-population group is stop-only', () => {
   const dir = scratch('n-zero');
   const roster = writeRoster(dir, ['implementer']);
-  const retiredRosterSpec = writeRetiredRosterSpec(dir);
+  const retiredRoster = writeRetiredRoster(dir);
   writeEvents(dir, [row({ ts: '2026-10-01T00:00:05.000Z', event: 'SubagentStop', sessionId: 's1', agentId: 'a-stop-only', agentType: 'implementer' })]);
-  const got = ask('lead-share', dir, { roster, retiredRosterSpec, barPct: 40, minN: 1 });
+  const got = ask('lead-share', dir, { roster, retiredRoster, barPct: 40, minN: 1 });
   assert.equal(got.code, EXIT.CENSUS_HALT, got.stdout);
   assert.equal(got.stdout, '');
   assert.match(got.stderr, /LEAD-SHARE REFUSAL/);
@@ -351,8 +332,8 @@ test('lead-share REFUSAL: exit 6 naming zero dispatch groups, never NaN, when ev
 });
 
 test('agent-type-census reports a stop-only group as its own coverage fact, never folded into the classified population', () => {
-  const { dir, roster, retiredRosterSpec } = stopOnlyMixedFixtureDir();
-  const got = ask('agent-type-census', dir, { roster, retiredRosterSpec });
+  const { dir, roster, retiredRoster } = stopOnlyMixedFixtureDir();
+  const got = ask('agent-type-census', dir, { roster, retiredRoster });
   assert.equal(got.code, EXIT.OK, got.stderr);
   assert.equal(got.json.stop_only_groups, 1);
   const totalClassified = got.json.rows.reduce((sum, r) => sum + r.dispatch_groups, 0);
@@ -361,8 +342,8 @@ test('agent-type-census reports a stop-only group as its own coverage fact, neve
 });
 
 test('lead-share n resolves to the START-bearing grain: a stop-only group is excluded from n and reported separately', () => {
-  const { dir, roster, retiredRosterSpec } = stopOnlyMixedFixtureDir();
-  const got = ask('lead-share', dir, { roster, retiredRosterSpec, barPct: 40, minN: 1 });
+  const { dir, roster, retiredRoster } = stopOnlyMixedFixtureDir();
+  const got = ask('lead-share', dir, { roster, retiredRoster, barPct: 40, minN: 1 });
   assert.equal(got.code, EXIT.OK, got.stderr);
   assert.equal(got.json.n, 2, 'n must count only the two start-bearing groups, not the stop-only third group');
   assert.equal(got.json.stop_only_groups, 1);
@@ -372,19 +353,19 @@ test('lead-share n resolves to the START-bearing grain: a stop-only group is exc
 function agreementFixtureDir() {
   const dir = scratch('agreement');
   const roster = writeRoster(dir, ['implementer']);
-  const retiredRosterSpec = writeRetiredRosterSpec(dir);
+  const retiredRoster = writeRetiredRoster(dir);
   writeEvents(dir, [
     ...pairRows('s1', 'a-lead-1', 'architect', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:05.000Z'),
     ...pairRows('s1', 'a-lead-2', 'investigator', '2026-10-01T00:01:00.000Z', '2026-10-01T00:01:05.000Z'),
     ...pairRows('s1', 'a-roster', 'implementer', '2026-10-01T00:02:00.000Z', '2026-10-01T00:02:05.000Z'),
     row({ ts: '2026-10-01T00:03:05.000Z', event: 'SubagentStop', sessionId: 's1', agentId: 'a-stop-only', agentType: 'implementer' }),
   ]);
-  return { dir, roster, retiredRosterSpec };
+  return { dir, roster, retiredRoster };
 }
 
 test('AGREEMENT INVARIANT: lead-share n equals the sum of ran-and-duration dispatches over the dispatch population, on a shared fixture', () => {
-  const { dir, roster, retiredRosterSpec } = agreementFixtureDir();
-  const leadShare = ask('lead-share', dir, { roster, retiredRosterSpec, barPct: 40, minN: 1 });
+  const { dir, roster, retiredRoster } = agreementFixtureDir();
+  const leadShare = ask('lead-share', dir, { roster, retiredRoster, barPct: 40, minN: 1 });
   assert.equal(leadShare.code, EXIT.OK, leadShare.stderr);
   const ranAndDuration = ask('ran-and-duration', dir, {});
   assert.equal(ranAndDuration.code, EXIT.OK, ranAndDuration.stderr);
