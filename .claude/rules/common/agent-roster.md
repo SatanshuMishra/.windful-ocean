@@ -21,4 +21,4 @@ These make the roster observable. Both degrade gracefully if omitted.
 
 ## Lifecycle
 
-Gap detection, resolution, and roster edits are recorded in the Agent Evolution Ledger (`~/.claude/agent-ledger/`). Resolutions are new events, never edits to prior events. See the spec at `.claude/docs/specs/2026-07-02-agent-evolution-ledger-design.md`.
+Gap detection, resolution, and roster edits are recorded in the Agent Evolution Ledger (`~/.claude/agent-ledger/`). Resolutions are new events, never edits to prior events.

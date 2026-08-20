@@ -3,7 +3,7 @@ import { AuditError, EXIT, POPULATION_DISPATCH, START_EVENT, STOP_EVENT } from '
 import { classifyObserved, groupCarriesMixedTypes, UNATTRIBUTED_LABEL } from './agent-classification.mjs';
 import { query, sqlLiteral } from './duckdb.mjs';
 import { eventsCte, readRoster } from './reader.mjs';
-import { readRosterDeclarations } from '../mitosis/retirement-set.mjs';
+import { readRetiredRoster } from '../mitosis/retirement-set.mjs';
 
 function perGroupCte(logRoot) {
   return `${eventsCte(logRoot)},
@@ -58,29 +58,29 @@ function nameUnclassifiable(entry) {
     : `${JSON.stringify(entry.agent_type)} carried by ${entry.dispatch_groups} dispatch group(s)`;
 }
 
-function retiredNonLeadNamesFrom(specPath) {
-  if (typeof specPath !== 'string' || specPath.length === 0) {
+function retiredNonLeadNamesFrom(retiredRosterPath) {
+  if (typeof retiredRosterPath !== 'string' || retiredRosterPath.length === 0) {
     throw new AuditError(
       EXIT.USAGE,
-      '--retired-roster-spec is required and has no default, so the retired-set source always appears in the recorded command; pass it explicitly',
+      '--retired-roster is required and has no default, so the retired-set source always appears in the recorded command; pass it explicitly',
     );
   }
   let source;
   try {
-    source = readFileSync(specPath, 'utf8');
+    source = readFileSync(retiredRosterPath, 'utf8');
   } catch (error) {
-    throw new AuditError(EXIT.USAGE, `--retired-roster-spec names ${specPath}, which could not be read: ${error.message}`);
+    throw new AuditError(EXIT.USAGE, `--retired-roster names ${retiredRosterPath}, which could not be read: ${error.message}`);
   }
-  const declared = readRosterDeclarations(specPath, source);
+  const declared = readRetiredRoster(retiredRosterPath, source);
   if (!declared.ok) {
-    throw new AuditError(EXIT.USAGE, `--retired-roster-spec names ${specPath}, which could not be parsed: ${declared.error}`);
+    throw new AuditError(EXIT.USAGE, `--retired-roster names ${retiredRosterPath}, which could not be parsed: ${declared.error}`);
   }
-  return declared.retiring;
+  return declared.names;
 }
 
 function classifyDispatchGroups(context) {
   const rosterNames = readRoster(context.rosterPath);
-  const retiredNonLeadNames = retiredNonLeadNamesFrom(context.retiredRosterSpecPath);
+  const retiredNonLeadNames = retiredNonLeadNamesFrom(context.retiredRosterPath);
   const rows = query(context.binary, dispatchGroupAgentTypesSql(context.logRoot));
   if (rows.some(groupCarriesMixedTypes)) {
     const violators = query(context.binary, mixedAgentTypeGroupsSql(context.logRoot));

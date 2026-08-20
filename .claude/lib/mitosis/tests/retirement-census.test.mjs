@@ -20,37 +20,10 @@ import { readMarkdownReferences } from '../name-integrity-census.mjs';
 const VERB = 'retirement-census';
 const RETAINED = Object.freeze(['keeper-one', 'keeper-two']);
 const RETIRING = Object.freeze(['old-alpha', 'old-beta', 'old-gamma']);
-const SPEC_RELATIVE = join('docs', 'specs', 'roster.md');
 const readSource = (path) => readFileSync(path, 'utf8');
 
-function specSource(retained, retiring) {
-  const rows = retained.map((name, index) => `| ${index + 1} | ${name} | Lead | ADD |`).join('\n');
-  return [
-    '# fixture roster specification',
-    '',
-    '## 5a. Preconditions',
-    '',
-    'Prose that names no roster.',
-    '',
-    '## 5b. The roster, exactly',
-    '',
-    'Prose introducing the table.',
-    '',
-    '| # | Agent | Band | File action |',
-    '|---|---|---|---|',
-    rows,
-    '',
-    `**Deleted in the contract wave (${retiring.length}):** ${retiring.map((name) => `\`${name}\``).join(', ')}.`,
-    '',
-    '### A subsection inside 5b',
-    '',
-    'More prose.',
-    '',
-    '## 6. Unit sequence',
-    '',
-    'Prose after the section.',
-    '',
-  ].join('\n');
+function retiredRosterSource(retiring) {
+  return JSON.stringify({ retired: retiring });
 }
 
 const FIXTURE_ROSTER = '---\nname: old-alpha\n---\n';
@@ -112,8 +85,9 @@ function buildTree(files, options = {}) {
   const retained = options.retained ?? RETAINED;
   const retiring = options.retiring ?? RETIRING;
   const onDisk = options.onDisk ?? [...retained, ...retiring];
-  writeInto(root, SPEC_RELATIVE, specSource(retained, retiring));
+  writeInto(root, 'retired-roster.json', retiredRosterSource(retiring));
   for (const name of onDisk) writeInto(root, join('agents', `${name}.md`), `---\nname: ${name}\n---\n`);
+  for (const name of retained) writeInto(root, join('agent-specs', `${name}.spec.json`), '');
   for (const [relative, content] of Object.entries(files)) writeInto(root, relative, content);
   for (const tree of options.emptyTrees ?? []) mkdirSync(join(root, tree), { recursive: true });
   return Object.freeze({
@@ -125,7 +99,8 @@ function buildTree(files, options = {}) {
         skills: join(root, 'skills'),
         lib: join(root, 'lib'),
       }),
-      specPath: join(root, SPEC_RELATIVE),
+      retiredRosterPath: join(root, 'retired-roster.json'),
+      agentSpecDir: join(root, 'agent-specs'),
     }),
   });
 }
@@ -283,7 +258,7 @@ test('restoring one repointed reference in a clean tree turns it red at that exa
 test('dropping one name from derivation A input halts naming the symmetric difference rather than passing', () => {
   const fixture = buildTree(GREEN_TREE);
   assert.equal(censusRetirement(fixture.scope, realRetirementIo).ok, true);
-  substitute(fixture.scope.specPath, '| 2 | keeper-two | Lead | ADD |\n', '');
+  rmSync(join(fixture.scope.agentSpecDir, 'keeper-two.spec.json'));
   const result = censusRetirement(fixture.scope, realRetirementIo);
   assert.equal(result.ok, false);
   assert.equal(result.kind, 'halt');
@@ -364,20 +339,40 @@ test('an agent declared both retained and retiring halts naming it', () => {
   assert.match(result.error, /keeper-one is declared both retained and retiring/);
 });
 
-test('a specification whose declared deletion count disagrees with its list halts', () => {
+test('a retired roster that is not parseable JSON halts', () => {
   const fixture = buildTree(GREEN_TREE);
-  substitute(fixture.scope.specPath, 'contract wave (3)', 'contract wave (4)');
+  writeFileSync(fixture.scope.retiredRosterPath, 'not json at all\n');
   const result = censusRetirement(fixture.scope, realRetirementIo);
   assert.equal(result.kind, 'halt');
-  assert.match(result.error, /declares 4 contract-wave deletions but names 3/);
+  assert.match(result.error, /could not be parsed as JSON/);
+  assert.equal(runOver(fixture.scope).exit, GATE_UNRESOLVABLE_EXIT);
 });
 
-test('a roster table that skips a row number halts rather than deriving a roster from it', () => {
+test('an empty "retired" array halts rather than reporting a retirement it never measured', () => {
   const fixture = buildTree(GREEN_TREE);
-  substitute(fixture.scope.specPath, '| 2 | keeper-two |', '| 3 | keeper-two |');
+  writeFileSync(fixture.scope.retiredRosterPath, JSON.stringify({ retired: [] }));
   const result = censusRetirement(fixture.scope, realRetirementIo);
   assert.equal(result.kind, 'halt');
-  assert.match(result.error, /numbers a roster row 3 where 2 was expected/);
+  assert.match(result.error, /declares an empty "retired" array/);
+  assert.equal(runOver(fixture.scope).exit, GATE_UNRESOLVABLE_EXIT);
+});
+
+test('a duplicate name inside the "retired" array halts', () => {
+  const fixture = buildTree(GREEN_TREE);
+  writeFileSync(fixture.scope.retiredRosterPath, JSON.stringify({ retired: ['old-alpha', 'old-alpha', 'old-beta', 'old-gamma'] }));
+  const result = censusRetirement(fixture.scope, realRetirementIo);
+  assert.equal(result.kind, 'halt');
+  assert.match(result.error, /names "old-alpha" twice/);
+  assert.equal(runOver(fixture.scope).exit, GATE_UNRESOLVABLE_EXIT);
+});
+
+test('a "retired" entry failing the agent-name pattern halts', () => {
+  const fixture = buildTree(GREEN_TREE);
+  writeFileSync(fixture.scope.retiredRosterPath, JSON.stringify({ retired: ['Old_Alpha', 'old-beta', 'old-gamma'] }));
+  const result = censusRetirement(fixture.scope, realRetirementIo);
+  assert.equal(result.kind, 'halt');
+  assert.match(result.error, /names retired agent "Old_Alpha"/);
+  assert.equal(runOver(fixture.scope).exit, GATE_UNRESOLVABLE_EXIT);
 });
 
 test('a file that cannot be read is a read failure, never a clean verdict', () => {

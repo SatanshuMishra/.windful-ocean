@@ -5,10 +5,10 @@ import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RETIRED_ROSTER_LEAD, REQUIRED_LEAD_TOOLS } from '../agent-classification.mjs';
-import { readRosterDeclarations } from '../../mitosis/retirement-set.mjs';
+import { readRetiredRoster } from '../../mitosis/retirement-set.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
-const ROSTER_SPEC_PATH = fileURLToPath(new URL('../../../docs/specs/2026-08-17-agent-roster-rebuild.md', import.meta.url));
+const RETIRED_ROSTER_PATH = fileURLToPath(new URL('../../mitosis/retired-roster.json', import.meta.url));
 const HASH = /^[0-9a-f]{40}$/;
 
 function git(args) {
@@ -48,10 +48,10 @@ function toolsLineOf(source, label) {
 }
 
 function liveRetiringNames() {
-  const source = readFileSync(ROSTER_SPEC_PATH, 'utf8');
-  const declared = readRosterDeclarations(ROSTER_SPEC_PATH, source);
+  const source = readFileSync(RETIRED_ROSTER_PATH, 'utf8');
+  const declared = readRetiredRoster(RETIRED_ROSTER_PATH, source);
   assert.equal(declared.ok, true, declared.error);
-  return declared.retiring;
+  return declared.names;
 }
 
 test('RETIRED_ROSTER_LEAD and the roster spec retiring set together match every agent definition git has ever deleted', () => {
