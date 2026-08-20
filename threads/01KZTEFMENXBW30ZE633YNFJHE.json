@@ -1344,6 +1344,11 @@
         "ref": "0642-a-separate-ref-delete-closes-the-stacked-child",
         "title": "Deleting a merged parent branch as a separate step closes the stacked child instead of retargeting it",
         "scope": "c28"
+      },
+      {
+        "ref": "0643-github-auto-retarget-never-fires-retarget-the-child-yourself",
+        "title": "Auto-retarget never fired, so retarget a stacked child explicitly before deleting its parent branch",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1355,5 +1360,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T07:01:20.013Z"
+  "updated_at": "2026-08-20T07:08:08.466Z"
 }
