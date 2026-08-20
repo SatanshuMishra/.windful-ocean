@@ -57,10 +57,15 @@
         "ref": "0638-untrack-only-keep-files-on-disk",
         "title": "Untrack the AI-generated documents without rewriting history or deleting them",
         "scope": "c2"
+      },
+      {
+        "ref": "0639-extract-retired-roster-not-retrack-spec",
+        "title": "Extract the retired agent roster into tracked config rather than re-tracking the design document",
+        "scope": "c3"
       }
     ],
     "out_of_scope": []
   },
   "created_at": "2026-08-20T04:51:30.743Z",
-  "updated_at": "2026-08-20T04:52:05.349Z"
+  "updated_at": "2026-08-20T04:52:15.304Z"
 }
