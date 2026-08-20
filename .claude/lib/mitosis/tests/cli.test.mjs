@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pack } from './file-scope-fixtures.mjs';
-import { CLI_USAGE, exitCodeOf, parseCliArgv, realPorts, runCli } from '../cli.mjs';
+import { CLI_USAGE, exitCodeOf, parseCliArgv, realPorts, realWait, runCli } from '../cli.mjs';
 import { runVerdictOf } from '../run-verdict.mjs';
 import { Done, NeedsHuman } from '../boundary.mjs';
 import { refusingDispatch } from './dispatch-fixtures.mjs';
@@ -597,4 +597,27 @@ test('CLOSED CENSUS: exactly one production construction site builds the ship/do
     ['ship-publish.mjs'],
     'ship-publish.mjs is the sole production consumer of the done-oracle port; cli.mjs constructs the command and supplies the port',
   );
+});
+
+test('realWait refuses zero milliseconds, the exact lower boundary of the positive-integer guard', () => {
+  assert.throws(() => realWait(0), TypeError);
+});
+
+test('realWait refuses a negative count of milliseconds', () => {
+  assert.throws(() => realWait(-1), TypeError);
+});
+
+test('realWait refuses a non-integer count of milliseconds even when it is positive', () => {
+  assert.throws(() => realWait(1.5), TypeError);
+});
+
+test('realWait accepts the smallest positive integer, one millisecond above the refused boundary, and its promise settles', async () => {
+  await assert.doesNotReject(realWait(1));
+});
+
+test('realWait genuinely delays resolution by the requested count of real milliseconds, rather than resolving synchronously', async () => {
+  const startedAt = Date.now();
+  await realWait(20);
+  const elapsedMs = Date.now() - startedAt;
+  assert.ok(elapsedMs >= 15, `realWait(20) resolved after only ${elapsedMs}ms, so the requested pause was not actually honoured`);
 });

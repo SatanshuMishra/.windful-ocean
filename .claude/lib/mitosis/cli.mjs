@@ -444,7 +444,7 @@ function ciReadPort(runFn, repoRoot) {
   return (read) => runFn(GH_COMMAND_BINARY, ciReadArgv(read), { cwd: repoRoot, deadlineMs: GH_DEADLINE_MS });
 }
 
-function realWait(ms) {
+export function realWait(ms) {
   if (!Number.isInteger(ms) || ms <= 0) {
     throw new TypeError(`${MODULE}: wait needs a positive integer count of milliseconds, received ${JSON.stringify(ms)}`);
   }

@@ -83,7 +83,7 @@ test('a run still in progress on the first watch and settled on the second repor
   assert.deepEqual(ciSummary(produced), [{ id: UNIT_ID, state: CI_GREEN, fixes: 0 }]);
   assert.deepEqual(produced.unwatched, []);
   assert.equal(stub.waits.length, 1, 'the loop must pause exactly once between the in-progress read and the settled read');
-  assert.equal(stub.waits[0], CI_WATCH_INTERVAL_MS);
+  assert.equal(stub.waits[0], 15000, 'the loop must pause for exactly the declared watch interval, not a value derived from it');
 });
 
 test('a settled red conclusion is read as red and drives the existing one-fix-attempt pipeline to ci-red-exhausted', async () => {
@@ -123,9 +123,15 @@ test('a run that never settles terminates at the watch budget and reports ci-unw
   const [entry] = produced.outcomes;
   assert.equal(entry.state, CI_UNWATCHED);
   assert.ok(
-    entry.diagnosis.includes(`did not settle within ${CI_WATCH_MAX_ATTEMPTS} watch attempt(s)`),
-    `the diagnosis must name the watch budget rather than a generic refusal, got: ${entry.diagnosis}`,
+    entry.diagnosis.includes('did not settle within 40 watch attempt(s)'),
+    `the diagnosis must name the exact watch budget rather than a generic refusal, got: ${entry.diagnosis}`,
   );
   assert.deepEqual(ciSummary(produced), [{ id: UNIT_ID, state: CI_UNWATCHED, fixes: 0 }]);
-  assert.equal(stub.waits.length, CI_WATCH_MAX_ATTEMPTS - 1, 'the loop pauses between every attempt but not after the last exhausted one');
+  assert.equal(stub.waits.length, 39, 'the loop pauses between every one of exactly 40 attempts but not after the last exhausted one');
+  assert.ok(stub.waits.every((ms) => ms === 15000), 'every pause between watch attempts must use exactly the declared watch interval');
+});
+
+test('the watch budget constants are pinned to the exact values the loop and its diagnosis rely on', () => {
+  assert.equal(CI_WATCH_MAX_ATTEMPTS, 40);
+  assert.equal(CI_WATCH_INTERVAL_MS, 15000);
 });
