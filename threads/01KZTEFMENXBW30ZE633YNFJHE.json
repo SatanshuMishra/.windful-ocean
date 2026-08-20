@@ -1332,6 +1332,11 @@
         "ref": "0645-archive-a-harness-repo-before-deleting-it",
         "title": "A harness repo is archived before deletion, because it holds the only seed and the only live evidence",
         "scope": "c28"
+      },
+      {
+        "ref": "0646-live-harness-pin-moves-to-merged-main",
+        "title": "The live harness pin moves to the merged main tip, and the merge-order shape declaration gains the retarget key",
+        "scope": "c43"
       }
     ],
     "out_of_scope": [
@@ -1343,5 +1348,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T17:10:23.892Z"
+  "updated_at": "2026-08-20T17:36:52.178Z"
 }
