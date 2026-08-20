@@ -505,6 +505,17 @@ test('the merged-pull-request probe is skipped when no integrated unit declares 
   assert.deepEqual(plan.opened.map((entry) => entry.unitId), ['beta']);
 });
 
+test('a unit the run parked before Integrate ever handed it to Ship keeps the run from reporting every declared unit shipped', async () => {
+  const ports = shippingPorts();
+  const plan = await shipIntegrated(shippingConfig({
+    manifest: { baseBranch: 'main', sourcePrefix: 'mitosis', msps: [{ ...BETA_MSP, dependsOn: [] }, { ...GAMMA_MSP, dependsOn: [] }] },
+  }), ports.ports);
+
+  assert.deepEqual(plan.opened.map((entry) => entry.unitId), ['beta'], 'gamma parked during Execute and never reached Integrate, so Ship never produced an outcome for it');
+  assert.equal(plan.outcomes.length, 1, 'the outcomes array only ever held what reached Ship, and that is exactly the shape the denominator must not trust alone');
+  assert.equal(plan.status, 'blocked', 'a declared unit missing from the outcomes Ship walked is not silently read as shipped, so the two-of-two case cannot report the same status as the one-of-one case');
+});
+
 test('a merged set the run cannot read holds the dependent back rather than shipping it on an unchecked prerequisite', async () => {
   const unprefixed = shippingPorts();
   const onHalfNamedManifest = await shipIntegrated(shippingConfig({ manifest: { baseBranch: 'main', msps: [BETA_MSP] } }), unprefixed.ports);

@@ -548,12 +548,20 @@ function requireWatched(watched) {
   return watched;
 }
 
-function produced(outcomes, awaiting, blocked, retired, watched) {
+function declaredUnitTotal(manifest, orderedLength) {
+  if (orderedLength === 0) return orderedLength;
+  const declared = Array.isArray(manifest.msps) ? manifest.msps.length : 0;
+  return Math.max(declared, orderedLength);
+}
+
+function produced(outcomes, awaiting, blocked, retired, watched, manifest) {
   const ordered = Object.freeze(outcomes);
   const withState = (state) => Object.freeze(ordered.filter((entry) => entry.state === state));
   const opened = withState(SHIPPED);
   const parked = withState(PARKED);
   const awaitingApproval = parked.filter((entry) => entry.diagnosis === BLOCKED_PENDING_APPROVAL_DIAGNOSIS);
+  const total = declaredUnitTotal(manifest, ordered.length);
+  const parkedBeforeShip = total - ordered.length;
   return Object.freeze({
     opened,
     parked,
@@ -566,9 +574,9 @@ function produced(outcomes, awaiting, blocked, retired, watched) {
       shippedCount: opened.length,
       awaitingApprovalCount: awaiting.length,
       blockedPendingApprovalCount: awaitingApproval.length - awaiting.length,
-      genuineParkedCount: parked.length - awaitingApproval.length,
+      genuineParkedCount: parked.length - awaitingApproval.length + parkedBeforeShip,
       ciRedExhaustedCount: watched.exhausted.length,
-      total: ordered.length,
+      total,
     }),
   });
 }
@@ -609,7 +617,7 @@ export async function shipIntegrated(config, ports) {
     outcomes.push(settled);
   }
   const watched = requireWatched(await wired.watchCi(watchRequest(outcomes, settings, urlById)));
-  return produced(outcomes, awaiting, blocked, retired, watched);
+  return produced(outcomes, awaiting, blocked, retired, watched, settings.manifest);
 }
 
 function retargetOf(baseByHead, base) {
