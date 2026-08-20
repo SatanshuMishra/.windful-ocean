@@ -297,7 +297,7 @@
     {
       "id": "c43",
       "text": "The stacked-child retarget fix reaches main: pull request 255 merged, and the harness merge-order shape declaration updated in the same change if the engine pin ever moves past b70536fc.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -1368,5 +1368,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T22:14:24.673Z"
+  "updated_at": "2026-08-20T22:14:57.889Z"
 }
