@@ -11,7 +11,11 @@ export function builtDelta({ unitId, checkpointRef, sha, builtAgainst }) {
   return { kind: 'built', unitId, checkpointRef: checkpointRef ?? null, sha: sha ?? null, builtAgainst: builtAgainst ?? {} };
 }
 
-export function parkDelta({ unitId, stage, diagnosis, request, remediation, resumePoint, triedSet, blockedBy, class: dispositionClass }) {
+function isPlainRecord(value) {
+  return value !== null && value !== undefined && typeof value === 'object' && !Array.isArray(value);
+}
+
+export function parkDelta({ unitId, stage, diagnosis, request, remediation, resumePoint, triedSet, blockedBy, envelope, class: dispositionClass }) {
   return {
     kind: 'park',
     unitId,
@@ -21,6 +25,7 @@ export function parkDelta({ unitId, stage, diagnosis, request, remediation, resu
     remediation: remediation ?? null,
     resumePoint: resumePoint ?? null,
     triedSet: Array.isArray(triedSet) ? [...triedSet] : [],
+    ...(isPlainRecord(envelope) ? { envelope } : {}),
     ...(typeof blockedBy === 'string' && blockedBy.length > 0 ? { blockedBy } : {}),
     ...(typeof dispositionClass === 'string' ? { class: dispositionClass } : {}),
   };

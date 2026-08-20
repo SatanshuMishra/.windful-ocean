@@ -220,6 +220,7 @@ function shaOf(outcome) {
 
 function parkFields(unitId, outcome) {
   const tagged = outcome !== null && outcome !== undefined && typeof outcome.tag === 'string' ? outcome : null;
+  const envelope = envelopeOf(outcome);
   return {
     unitId,
     stage: null,
@@ -228,6 +229,7 @@ function parkFields(unitId, outcome) {
     remediation: null,
     resumePoint: null,
     triedSet: tagged !== null && Array.isArray(tagged.triedSet) ? tagged.triedSet : [],
+    ...(envelope === null ? {} : { envelope }),
   };
 }
 

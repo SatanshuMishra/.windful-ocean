@@ -620,7 +620,8 @@ function planPark(planned) {
     detail: planned.detail,
     issues: planned.findings.map((finding) => `[${finding.axis} / ${finding.severity}] ${finding.detail}`),
   }, []);
-  return Object.freeze({ ...parked, envelope: null });
+  const envelope = planned.envelope === null || planned.envelope === undefined ? null : normalizeEnvelope(planned.envelope);
+  return Object.freeze({ ...parked, envelope });
 }
 
 function judgmentPark(judged, envelope) {

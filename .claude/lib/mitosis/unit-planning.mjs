@@ -96,12 +96,39 @@ function outcome(fields) {
     findings: NO_FINDINGS,
     planPath: null,
     iterations: 0,
+    envelope: null,
     ...fields,
   });
 }
 
-function refused(what, detail, findings = NO_FINDINGS) {
-  return outcome({ what, detail, findings: Object.freeze([...findings]) });
+function refused(what, detail, findings = NO_FINDINGS, envelope = null) {
+  return outcome({ what, detail, findings: Object.freeze([...findings]), envelope });
+}
+
+function dispatchEnvelopeOf(verdict) {
+  return isRecord(verdict) && isRecord(verdict.envelope) ? verdict.envelope : null;
+}
+
+function dispatchWordsOf(verdict) {
+  return isRecord(verdict) && typeof verdict.result === 'string' && verdict.result.trim() !== '' ? verdict.result.trim() : null;
+}
+
+function dispatchStatusOf(verdict) {
+  const envelope = dispatchEnvelopeOf(verdict);
+  return envelope !== null && typeof envelope.api_error_status === 'number' ? envelope.api_error_status : null;
+}
+
+function dispatchSignal(verdict) {
+  const status = dispatchStatusOf(verdict);
+  const words = dispatchWordsOf(verdict);
+  if (status === null && words === null) return null;
+  const parts = [status === null ? null : `HTTP ${status}`, words === null ? null : `the child said: ${words}`].filter((part) => part !== null);
+  return parts.join('; ');
+}
+
+function withDispatchSignal(base, verdict) {
+  const signal = dispatchSignal(verdict);
+  return signal === null ? base : `${base}; ${signal}`;
 }
 
 function composeFor(kind, unitId, input) {
@@ -161,7 +188,8 @@ function planReviewInput(prep, iteration) {
 function readArtifactVerdict(kind, prep, verdict) {
   if (!isRecord(verdict) || verdict.ok !== true) {
     const detail = isRecord(verdict) && typeof verdict.error === 'string' ? verdict.error : 'no verdict';
-    return refused(`${kind}-dispatch-failed`, `the ${kind} child returned ${isRecord(verdict) ? JSON.stringify(verdict.outcome ?? null) : 'no verdict at all'}: ${detail}`);
+    const base = `the ${kind} child returned ${isRecord(verdict) ? JSON.stringify(verdict.outcome ?? null) : 'no verdict at all'}: ${detail}`;
+    return refused(`${kind}-dispatch-failed`, withDispatchSignal(base, verdict), NO_FINDINGS, dispatchEnvelopeOf(verdict));
   }
   const structured = verdict.structured;
   if (!isRecord(structured)) {
