@@ -89,6 +89,22 @@ function envelopeOf(verdict) {
   return isRecord(verdict) && verdict.envelope !== undefined ? verdict.envelope : null;
 }
 
+function dispatchWordsOf(verdict) {
+  return isRecord(verdict) && typeof verdict.result === 'string' && verdict.result.trim() !== '' ? verdict.result.trim() : null;
+}
+
+function dispatchStatusOf(envelope) {
+  return isRecord(envelope) && typeof envelope.api_error_status === 'number' ? envelope.api_error_status : null;
+}
+
+function withDispatchSignal(base, verdict, envelope) {
+  const status = dispatchStatusOf(envelope);
+  const words = dispatchWordsOf(verdict);
+  if (status === null && words === null) return base;
+  const parts = [status === null ? null : `HTTP ${status}`, words === null ? null : `the child said: ${words}`].filter((part) => part !== null);
+  return `${base}; ${parts.join('; ')}`;
+}
+
 function correctedTaskOf(structured) {
   return typeof structured.correctedTask === 'string' && structured.correctedTask.trim() !== ''
     ? structured.correctedTask
@@ -100,7 +116,8 @@ export function readDiagnosis(verdict) {
   if (!isRecord(verdict) || verdict.ok !== true) {
     const outcome = isRecord(verdict) ? verdict.outcome : null;
     const detail = isRecord(verdict) && typeof verdict.error === 'string' ? verdict.error : 'no verdict';
-    return refused('diagnose-dispatch-failed', `the diagnose child returned ${outcome === null ? 'no verdict at all' : JSON.stringify(outcome)}: ${detail}`, envelope);
+    const base = `the diagnose child returned ${outcome === null ? 'no verdict at all' : JSON.stringify(outcome)}: ${detail}`;
+    return refused('diagnose-dispatch-failed', withDispatchSignal(base, verdict, envelope), envelope);
   }
   const structured = verdict.structured;
   if (!isRecord(structured)) {

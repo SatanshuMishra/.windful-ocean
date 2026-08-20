@@ -160,6 +160,21 @@ test('READ DIAGNOSIS: every unusable verdict refuses under its own name and carr
   );
 });
 
+test('READ DIAGNOSIS: a dispatch failure carrying the child\'s own words and an HTTP status appends both to the composed detail, on top of the existing wording', () => {
+  const refusal = readDiagnosis({
+    ok: false,
+    outcome: 'exit-nonzero',
+    error: 'boom',
+    result: 'billing hit its monthly spend cap',
+    envelope: { api_error_status: 429 },
+  });
+  assert.equal(refusal.what, 'diagnose-dispatch-failed');
+  assert.equal(refusal.detail.startsWith('the diagnose child returned "exit-nonzero": boom'), true);
+  assert.equal(refusal.detail.includes('HTTP 429'), true);
+  assert.equal(refusal.detail.includes('billing hit its monthly spend cap'), true);
+  assert.deepStrictEqual(refusal.envelope, { api_error_status: 429 });
+});
+
 test('REDISPATCH REQUEST: the corrected re-attempt inherits the base schema and names the backoff for its attempt', () => {
   const request = redispatchRequest(INPUT, { mechanism: 'worktree:reset-clean', correctedTask: 'reset first' }, BASE);
   assert.deepStrictEqual(Object.keys(request).sort(), ['agentType', 'effort', 'model', 'prompt', 'schema', 'timeoutMs']);

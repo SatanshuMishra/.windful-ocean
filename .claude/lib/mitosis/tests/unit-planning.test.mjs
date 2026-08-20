@@ -107,6 +107,34 @@ test('PLANNING: a plan the second review also refuses is parked unapproved at tw
     'the plan for this unit was still not approved after the 1 revision this run allows, so it is parked rather than implemented against a plan the review stage refused',
   );
   assert.deepStrictEqual(planned.findings, [{ axis: 'necessity', severity: 'high', detail: 'step three earns nothing' }]);
+  assert.equal(planned.retryable, false, 'a review that judges needs-changes twice is not a dispatch failure, so the exhausted park must not be retryable');
+});
+
+test('PLANNING: a plan dispatch failing every attempt is retried once under the engine\'s own attempt budget, is marked retryable, and composes the park detail from the child\'s own HTTP status and its own words', async () => {
+  const RATE_LIMITED = Object.freeze({
+    ok: false,
+    outcome: 'exit-nonzero',
+    error: 'dispatch: the child exited 1',
+    result: 'billing hit its monthly spend cap',
+    envelope: Object.freeze({ api_error_status: 429 }),
+  });
+  const ports = scriptedPorts([RATE_LIMITED, RATE_LIMITED]);
+  const planned = await runPlanning(PREP, ports);
+  assert.deepStrictEqual(ports.kinds, ['plan', 'plan']);
+  assert.equal(planned.approved, false);
+  assert.equal(planned.what, 'plan-dispatch-failed');
+  assert.equal(planned.detail.includes('HTTP 429'), true);
+  assert.equal(planned.detail.includes('billing hit its monthly spend cap'), true);
+  assert.equal(planned.envelope.api_error_status, 429);
+  assert.equal(planned.retryable, true);
+});
+
+test('PLANNING: a plan dispatch that succeeds on its second attempt is not parked, and the retry reuses the identical request', async () => {
+  const RATE_LIMITED = Object.freeze({ ok: false, outcome: 'exit-nonzero', error: 'dispatch: the child exited 1' });
+  const ports = scriptedPorts([RATE_LIMITED, WROTE_THE_PLAN, APPROVED]);
+  const planned = await runPlanning(PREP, ports);
+  assert.deepStrictEqual(ports.kinds, ['plan', 'plan', 'plan-review']);
+  assert.equal(planned.approved, true);
 });
 
 test('PLANNING: a first review that cannot be read refuses at one iteration without spending a revision', async () => {

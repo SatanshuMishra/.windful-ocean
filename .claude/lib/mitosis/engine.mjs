@@ -22,7 +22,7 @@ const PLANNED = 'planned';
 const RECORD_FAILURE_TAG = 'PostDispatchRecordFailure';
 const BLOCKED_DIAGNOSIS = 'blocked-by-parked-prerequisite';
 const REDISPATCH_BUDGET = 1;
-const MAX_ATTEMPTS = 1 + REDISPATCH_BUDGET;
+export const MAX_ATTEMPTS = 1 + REDISPATCH_BUDGET;
 
 function attemptLedger() {
   const spent = new Map();
@@ -220,6 +220,7 @@ function shaOf(outcome) {
 
 function parkFields(unitId, outcome) {
   const tagged = outcome !== null && outcome !== undefined && typeof outcome.tag === 'string' ? outcome : null;
+  const envelope = envelopeOf(outcome);
   return {
     unitId,
     stage: null,
@@ -228,6 +229,7 @@ function parkFields(unitId, outcome) {
     remediation: null,
     resumePoint: null,
     triedSet: tagged !== null && Array.isArray(tagged.triedSet) ? tagged.triedSet : [],
+    ...(envelope === null ? {} : { envelope }),
   };
 }
 

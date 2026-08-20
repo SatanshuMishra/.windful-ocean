@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { MAX_ATTEMPTS } from './engine.mjs';
 import { composePrompt } from './prompt-registry.mjs';
 
 const MODULE = 'unit-planning';
@@ -96,12 +97,60 @@ function outcome(fields) {
     findings: NO_FINDINGS,
     planPath: null,
     iterations: 0,
+    envelope: null,
+    retryable: false,
     ...fields,
   });
 }
 
-function refused(what, detail, findings = NO_FINDINGS) {
-  return outcome({ what, detail, findings: Object.freeze([...findings]) });
+function refused(what, detail, findings = NO_FINDINGS, envelope = null) {
+  return outcome({
+    what,
+    detail,
+    findings: Object.freeze([...findings]),
+    envelope,
+    retryable: typeof what === 'string' && what.endsWith('-dispatch-failed'),
+  });
+}
+
+function dispatchEnvelopeOf(verdict) {
+  return isRecord(verdict) && isRecord(verdict.envelope) ? verdict.envelope : null;
+}
+
+function dispatchWordsOf(verdict) {
+  return isRecord(verdict) && typeof verdict.result === 'string' && verdict.result.trim() !== '' ? verdict.result.trim() : null;
+}
+
+function dispatchStatusOf(verdict) {
+  const envelope = dispatchEnvelopeOf(verdict);
+  return envelope !== null && typeof envelope.api_error_status === 'number' ? envelope.api_error_status : null;
+}
+
+function dispatchSignal(verdict) {
+  const status = dispatchStatusOf(verdict);
+  const words = dispatchWordsOf(verdict);
+  if (status === null && words === null) return null;
+  const parts = [status === null ? null : `HTTP ${status}`, words === null ? null : `the child said: ${words}`].filter((part) => part !== null);
+  return parts.join('; ');
+}
+
+function withDispatchSignal(base, verdict) {
+  const signal = dispatchSignal(verdict);
+  return signal === null ? base : `${base}; ${signal}`;
+}
+
+function dispatchSucceeded(verdict) {
+  return isRecord(verdict) && verdict.ok === true;
+}
+
+async function dispatchWithBudget(ports, request) {
+  let verdict = await ports.dispatchPrompt(request);
+  let spent = 1;
+  while (!dispatchSucceeded(verdict) && spent < MAX_ATTEMPTS) {
+    verdict = await ports.dispatchPrompt(request);
+    spent += 1;
+  }
+  return verdict;
 }
 
 function composeFor(kind, unitId, input) {
@@ -161,7 +210,8 @@ function planReviewInput(prep, iteration) {
 function readArtifactVerdict(kind, prep, verdict) {
   if (!isRecord(verdict) || verdict.ok !== true) {
     const detail = isRecord(verdict) && typeof verdict.error === 'string' ? verdict.error : 'no verdict';
-    return refused(`${kind}-dispatch-failed`, `the ${kind} child returned ${isRecord(verdict) ? JSON.stringify(verdict.outcome ?? null) : 'no verdict at all'}: ${detail}`);
+    const base = `the ${kind} child returned ${isRecord(verdict) ? JSON.stringify(verdict.outcome ?? null) : 'no verdict at all'}: ${detail}`;
+    return refused(`${kind}-dispatch-failed`, withDispatchSignal(base, verdict), NO_FINDINGS, dispatchEnvelopeOf(verdict));
   }
   const structured = verdict.structured;
   if (!isRecord(structured)) {
@@ -188,7 +238,8 @@ function readObservation(kind, prep, observed) {
 
 async function draftPlan(kind, prep, findings, ports) {
   const input = kind === PLAN ? planInput(prep) : replanInput(prep, findings);
-  const answered = readArtifactVerdict(kind, prep, await ports.dispatchPrompt(dispatchRequest(kind, prep, input, PLAN_ARTIFACT_SCHEMA)));
+  const request = dispatchRequest(kind, prep, input, PLAN_ARTIFACT_SCHEMA);
+  const answered = readArtifactVerdict(kind, prep, await dispatchWithBudget(ports, request));
   if (answered !== null) return answered;
   let observed;
   try {
@@ -216,7 +267,7 @@ function readFindings(structured) {
 
 async function reviewPlan(prep, iteration, ports) {
   const request = dispatchRequest(PLAN_REVIEW, prep, planReviewInput(prep, iteration), PLAN_REVIEW_VERDICT_SCHEMA);
-  const verdict = await ports.dispatchPrompt(request);
+  const verdict = await dispatchWithBudget(ports, request);
   if (!isRecord(verdict) || verdict.ok !== true) {
     const detail = isRecord(verdict) && typeof verdict.error === 'string' ? verdict.error : 'no verdict';
     return { approved: false, refusal: refused(`${PLAN_REVIEW}-dispatch-failed`, `review iteration ${iteration} returned ${isRecord(verdict) ? JSON.stringify(verdict.outcome ?? null) : 'no verdict at all'}: ${detail}`), findings: NO_FINDINGS };
