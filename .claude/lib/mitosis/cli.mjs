@@ -444,6 +444,13 @@ function ciReadPort(runFn, repoRoot) {
   return (read) => runFn(GH_COMMAND_BINARY, ciReadArgv(read), { cwd: repoRoot, deadlineMs: GH_DEADLINE_MS });
 }
 
+export function realWait(ms) {
+  if (!Number.isInteger(ms) || ms <= 0) {
+    throw new TypeError(`${MODULE}: wait needs a positive integer count of milliseconds, received ${JSON.stringify(ms)}`);
+  }
+  return new Promise((resolve) => { setTimeout(resolve, ms); });
+}
+
 function gitCiPort(runFn, step) {
   return (request) => runFn(
     GIT_BINARY,
@@ -478,7 +485,7 @@ function defaultObservePlan(probe) {
   return observePlanArtifact(probe.repoRoot, probe.planPath);
 }
 
-function driverPorts(io, makePorts, deps, repoRoot) {
+export function driverPorts(io, makePorts, deps, repoRoot) {
   const openRunFn = deps.openRun === undefined ? openRun : deps.openRun;
   const foldJournalFn = deps.foldJournal === undefined ? foldFile : deps.foldJournal;
   const runFn = deps.run === undefined ? run : deps.run;
@@ -488,6 +495,7 @@ function driverPorts(io, makePorts, deps, repoRoot) {
   const appendJournalFn = deps.appendJournalLine === undefined ? appendJournalLine : deps.appendJournalLine;
   const skillPointersFn = deps.skillPointers === undefined ? defaultSkillPointers : deps.skillPointers;
   const observePlanFn = deps.observePlan === undefined ? defaultObservePlan : deps.observePlan;
+  const waitFn = deps.wait === undefined ? realWait : deps.wait;
   return Object.freeze({
     openRun: (request) => openRunFn(request),
     skillPointers: () => skillPointersFn(),
@@ -503,6 +511,7 @@ function driverPorts(io, makePorts, deps, repoRoot) {
     mergedIntoBase: mergedIntoBasePort(runFn),
     retireHead: retireHeadPort(runFn),
     ciRead: ciReadPort(runFn, repoRoot),
+    wait: (ms) => waitFn(ms),
     switchBranch: gitCiPort(runFn, 'switch-branch'),
     recordFix: recordFixPort(runFn),
     pushFix: gitCiPort(runFn, 'push'),
