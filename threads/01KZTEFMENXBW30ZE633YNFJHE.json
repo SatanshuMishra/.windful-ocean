@@ -1354,6 +1354,11 @@
         "ref": "0644-stacked-retarget-fix-adds-a-field-rather-than-removing-the-flag",
         "title": "The stacked-retarget fix adds retargetBeforeDelete and keeps deleteAfterMerge unchanged",
         "scope": "c28"
+      },
+      {
+        "ref": "0645-archive-a-harness-repo-before-deleting-it",
+        "title": "A harness repo is archived before deletion, because it holds the only seed and the only live evidence",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1365,5 +1370,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T17:08:55.203Z"
+  "updated_at": "2026-08-20T17:09:05.796Z"
 }
