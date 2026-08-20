@@ -14,14 +14,11 @@ The GitHub MCP denies are an enumeration of tool names against a remote server w
 node .claude/lib/git/pr.mjs pr-create \
   --repo OWNER/REPO --head HEAD-BRANCH --base BASE-BRANCH \
   --title "type(scope): lowercase imperative summary" \
-  --origin human-or-machine [--provenance "agent=LABEL model=MODEL"] \
-  --why "problem and why now" \
-  --what "one behavioral change" \
+  --what "The behavior that is different now." \
+  --why "The problem that existed before this change." \
   --verified "check run - result" | --not-verified "thing not checked - not run" \
-  [--risk "..."] [--link "..."] [--supersedes URL] [--depends id,id] [--changed-lines N]
+  [--risk "The risk this change introduces."] [--link "closes OWNER/REPO#N"] [--supersedes URL]
 ```
-
-`--provenance` is required when `--origin machine` and forbidden when `--origin human` — a human-directed caller frequently cannot know its own model string, and compelling an unknowable value is exactly the fabrication the honesty rule below forbids. At least one `--verified` or `--not-verified` value is required.
 
 ## Title grammar (Conventional Commits)
 
@@ -36,14 +33,22 @@ node .claude/lib/git/pr.mjs pr-create \
 
 | Section | Flag(s) | Cardinality | Required |
 |---|---|---|---|
+| What changed | `--what` | 1-3 | yes |
 | Why | `--why` | 1-3 | yes |
-| What | `--what` | 1-5 | yes |
-| Verification | `--verified`, `--not-verified` | 0-8 each | combined, at least 1 |
-| Provenance | `--provenance` | 0-1 | yes iff `--origin machine`; forbidden iff `--origin human` |
 | Risk | `--risk` | 0-1 | no |
-| Links | `--link`, `--supersedes`, `--depends` | 0-8 / 0-1 / 0-1 | no |
+| Verification | `--verified`, `--not-verified` | 0-8 each | combined, at least 1 |
+| Links | `--link`, `--supersedes` | 0-8 / 0-1 | no |
 
-Every free-text value is capped at 200 characters (the title is capped separately at 72, since it is the squash commit subject). An absent optional section is omitted entirely, never rendered as an empty heading. The tool owns document structure — headings, ordering, the `Verified:` / `Not verified:` split, the trailer; callers supply field values only, never markup.
+Every free-text value is capped at 200 characters (the title is capped separately at 72, since it is the squash commit subject). An absent optional section is omitted entirely, never rendered as an empty heading. The tool owns document structure — headings, ordering, the `Verified:` / `Not verified:` split; callers supply field values only, never markup.
+
+### Writing the body
+
+1. Write for a reviewer who has never seen this code. Define any term you must use, the first time you use it.
+2. One idea per value. Prefer a plain word to a precise but opaque one.
+3. Do not name files, line numbers, or internal record, task or unit identifiers. The Files Changed tab already lists the files.
+4. `--why` states the problem that existed **before** this change, never the change itself.
+5. `--what` states the behavior that is **different now**, as a full sentence, one behavioral effect per value.
+6. `--verified` and `--not-verified` are `<check> - <result>`. The result is a number or a state, never an adjective.
 
 ## The honesty rule
 

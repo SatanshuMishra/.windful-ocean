@@ -11,12 +11,11 @@ Resolve `OWNER/REPO` (from the git remote), `HEAD-BRANCH` (the current branch) a
 node ~/.claude/lib/git/pr.mjs pr-create \
   --repo OWNER/REPO --head HEAD-BRANCH --base BASE-BRANCH \
   --title "type(scope): lowercase imperative summary" \
-  --origin human-or-machine [--provenance "agent=LABEL model=MODEL"] \
-  --why "problem and why now" \
-  --what "one behavioral change" \
+  --what "The behavior that is different now." \
+  --why "The problem that existed before this change." \
   --not-verified "thing you did not check - not run"
 ```
 
-`--provenance` is required when `--origin machine` and forbidden when `--origin human`. Never write a `--verified` line for a check you did not actually run. A `pull/new/<branch>` URL printed by `git push` is not an approved path either — always go through this tool.
+A `--why`, `--what` or `--risk` value starts with a capital letter and ends with a full stop. Write for a reviewer who has never seen this code: no file names, no line numbers, no internal ids — the Files Changed tab already lists the files. `--why` is the problem that existed before; `--what` is the behavior that is different now. Never write a `--verified` line for a check you did not actually run. A `pull/new/<branch>` URL printed by `git push` is not an approved path either.
 
 Full field set, cardinalities, caps and the title grammar: `~/.claude/rules/common/git/pull-requests.md`.
