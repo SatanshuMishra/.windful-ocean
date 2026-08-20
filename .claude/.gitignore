@@ -42,6 +42,5 @@ ledger/
 ledger-archive-v1/
 notes/
 !skills/session-handoff/
-!docs/session-continuity-redesign/
 !skills/impeccable/scripts/live-browser-session.js
 !skills/impeccable/scripts/live-session-store.mjs

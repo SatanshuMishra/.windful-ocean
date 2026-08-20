@@ -9,6 +9,7 @@ CLAUDE.md
 !/.claude/hooks/CLAUDE.md
 /.claude/settings.local.json
 /.claude/reports/
+/.claude/docs/
 claude.json
 .claude.json
 *claude-session*
@@ -21,8 +22,7 @@ session-env/
 .local/
 /graphify-out/
 /.playwright-mcp/
-/docs/superpowers/plans/*
-!/docs/superpowers/plans/2026-07-31-m2-mirror-gaps.md
+/docs/superpowers/
 
 # Runtime state and credentials from stowed config
 /.config/com.corsair/
