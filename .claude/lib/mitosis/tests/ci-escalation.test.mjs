@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, relative, sep } from 'node:path';
 import { MITOSIS_GATE_VERBS } from '../mitosis-gate.mjs';
@@ -198,6 +198,7 @@ test('classifyCiReport: an agent-supplied path list reaches the escalation reaso
 
 const LIB_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const RUN_ENGINE_PATH = fileURLToPath(new URL('../run-engine.mjs', import.meta.url));
+const MITOSIS_EXECUTE_WORKFLOW_PATH = fileURLToPath(new URL('../../../workflows/mitosis-execute.js', import.meta.url));
 
 const KNOWN_NON_IMPORT_OCCURRENCES = Object.freeze([
   Object.freeze({
@@ -303,4 +304,9 @@ test('census: run-engine.mjs has zero production importers anywhere under .claud
     [],
     `run-engine.mjs must have zero production importers anywhere under .claude/lib; found: ${importers.join(', ')}`,
   );
+});
+
+test('the deleted run-engine module and its retired workflow entry point no longer exist on disk', () => {
+  assert.equal(existsSync(RUN_ENGINE_PATH), false, `${RUN_ENGINE_PATH} must be deleted`);
+  assert.equal(existsSync(MITOSIS_EXECUTE_WORKFLOW_PATH), false, `${MITOSIS_EXECUTE_WORKFLOW_PATH} must be deleted`);
 });
