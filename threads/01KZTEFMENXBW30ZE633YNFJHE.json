@@ -1319,6 +1319,11 @@
         "ref": "0636-c41-required-half-waived-cleanup-starts-on-green-alone",
         "title": "User waives c41's required-check precondition; the cleanup starts on M16 green alone",
         "scope": "c41"
+      },
+      {
+        "ref": "0640-suite-spawn-hazard-closed-at-call-sites-not-at-the-seam",
+        "title": "The real-binary spawn hazard is closed at the call sites and the sandbox, not at the production seam that causes it",
+        "scope": "c42"
       }
     ],
     "out_of_scope": [
@@ -1330,5 +1335,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T03:27:17.438Z"
+  "updated_at": "2026-08-20T06:24:30.396Z"
 }
