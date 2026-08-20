@@ -246,6 +246,13 @@
       "struck_by": null
     },
     {
+      "id": "c42",
+      "text": "The suite can no longer spawn the real billed claude binary: 19 cli call sites bound behind a closed census, the e2e harness pinned to the sandbox fake by content identity, the PATH fallthrough filed.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c28",
       "text": "The engine opens one pull request per MSP through the centralized pr-create tool on a real run, and serializes merges so the shared branch stays green, proven end to end not by unit test.",
       "done": false,
@@ -1335,5 +1342,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T06:24:30.396Z"
+  "updated_at": "2026-08-20T06:24:39.953Z"
 }
