@@ -1352,6 +1352,11 @@
         "ref": "0649-the-test-suite-is-narrow-not-wasteful",
         "title": "The test suite is narrow rather than wasteful, so pruning is not the lever that makes tests mean something",
         "scope": "c41"
+      },
+      {
+        "ref": "0650-an-equivalent-mutant-is-resolved-by-deleting-its-branch",
+        "title": "An unkillable equivalent mutant is resolved by deleting the redundant branch that hosts it",
+        "scope": "c43"
       }
     ],
     "out_of_scope": [
@@ -1363,5 +1368,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T22:14:12.589Z"
+  "updated_at": "2026-08-20T22:14:24.673Z"
 }
