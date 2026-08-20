@@ -302,8 +302,15 @@
       "struck_by": null
     },
     {
+      "id": "c44",
+      "text": "The four blockers to a trustworthy live run are closed, and the harness is rebuilt into cost-ordered lanes whose cheapest crosses the whole pipeline in seconds at no cost.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c41",
-      "text": "Only after M16 is green and required: source-text censuses and change-detectors retired, fixture scaffolding rehomed out of source, duplicated coupling and transcription suites consolidated.",
+      "text": "Every mitosis test file is classified against the two-part bar with a stated reason, deleted only where both halves fail, and whatever survives is filed as housekeeping rather than correctness.",
       "done": false,
       "kind": "planned",
       "struck_by": null
@@ -1368,5 +1375,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T22:14:57.889Z"
+  "updated_at": "2026-08-20T22:15:08.848Z"
 }
