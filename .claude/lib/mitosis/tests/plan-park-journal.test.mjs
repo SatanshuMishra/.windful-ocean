@@ -11,6 +11,7 @@ const PLANNED_DISPATCH_FAILURE = Object.freeze({
   planPath: '/repo/.mitosis/plans/0a1b2c3d/alpha.md',
   iterations: 1,
   envelope: Object.freeze({ api_error_status: 429 }),
+  retryable: true,
 });
 
 function baseRequest(journalled) {
@@ -45,13 +46,14 @@ test('PLAN PARK JOURNAL: a plan-stage dispatch failure carries its HTTP status a
   assert.equal(parkOutcome.request.detail.includes('HTTP 429'), true);
   assert.equal(parkOutcome.request.detail.includes('billing hit its monthly spend cap'), true);
   assert.equal(parkOutcome.envelope.api_error_status, 429);
+  assert.equal(parkOutcome.retryable, true);
 
   const journalled = [];
   const { request, ports } = baseRequest(journalled);
   await runEngine(request, { runUnit: cliPorts.runUnit, ...ports });
 
   const parkLines = journalled.filter((line) => line.kind === 'park' && line.unitId === 'alpha');
-  assert.equal(parkLines.length, 1);
+  assert.equal(parkLines.length, 1, 'the retry the engine grants before exhausting its own attempt budget must not write a second, duplicate park line');
   const [record] = parkLines;
   assert.equal(record.request.detail.includes('HTTP 429'), true, 'the composed detail carries the status onto disk');
   assert.equal(record.request.detail.includes('billing hit its monthly spend cap'), true, 'the composed detail carries the child\'s own words onto disk');

@@ -22,7 +22,7 @@ const PLANNED = 'planned';
 const RECORD_FAILURE_TAG = 'PostDispatchRecordFailure';
 const BLOCKED_DIAGNOSIS = 'blocked-by-parked-prerequisite';
 const REDISPATCH_BUDGET = 1;
-const MAX_ATTEMPTS = 1 + REDISPATCH_BUDGET;
+export const MAX_ATTEMPTS = 1 + REDISPATCH_BUDGET;
 
 function attemptLedger() {
   const spent = new Map();
