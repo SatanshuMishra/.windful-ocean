@@ -269,7 +269,7 @@
     {
       "id": "c31",
       "text": "An automated end-to-end test covers decompose through pull request against a disposable substrate and runs in CI, red on a build whose engine cannot reach Ship.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -1325,5 +1325,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T03:20:30.463Z"
+  "updated_at": "2026-08-20T03:23:32.744Z"
 }
