@@ -1393,6 +1393,11 @@
         "ref": "0653-equivalent-mutants-are-unclearable-under-g14-block",
         "title": "An equivalent mutant is unclearable by wording under G14 block mode",
         "scope": "c45"
+      },
+      {
+        "ref": "0654-aggregation-files-bound-parallelism-and-stacking-stays",
+        "title": "Aggregation files bound mitosis parallelism, and the resulting PR stack stays",
+        "scope": "c45"
       }
     ],
     "out_of_scope": [
@@ -1404,5 +1409,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-21T01:36:46.404Z"
+  "updated_at": "2026-08-21T01:37:04.363Z"
 }
