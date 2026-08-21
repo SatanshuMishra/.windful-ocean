@@ -1348,6 +1348,11 @@
         "ref": "0655-substrate-g14-runs-in-warn-mode",
         "title": "The substrate's G14 runs in warn mode so the live run measures the engine",
         "scope": "c45"
+      },
+      {
+        "ref": "0656-serialization-and-prompt-compliance-are-separate-criteria",
+        "title": "Serialization and prompt compliance become separate pass criteria",
+        "scope": "c45"
       }
     ],
     "out_of_scope": [
@@ -1359,5 +1364,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-21T02:06:55.296Z"
+  "updated_at": "2026-08-21T02:07:04.561Z"
 }
