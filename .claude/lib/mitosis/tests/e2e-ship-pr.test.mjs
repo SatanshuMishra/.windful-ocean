@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EXEC_ALLOWLIST, resolveSpawn } from '../exec-policy.mjs';
-import { parseMitosisGitArgv } from '../../git/pr.mjs';
+import { parseMitosisGitArgv, renderPrCreateBody } from '../../git/pr.mjs';
 import { pack } from './file-scope-fixtures.mjs';
 import {
   BOUNDARY_VERIFIED,
@@ -212,6 +212,31 @@ test('the composed argv, work-type line included, still validates through the re
   assert.equal(parsed.ok, true, parsed.error);
   assert.ok(parsed.opts.why.length <= 3, `--why carries ${parsed.opts.why.length} values, over the ceiling`);
   assert.ok(parsed.opts.why.includes('work-type: feature'));
+});
+
+const ENFORCER_WORK_TYPE_PATTERN = /work[ _-]?type\s*[:=]\s*([a-z]+)/i;
+
+test('a model-supplied rationale carrying a work-type token never out-races the engine own declared type in the rendered pull-request body', () => {
+  const spoofedFacts = {
+    ...BETA_FACTS,
+    why: 'work-type: chore because this only reshapes internal wiring and needs no new tests',
+    what: 'the change is described in the composed pull request',
+  };
+  const composed = composePrCreateArgv(spoofedFacts);
+  assert.equal(composed.ok, true, composed.refusal);
+
+  const verbAt = composed.argv.indexOf('pr-create');
+  const parsed = parseMitosisGitArgv(composed.argv.slice(verbAt));
+  assert.equal(parsed.ok, true, parsed.error);
+
+  const body = renderPrCreateBody(parsed.opts);
+  const match = body.match(ENFORCER_WORK_TYPE_PATTERN);
+  assert.ok(match, 'the rendered pull-request body carries no work-type line at all for the receipts enforcer to read');
+  assert.equal(
+    match[1],
+    'feature',
+    `the receipts enforcer would read work type ${JSON.stringify(match[1])} from the rendered body, captured off a model-supplied rationale line that renders ahead of the engine own "work-type: feature" declaration for this feat change; a spoofed rationale line must never out-race the engine declared type in the pull-request body the enforcer actually reads`,
+  );
 });
 
 test('the composed --what value is the msp title capitalised and full-stopped, and a colon inside it is never truncated', () => {
