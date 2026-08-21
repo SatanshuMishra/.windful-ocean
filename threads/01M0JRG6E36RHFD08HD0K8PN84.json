@@ -70,13 +70,75 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
-    "key_decisions": [],
-    "out_of_scope": []
+    "active_goal": "Ship all eight MSPs of the frozen testing-architecture SPEC, so that a green mitosis suite implies mitosis is expected to work on a live run.",
+    "next_step": "START HERE. Read m15/TESTING-ARCHITECTURE-SPEC.md in full, then fast-forward the primary checkout to origin/main before anything reads the engine. Dispatch a dedicated agent per MSP, M1 first. The SPEC is FROZEN per 0664: no edits, no scope growth, no reordering; ship all eight before proposing any follow-up. Where an MSP blocks, stack the next PR on it and keep going. M1 step 0 copies the four temp evidence dirs into the repo - do it before macOS deletes them.",
+    "last_session": "Opened 2026-08-21 from the parent session that authored the SPEC. No implementation has started; every criterion is untouched.",
+    "open_risks": [
+      {
+        "text": "Copy the four preserved scratch directories into the repository before writing any code — they are macOS temp directories holding the only journals and usage records from the 2026-08-21 runs, and the operating system deletes them without warning",
+        "scope": "thread",
+        "refs": [
+          "M1 step 0",
+          "/var/folders/tz/b798spt96sjfyy924nf0cw4c0000gn/T/m15-single-live.{XVIlQv,JfZ9lA,qtphU4,MjnrRd}"
+        ]
+      },
+      {
+        "text": "Fast-forward the primary checkout before any MSP reads the engine — it sits behind trunk, so the merged symlink and revision-budget fixes are not in force locally and a run would exercise the wrong code",
+        "scope": "thread",
+        "refs": [
+          "local 05b29b5e",
+          "trunk c2992f78"
+        ]
+      },
+      {
+        "text": "Derive the dispatch-kind set from every dispatchRequest call site rather than trusting the SPEC's list — the SPEC marks this as the one place it stops short, and an invented enum would land inside a persisted record format",
+        "scope": "thread",
+        "refs": [
+          "SPEC section 6",
+          "M1"
+        ]
+      },
+      {
+        "text": "Confirm M5's test is red at the pre-271 commit before calling it correct — pull request 271 may not fix the symptom it claims, since it binds addedWorktree while the child creates its worktree from prompt text",
+        "scope": "thread",
+        "refs": [
+          "PR 271",
+          "05b29b5e",
+          "M5"
+        ]
+      },
+      {
+        "text": "Only M8 may spend money — every other MSP is provable with free instruments, and a billed run before M4 is green buys no information that a scenario sweep would not have given first",
+        "scope": "thread",
+        "refs": [
+          "M8",
+          "M4"
+        ]
+      }
+    ],
+    "key_decisions": [
+      {
+        "ref": "0663-the-stub-became-the-specification",
+        "title": "The always-succeeding stub became the specification, so a green suite says nothing about live",
+        "scope": "thread"
+      },
+      {
+        "ref": "0664-the-testing-spec-is-frozen-at-authoring",
+        "title": "The SPEC is frozen: implement and ship all eight MSPs before proposing anything else",
+        "scope": "thread"
+      },
+      {
+        "ref": "0662-a-built-unit-is-lost-at-the-resume-boundary",
+        "title": "A built unit is dropped on resume, the defect M4 row 8 must fix",
+        "scope": "thread"
+      }
+    ],
+    "out_of_scope": [
+      "Changing what the planner or reviewer models are asked to do; the four-of-four first-plan rejection rate measured on 2026-08-21 is filed as an observation, not fixed here",
+      "The ship-publish.mjs bypass of the dependency-injection seam, which M4 names as a limit of the sweep rather than repairing",
+      "Any engine change not required to make a failure observable, except the M4 row 8 resume fix, which is the worked example proving the instrument finds real defects"
+    ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-21T18:14:31.619Z"
+  "updated_at": "2026-08-21T18:14:58.864Z"
 }
