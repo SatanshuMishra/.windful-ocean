@@ -173,8 +173,8 @@ test('the composed argv carries every mandated field once, in the order the tool
     '--head', 'mitosis/beta-integration',
     '--base', 'main',
     '--title', 'feat(beta): unit beta',
-    '--why', 'Fixture rationale for unit beta.',
     '--why', 'work-type: feature',
+    '--why', 'Fixture rationale for unit beta.',
     '--what', 'Unit beta.',
     '--verified', 'boundary gate - clean',
     '--not-verified', 'receipts enforcer - not run',
@@ -732,7 +732,7 @@ test('a rationale a live decomposer emits lowercase and unpunctuated is repaired
 
   assert.deepEqual(plan.opened.map((entry) => entry.unitId), ['beta']);
   assert.deepEqual(plan.parked, []);
-  assert.equal(spawnedArgv[0][spawnedArgv[0].indexOf('--why') + 1], 'Fixture rationale for unit beta.');
+  assert.equal(spawnedArgv[0][spawnedArgv[0].lastIndexOf('--why') + 1], 'Fixture rationale for unit beta.');
 });
 
 test('a msp whose mandated pull-request fields cannot be read composes no argv rather than a placeholder', () => {
