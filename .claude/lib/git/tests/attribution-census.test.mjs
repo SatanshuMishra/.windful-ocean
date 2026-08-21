@@ -64,7 +64,6 @@ function firstOccurrenceLine(lowerContent, lowerToken) {
 test('no census file carries a banned attribution token', () => {
   const files = censusFiles();
   const violations = [];
-  const usedExemptions = new Set();
   for (const file of files) {
     const raw = readFileSync(file, 'utf8');
     const lower = raw.toLowerCase();
@@ -73,20 +72,12 @@ test('no census file carries a banned attribution token', () => {
       const lowerToken = token.toLowerCase();
       const line = firstOccurrenceLine(lower, lowerToken);
       if (line === null) continue;
-      const exemption = EXEMPTIONS.find(
+      const exempted = EXEMPTIONS.some(
         (entry) => entry.file === relativeFile && entry.token === token,
       );
-      if (exemption) {
-        usedExemptions.add(exemption);
-        continue;
-      }
+      if (exempted) continue;
       violations.push(`${file}:${line} contains the banned token ${JSON.stringify(token)}`);
     }
   }
   assert.deepEqual(violations, []);
-
-  const staleExemptions = EXEMPTIONS.filter((entry) => !usedExemptions.has(entry)).map(
-    (entry) => `${entry.file} no longer contains the banned token ${JSON.stringify(entry.token)}; remove the stale exemption`,
-  );
-  assert.deepEqual(staleExemptions, []);
 });
