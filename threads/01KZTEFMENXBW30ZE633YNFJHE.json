@@ -1345,6 +1345,11 @@
         "ref": "0660-built-wait-heartbeat-watches-the-whole-mitosis-tree",
         "title": "The built-wait heartbeat watches the whole run tree, with an idle limit above the engine's own dispatch timeout",
         "scope": "c45"
+      },
+      {
+        "ref": "0661-plan-revision-budget-raised-to-three",
+        "title": "A unit gets three plan revisions, not one, because one revision does not converge in practice",
+        "scope": "c45"
       }
     ],
     "out_of_scope": [
@@ -1356,5 +1361,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-21T05:39:37.571Z"
+  "updated_at": "2026-08-21T06:15:15.636Z"
 }
