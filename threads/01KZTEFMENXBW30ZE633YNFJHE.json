@@ -339,7 +339,7 @@
     {
       "id": "c49",
       "text": "The three harness blockers to a complete live run close, and the engine stops betting on model compliance: overlap-explained edges are machine-dropped and every pull request declares its work type.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -1338,5 +1338,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-21T04:33:02.784Z"
+  "updated_at": "2026-08-21T04:33:09.283Z"
 }
