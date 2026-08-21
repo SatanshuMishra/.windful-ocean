@@ -92,22 +92,42 @@ test('PLANNING: a plan the first review refuses is revised once and settles at t
   assert.equal(planned.planPath, PLAN_PATH);
 });
 
-test('PLANNING: a plan the second review also refuses is parked unapproved at two iterations, not revised a third time', async () => {
-  const ports = scriptedPorts([WROTE_THE_PLAN, NEEDS_CHANGES, WROTE_THE_PLAN, NEEDS_CHANGES]);
+test('PLANNING: a plan rejected twice is revised twice and approved on the third review, not parked', async () => {
+  const ports = scriptedPorts([
+    WROTE_THE_PLAN, NEEDS_CHANGES,
+    WROTE_THE_PLAN, NEEDS_CHANGES,
+    WROTE_THE_PLAN, APPROVED,
+  ]);
   const planned = await runPlanning(PREP, ports);
-  assert.deepStrictEqual(ports.kinds, ['plan', 'plan-review', 'replan', 'plan-review']);
-  assert.deepStrictEqual(ports.iterations, [1, 2]);
-  assert.equal(planned.iterations, 2);
+  assert.deepStrictEqual(ports.kinds, ['plan', 'plan-review', 'replan', 'plan-review', 'replan', 'plan-review']);
+  assert.deepStrictEqual(ports.iterations, [1, 2, 3]);
+  assert.equal(planned.approved, true, 'a unit approved on its third review must be approved, not parked');
+  assert.equal(planned.iterations, 3);
+  assert.equal(planned.what, null);
+  assert.equal(planned.planPath, PLAN_PATH);
+});
+
+test('PLANNING: a plan rejected through every revision the budget allows is parked unapproved, not revised beyond budget', async () => {
+  const ports = scriptedPorts([
+    WROTE_THE_PLAN, NEEDS_CHANGES,
+    WROTE_THE_PLAN, NEEDS_CHANGES,
+    WROTE_THE_PLAN, NEEDS_CHANGES,
+    WROTE_THE_PLAN, NEEDS_CHANGES,
+  ]);
+  const planned = await runPlanning(PREP, ports);
+  assert.deepStrictEqual(ports.kinds, ['plan', 'plan-review', 'replan', 'plan-review', 'replan', 'plan-review', 'replan', 'plan-review']);
+  assert.deepStrictEqual(ports.iterations, [1, 2, 3, 4]);
+  assert.equal(planned.iterations, 4);
   assert.equal(planned.approved, false);
   assert.equal(planned.what, 'plan-unapproved');
   assert.equal(planned.planPath, PLAN_PATH);
-  assert.equal(PLAN_REVISION_BUDGET, 1);
+  assert.equal(PLAN_REVISION_BUDGET, 3);
   assert.equal(
     planned.detail,
-    'the plan for this unit was still not approved after the 1 revision this run allows, so it is parked rather than implemented against a plan the review stage refused',
+    'the plan for this unit was still not approved after the 3 revisions this run allows, so it is parked rather than implemented against a plan the review stage refused',
   );
   assert.deepStrictEqual(planned.findings, [{ axis: 'necessity', severity: 'high', detail: 'step three earns nothing' }]);
-  assert.equal(planned.retryable, false, 'a review that judges needs-changes twice is not a dispatch failure, so the exhausted park must not be retryable');
+  assert.equal(planned.retryable, false, 'a review that judges needs-changes on every attempt is not a dispatch failure, so the exhausted park must not be retryable');
 });
 
 test('PLANNING: a plan dispatch failing every attempt is retried once under the engine\'s own attempt budget, is marked retryable, and composes the park detail from the child\'s own HTTP status and its own words', async () => {

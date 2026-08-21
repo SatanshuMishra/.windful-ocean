@@ -126,11 +126,11 @@ test('a planned run composes plan then plan-review, and one bounded replan for t
   });
 });
 
-test('a unit whose plan is still unapproved after its one replan parks with no implement dispatch', () => {
+test('a unit whose plan is still unapproved after every replan the budget allows parks with no implement dispatch', () => {
   withSandbox({}, (sandbox) => {
     planRun(sandbox, [
       { id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed, planning: { reviews: ['approve'] } },
-      { id: 'gamma', behaviour: CLAUDE_BEHAVIOURS.succeed, planning: { reviews: ['needs-changes', 'needs-changes'] } },
+      { id: 'gamma', behaviour: CLAUDE_BEHAVIOURS.succeed, planning: { reviews: ['needs-changes', 'needs-changes', 'needs-changes', 'needs-changes'] } },
     ]);
 
     const run = runMitosisCli(sandbox);
@@ -140,9 +140,9 @@ test('a unit whose plan is still unapproved after its one replan parks with no i
       { id: 'alpha', state: 'done' },
       { id: 'gamma', state: 'parked' },
     ]);
-    assert.deepEqual(composedKindsFor(sandbox, 'gamma'), ['plan', 'plan-review', 'replan', 'plan-review']);
+    assert.deepEqual(composedKindsFor(sandbox, 'gamma'), ['plan', 'plan-review', 'replan', 'plan-review', 'replan', 'plan-review', 'replan', 'plan-review']);
     assert.equal(implementArgvsFor(sandbox, 'gamma').length, 0);
-    assert.equal(claudeArgvsFor(sandbox, 'gamma').length, 4);
+    assert.equal(claudeArgvsFor(sandbox, 'gamma').length, 8);
     assert.equal(readJournal(sandbox).filter((record) => record.kind === 'park').length, 1);
   });
 });

@@ -9,14 +9,13 @@ const REPLAN = 'replan';
 const APPROVE = 'approve';
 const NEEDS_CHANGES = 'needs-changes';
 const FIRST_ITERATION = 1;
-const SECOND_ITERATION = 2;
 const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const UNIT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const NO_FINDINGS = Object.freeze([]);
 const REQUIRED_PORTS = Object.freeze(['dispatchPrompt', 'observePlan']);
 
 export const PLAN_ARTIFACT_SEGMENTS = Object.freeze(['.mitosis', 'plans']);
-export const PLAN_REVISION_BUDGET = 1;
+export const PLAN_REVISION_BUDGET = 3;
 export const FINDING_AXES = Object.freeze(['necessity', 'regression-risk', 'over-scope', 'parallel-safety']);
 
 export const PLAN_ARTIFACT_SCHEMA = Object.freeze({
@@ -289,28 +288,34 @@ function approved(prep, iterations) {
   return outcome({ approved: true, planPath: prep.planPath, iterations });
 }
 
-function exhausted(prep, findings) {
+function revisionNoun(budget) {
+  return budget === 1 ? 'revision' : 'revisions';
+}
+
+function exhausted(prep, findings, iterations) {
   return outcome({
     what: 'plan-unapproved',
-    detail: `the plan for this unit was still not approved after the ${PLAN_REVISION_BUDGET} revision this run allows, so it is parked rather than implemented against a plan the review stage refused`,
+    detail: `the plan for this unit was still not approved after the ${PLAN_REVISION_BUDGET} ${revisionNoun(PLAN_REVISION_BUDGET)} this run allows, so it is parked rather than implemented against a plan the review stage refused`,
     findings: Object.freeze([...findings]),
     planPath: prep.planPath,
-    iterations: SECOND_ITERATION,
+    iterations,
   });
 }
 
 export async function runPlanning(prep, ports) {
   const drafted = await draftPlan(PLAN, prep, NO_FINDINGS, ports);
   if (drafted !== null) return drafted;
-  const first = await reviewPlan(prep, FIRST_ITERATION, ports);
-  if (first.approved) return approved(prep, FIRST_ITERATION);
-  if (first.refusal !== null) return Object.freeze({ ...first.refusal, iterations: FIRST_ITERATION });
-  const revised = await draftPlan(REPLAN, prep, first.findings, ports);
-  if (revised !== null) return Object.freeze({ ...revised, iterations: FIRST_ITERATION });
-  const second = await reviewPlan(prep, SECOND_ITERATION, ports);
-  if (second.approved) return approved(prep, SECOND_ITERATION);
-  if (second.refusal !== null) return Object.freeze({ ...second.refusal, iterations: SECOND_ITERATION });
-  return exhausted(prep, second.findings);
+  let iteration = FIRST_ITERATION;
+  let reviewed = await reviewPlan(prep, iteration, ports);
+  for (;;) {
+    if (reviewed.approved) return approved(prep, iteration);
+    if (reviewed.refusal !== null) return Object.freeze({ ...reviewed.refusal, iterations: iteration });
+    if (iteration > PLAN_REVISION_BUDGET) return exhausted(prep, reviewed.findings, iteration);
+    const revised = await draftPlan(REPLAN, prep, reviewed.findings, ports);
+    if (revised !== null) return Object.freeze({ ...revised, iterations: iteration });
+    iteration += 1;
+    reviewed = await reviewPlan(prep, iteration, ports);
+  }
 }
 
 function requirePorts(ports) {
