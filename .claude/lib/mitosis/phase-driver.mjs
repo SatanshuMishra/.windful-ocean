@@ -35,6 +35,7 @@ const REQUIRED_PORTS = Object.freeze([
   'teardownHeadWorktree',
   'openPullRequest',
   'appendJournal',
+  'writeGenesis',
   'skillPointers',
   'observePlan',
   'ciRead',
@@ -207,6 +208,7 @@ function planningConfig(request, resumed) {
 async function prepPhase(completed, request, ports) {
   const title = phase('Prep');
   const resumed = requirePreceding(completed, 'Resume');
+  await ports.writeGenesis({ repoRoot: request.repoRoot, path: request.journalPath, manifest: resumed.manifest });
   const planned = await planUnits({
     ...planningConfig(request, resumed),
     pointers: () => ports.skillPointers(),

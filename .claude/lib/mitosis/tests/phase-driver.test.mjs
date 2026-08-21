@@ -5,6 +5,7 @@ import { Done } from '../boundary.mjs';
 import { NOT_COMPARABLE_CLASSIFIER } from '../boundary-gate.mjs';
 import { runPhases } from '../phase-driver.mjs';
 import { composePrompt } from '../prompt-registry.mjs';
+import { PLAN_ARTIFACT_SCHEMA } from '../unit-planning.mjs';
 
 function runRequest() {
   return {
@@ -31,6 +32,7 @@ function stubbedPorts(overrides = {}) {
   const opened = [];
   const journalled = [];
   const genesis = [];
+  const driverGenesis = [];
   const refs = [];
   const ran = [];
   const published = [];
@@ -51,6 +53,7 @@ function stubbedPorts(overrides = {}) {
     opened,
     journalled,
     genesis,
+    driverGenesis,
     refs,
     ran,
     published,
@@ -63,6 +66,7 @@ function stubbedPorts(overrides = {}) {
       release: (given) => { released.push(given); },
       makeObserver: () => () => {},
       makePorts: () => enginePorts,
+      writeGenesis: (request) => { driverGenesis.push(request); },
       skillPointers: () => ({ libDir: '/lib/mitosis', writingPlansGlob: '/plugins/*/skills/writing-plans/SKILL.md' }),
       observePlan: () => ({ exists: true, isFile: true, size: 1, detail: 'stubbed observation' }),
       boundaryGate: (request) => { gated.push(request); return { pass: true, output: 'no new finding', blocking: [], baseCensus: null }; },
@@ -129,6 +133,65 @@ test('every phase a later change fills in returns its own empty result, so a bod
     driven.phases.Remediate,
     { remediated: [], parked: [], budget: { max: 3, used: 0 } },
     'a run carrying no parked unit remediates nothing and parks nothing, and it reports the per-run remediation cap unspent; asserting only the two empty lists would pass while the phase silently spent children against a cap nobody could read',
+  );
+});
+
+function planningPrep(specPath) {
+  return {
+    title: 'unit alpha',
+    rationale: 'do alpha',
+    dependsList: '(none)',
+    specPath,
+    fileScope: pack(['alpha.mjs']),
+  };
+}
+
+function planningRequest() {
+  const base = runRequest();
+  return {
+    ...base,
+    spec: {
+      manifest: { logicalRunId: 'r1', clusters: [], msps: [{ id: 'alpha' }] },
+      specs: [{
+        id: 'alpha',
+        fileScope: pack(['alpha.mjs']),
+        request: { prompt: 'do alpha' },
+        prep: planningPrep(base.specPath),
+      }],
+    },
+  };
+}
+
+test('the driver writes the journal genesis before Prep dispatches its first planning child, not only after every unit has finished planning', async () => {
+  const order = [];
+  const stub = stubbedPorts({
+    writeGenesis: (request) => { order.push({ event: 'genesis', request }); },
+    dispatchPrompt: (request) => {
+      order.push({ event: 'dispatch', plan: request.schema === PLAN_ARTIFACT_SCHEMA });
+      return { ok: true, outcome: 'refused' };
+    },
+  });
+  await runPhases(planningRequest(), stub.ports);
+  assert.ok(
+    order.length >= 2,
+    'the run must have written a genesis record and dispatched at least the planning child, or the ordering claim below is vacuous',
+  );
+  assert.deepEqual(
+    order[0],
+    {
+      event: 'genesis',
+      request: {
+        repoRoot: '/repo',
+        path: '.mitosis/run.jsonl',
+        manifest: { logicalRunId: 'r1', clusters: [], msps: [{ id: 'alpha' }] },
+      },
+    },
+    'the genesis record must be the very first port call the run makes, before Prep composes or dispatches any planning child',
+  );
+  assert.deepEqual(
+    order[1],
+    { event: 'dispatch', plan: true },
+    'the first dispatch after genesis must be the plan-stage child Prep sends, proving genesis lands before planning starts rather than merely before Execute',
   );
 });
 
