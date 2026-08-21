@@ -236,8 +236,8 @@ const PRIOR_BUILD_JOURNAL = Object.freeze({
   sourcePrefix: 'mitosis',
   clusters: [],
   msps: [
-    { id: 'alpha', progress: 'planned', integrationBranch: 'mitosis/alpha-integration' },
-    { id: 'beta', progress: 'built', integrationBranch: 'mitosis/beta-integration', checkpointRef: 'refs/mitosis/9e8d7c6b/beta' },
+    { id: 'alpha', progress: 'planned', integrationBranch: 'mitosis/alpha-integration', fileScope: pack(['alpha.mjs']) },
+    { id: 'beta', progress: 'built', integrationBranch: 'mitosis/beta-integration', checkpointRef: 'refs/mitosis/9e8d7c6b/beta', fileScope: pack(['beta.mjs']) },
   ],
 });
 

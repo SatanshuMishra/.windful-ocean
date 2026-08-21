@@ -9,6 +9,7 @@ import { mergedIntoBasePort, retireHeadPort } from '../cli.mjs';
 import { PR_TOOL_PATH } from '../node-commands.mjs';
 import { publishShipHead } from '../ship-publish.mjs';
 import { BOUNDARY_VERIFIED, RECEIPTS_NOT_VERIFIED, shipIntegrated, shipSummary } from '../ship-plan.mjs';
+import { pack } from './file-scope-fixtures.mjs';
 
 const FIXTURE_STAMP = '1735689600 +0000';
 
@@ -92,7 +93,7 @@ function buildUnit(fixture, unitId) {
   return sha;
 }
 
-function mspOf(unitId, builtSha, dependsOn = []) {
+function mspOf(unitId, builtSha, dependsOn = [], fileScope = pack([])) {
   return Object.freeze({
     id: unitId,
     title: `unit ${unitId}`,
@@ -103,6 +104,7 @@ function mspOf(unitId, builtSha, dependsOn = []) {
     builtSha,
     checkpointRef: `${RUN_REF_PREFIX}/${unitId}`,
     dependsOn,
+    fileScope,
   });
 }
 
@@ -209,6 +211,27 @@ test('a three-unit graph with one dependency edge composes three pull-request re
     BASE_BRANCH,
     integrationBranchOf('alpha'),
   ], 'the dependent is opened against the prerequisite head that carries the work it was built on, never against the trunk');
+});
+
+test('two units whose fileScope overlaps but declare no dependsOn on one another are still opened as one pull request stacked on the other, never as two independent ones on the trunk', async (t) => {
+  const fixture = fixtureRepo(t);
+  const truncate = buildUnit(fixture, 'truncate');
+  const pad = buildUnit(fixture, 'pad');
+  const sharedScope = pack(['src/strings.mjs']);
+  const msps = [
+    mspOf('truncate', truncate, [], sharedScope),
+    mspOf('pad', pad, [], sharedScope),
+  ];
+  const integrated = [integratedEntry('truncate'), integratedEntry('pad')];
+  const wired = recorder(fixture);
+
+  const plan = await shipIntegrated(shipConfig(fixture, msps, integrated), wired.ports);
+
+  assert.deepEqual(plan.opened.map((entry) => entry.unitId), ['truncate', 'pad'], JSON.stringify(plan.outcomes.map((entry) => [entry.unitId, entry.diagnosis])));
+  assert.deepEqual(wired.nodeArgvs.map((argv) => flagValue(argv, '--base')), [
+    BASE_BRANCH,
+    integrationBranchOf('truncate'),
+  ], 'the later-declared overlapping unit was opened against the trunk rather than against the earlier one it shares src/strings.mjs with');
 });
 
 test('every head a pull request names stands on the remote at its local tip at the moment the request is composed', async (t) => {

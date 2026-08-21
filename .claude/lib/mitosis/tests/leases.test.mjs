@@ -13,6 +13,7 @@ import {
   dispositionOf,
   planTick,
 } from '../leases.mjs';
+import { deriveOverlapEdges } from '../overlap-order.mjs';
 import { runSchedule } from '../engine.mjs';
 
 function alwaysDone() {
@@ -111,6 +112,23 @@ test('isDispatchable is false for units already in a terminal, awaiting, or disp
   ]);
   const byId = indexUnits(units);
   for (const id of ['d', 'p', 'w', 'x']) assert.equal(isDispatchable(byId.get(id), byId, new Map()), false);
+});
+
+test('isDispatchable admits both of two units whose fileScope overlaps and declare no prereq on one another, when no lease is currently held on the shared file', () => {
+  const units = buildUnitTable([
+    { id: 'add-truncate-to-strings', fileScope: pack(['src/strings.mjs']) },
+    { id: 'add-pad-to-strings', fileScope: pack(['src/strings.mjs']) },
+  ]);
+  const overlapEdges = deriveOverlapEdges(units.map((u) => ({ id: u.id, dependsOn: u.prereqs, fileScope: u.fileScope })));
+  assert.deepEqual(
+    overlapEdges.map((edge) => [edge.from, edge.to]),
+    [['add-pad-to-strings', 'add-truncate-to-strings']],
+    'this fixture is meant to carry a real fileScope overlap; if this assertion fails the rest of the test proves nothing',
+  );
+
+  const byId = indexUnits(units);
+  assert.equal(isDispatchable(byId.get('add-truncate-to-strings'), byId, new Map()), true);
+  assert.equal(isDispatchable(byId.get('add-pad-to-strings'), byId, new Map()), true, 'the overlap edge blocked dispatch, though nothing declared this unit a dependent of the other');
 });
 
 test('TIE-BREAK: planTick dispatches the lower-index unit and makes the overlapping contender wait this tick', () => {
