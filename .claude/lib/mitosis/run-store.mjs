@@ -224,6 +224,13 @@ function requireRecord(value, field) {
   return value;
 }
 
+function withoutPromptField(value) {
+  if (!isPlainObject(value) || !Object.hasOwn(value, 'prompt')) return value;
+  const copy = { ...value };
+  delete copy.prompt;
+  return copy;
+}
+
 function describeLockHolder(lockPath) {
   let held = null;
   try {
@@ -377,7 +384,21 @@ function attemptWriters(context, requireOpen) {
     const line = { unitId, attempt: context.attempt, observedAt, envelope: captured };
     return appendLine(join(context.dir, 'usage.jsonl'), `${JSON.stringify(line)}\n`);
   };
-  return { recordStart, recordOutput, commitState, recordUsage };
+  const recordDispatch = (unitId, record) => {
+    requireOpen('recordDispatch');
+    requireKnownUnit(context, unitId, 'recordDispatch');
+    const validated = requireRecord(record, 'record');
+    const observedAt = requireObservedAt(validated.observedAt);
+    const line = {
+      ...withoutPromptField(validated),
+      unitId,
+      attempt: context.attempt,
+      observedAt,
+      request: withoutPromptField(validated.request),
+    };
+    return appendLine(join(context.dir, 'dispatches.jsonl'), `${JSON.stringify(line)}\n`);
+  };
+  return { recordStart, recordOutput, commitState, recordUsage, recordDispatch };
 }
 
 function attemptHandle(context) {
