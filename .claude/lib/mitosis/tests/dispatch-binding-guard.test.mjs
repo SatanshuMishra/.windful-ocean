@@ -21,7 +21,7 @@ const IDENTIFIER_CHAR = /[A-Za-z0-9_$]/;
 const MEMBER_EXPRESSION = /^([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)$/;
 const CALL_EXPRESSION = /^([A-Za-z_$][\w$]*)\((.*)\)$/s;
 const BARE_IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
-const DECLARED_EXCLUDED_SUBDIRECTORIES = Object.freeze(['fixtures']);
+const DECLARED_EXCLUDED_SUBDIRECTORIES = Object.freeze(['fixtures', 'cassettes']);
 const SPECIFIER_SUFFIX = /[?#].*$/;
 
 function mjsFiles() {
