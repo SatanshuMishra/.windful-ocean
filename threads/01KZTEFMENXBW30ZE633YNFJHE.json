@@ -357,9 +357,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Prove mitosis works live: a spec-to-trunk run whose every opened pull request is green including receipts, with the engine observing CI rather than shrugging.",
-    "next_step": "DECIDE FIRST, then run. Merge pull request 270, then either close the receipts token-injection hole or accept in writing that an engine-opened pull request's green is untrusted. THEN RUN THE END-TO-END TEST: the FREE --lane smoke against the then-current trunk, and at 2026-08-22 21:00 UTC when the spend cap resets --lane single, read its receipt, then --lane full. Close the substrate pull request and delete its branch between the two lanes.",
-    "last_session": "2026-08-20/21 session 2: c48 closed, trunk moved to 4c9bae0c via 267, 268 and 269, and three harness blockers cleared. 270 then proved by execution that a model's own prose can downgrade a receipts gate. No billed lane ran.",
+    "active_goal": "Drive a live billed run to a merged trunk, fixing each real blocker the run exposes rather than widening the search for new ones.",
+    "next_step": "Read run 4's outcome. It runs with ENGINE_ROOT pointed at the plan-revision-budget worktree at cafae8fb, so the receipt describes that checkout and not trunk. If it ships, merge 271 and 272, fast-forward the primary checkout, then close the substrate pull request and delete its branch before the full lane. If it parks again, read the park record's diagnosis and request.detail first - three runs each parked for a different real reason, and none was a repeat.",
+    "last_session": "2026-08-21: smoke green on trunk. Four billed single-lane runs. Each exposed one real blocker: a harness heartbeat that killed a healthy engine, an ambiguous fixture spec, and a plan revision budget that was never actually enforced. 271 and 272 opened; neither merged.",
     "open_risks": [
       {
         "text": "Never let the engine merge a pull request — merge is refused at four independent layers by design, so c28 means serialized ship order plus a blocked-pending-approval handoff",
@@ -618,50 +618,37 @@
         ]
       },
       {
-        "text": "Treat a receipts green on any engine-opened pull request as untrusted until the token guard is case-insensitive — a model rationale carrying a test-removal token downgrades that gate from block to warn, so a billed child can delete tests and still go green",
+        "text": "Treat the plan revision budget as unproven until a run converges with it — the constant was never enforced, runPlanning was hardcoded to two rounds, so every prior reading of that value described something the engine did not do",
         "scope": "c45",
         "refs": [
-          "PR 270 filed item 4",
-          "carriesReceiptLineToken"
+          "0661",
+          "unit-planning.mjs runPlanning",
+          "PR 272"
         ]
       },
       {
-        "text": "Read the resolved engine root back from the lane's own status file before trusting any result — a hardcoded path once made a verification run silently exercise trunk and exit 0 on a byte-identical baseline",
+        "text": "Do not read PR 271 as closing the committed node_modules symlink — addedWorktree is the only worktree creation the engine owns, and the child's real worktree is still created by the child from prompt text, so the fixed path is not the path that produced the defect",
         "scope": "c45",
         "refs": [
-          "ENGINE_ROOT",
-          "full-e2e-RUNBOOK.md"
+          "PR 271",
+          "boundary-collect.mjs addedWorktree",
+          "prompt-execute.mjs:68"
         ]
       },
       {
-        "text": "Close the substrate pull request and delete its branch between the single and full lanes — both lanes derive the same branch name from the same unit id, so the second collides on a shared substrate",
+        "text": "Point ENGINE_ROOT at the intended checkout and read it back from the lane status file — run 4 exercises a worktree, not trunk, so its receipt is evidence about cafae8fb and says nothing about what main does",
         "scope": "c45",
         "refs": [
-          "full-e2e-check-substrate-clean.mjs",
-          "marker=substrate-not-clean"
+          "full-e2e-single-status.json engineRoot",
+          "cafae8fb"
         ]
       },
       {
-        "text": "Expect the prompt-compliance criterion to report a missing field until a fresh decomposer document exists — the only run document on hand predates the engine change and measures the old prompt",
+        "text": "Expect a fixture spec ambiguity to surface as a NeedsHuman park rather than a failure — a child that finds an undefined arithmetic boundary escalates, and the run ends quiescent at exit 3 with nothing shipped",
         "scope": "c45",
         "refs": [
-          "full-e2e-smoke-source-run-document.json"
-        ]
-      },
-      {
-        "text": "Do not trust a compliance reading taken after a resume — the full lane exercises resume, and the projector drops the preserved model declaration on that path",
-        "scope": "c45",
-        "refs": [
-          "recovery.mjs",
-          "modelDeclaredDependsOn"
-        ]
-      },
-      {
-        "text": "Settle whether the enforcer reads the pull request title as well as the body before scoping the guard fix — it is not vendored here, so if it scans both there is a third injection path nobody has closed",
-        "scope": "c45",
-        "refs": [
-          "PR 270 unknown",
-          "verify.js:466"
+          "full-e2e-SINGLE-SPEC.md",
+          "full-e2e-SPEC.md"
         ]
       }
     ],
@@ -1361,5 +1348,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-21T06:15:15.636Z"
+  "updated_at": "2026-08-21T06:24:05.348Z"
 }
