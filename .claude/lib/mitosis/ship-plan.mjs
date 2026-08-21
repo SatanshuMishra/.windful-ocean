@@ -11,6 +11,7 @@ import {
 } from './merge-policy.mjs';
 import { PR_TOOL_DIRECTORY, buildNodeCommand } from './node-commands.mjs';
 import { LEGAL_STAGES, park } from './parking.mjs';
+import { withOverlapDependsOn } from './overlap-order.mjs';
 import { branchToMspId, reconcileShippedSet } from './recovery.mjs';
 import { SHIP_PUBLISH_ACTIONS } from './ship-publish.mjs';
 import { inertValue, PR_TITLE_PATTERN, PR_VALUE_CAP } from '../git/pr-format.mjs';
@@ -226,10 +227,17 @@ export function composePrCreateArgv(facts) {
   }
 }
 
+function mspsOf(manifest) {
+  return Array.isArray(manifest.msps) ? manifest.msps.filter(isRecord) : [];
+}
+
 function mspOf(manifest, unitId) {
-  const msps = Array.isArray(manifest.msps) ? manifest.msps.filter(isRecord) : [];
-  const found = msps.find((msp) => msp.id === unitId);
+  const found = mspsOf(manifest).find((msp) => msp.id === unitId);
   return found === undefined ? null : found;
+}
+
+function effectiveManifestOf(manifest) {
+  return { ...manifest, msps: withOverlapDependsOn(mspsOf(manifest)) };
 }
 
 function headBranch(entry, msp) {
@@ -285,10 +293,11 @@ function precededWithin(manifest, unitId, siblings) {
 }
 
 function prerequisiteRecords(settings, unitId, mergedIds) {
-  const declared = declaredPrereqs(settings.manifest, unitId);
+  const manifest = effectiveManifestOf(settings.manifest);
+  const declared = declaredPrereqs(manifest, unitId);
   const records = [];
   for (const id of declared) {
-    const parent = mspOf(settings.manifest, id);
+    const parent = mspOf(manifest, id);
     const branch = parent === null ? null : nonEmptyText(parent.integrationBranch);
     if (branch === null && mergedIds.has(id)) continue;
     if (branch === null) {
@@ -298,7 +307,7 @@ function prerequisiteRecords(settings, unitId, mergedIds) {
   }
   const named = records.map((record) => record.id);
   return {
-    value: records.map((record) => ({ ...record, precededBy: precededWithin(settings.manifest, record.id, named) })),
+    value: records.map((record) => ({ ...record, precededBy: precededWithin(manifest, record.id, named) })),
   };
 }
 

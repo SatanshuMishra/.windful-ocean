@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EXEC_ALLOWLIST, resolveSpawn } from '../exec-policy.mjs';
 import { parseMitosisGitArgv } from '../../git/pr.mjs';
+import { pack } from './file-scope-fixtures.mjs';
 import {
   BOUNDARY_VERIFIED,
   PR_TOOL_PATH,
@@ -243,6 +244,7 @@ const BETA_MSP = Object.freeze({
   builtSha: '1122334455667788990011223344556677889900',
   green: true,
   dependsOn: ['alpha'],
+  fileScope: pack([]),
 });
 
 const CREATED_LINE = `${JSON.stringify({ action: 'created', url: 'https://github.com/acme/widgets/pull/5', number: 5 })}\n`;
@@ -322,8 +324,8 @@ test('the publish is handed the prerequisite heads this unit stacks on, in the o
       sourcePrefix: 'mitosis',
       msps: [
         { ...BETA_MSP, dependsOn: ['alpha', 'zeta'] },
-        { id: 'alpha', integrationBranch: 'mitosis/alpha-integration', dependsOn: [] },
-        { id: 'zeta', integrationBranch: 'mitosis/zeta-integration', dependsOn: ['alpha'] },
+        { id: 'alpha', integrationBranch: 'mitosis/alpha-integration', dependsOn: [], fileScope: pack([]) },
+        { id: 'zeta', integrationBranch: 'mitosis/zeta-integration', dependsOn: ['alpha'], fileScope: pack([]) },
       ],
     },
     integrated: [{ unitId: 'beta', state: 'integrated', resumePoint: { branch: null, ref: null, stage: 'ship' } }],
@@ -420,6 +422,7 @@ const GAMMA_MSP = Object.freeze({
   builtSha: '0099887766554433221100998877665544332211',
   green: true,
   dependsOn: ['beta'],
+  fileScope: pack([]),
 });
 
 function chainConfig(extra = {}) {

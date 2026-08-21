@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { NOT_COMPARABLE_CLASSIFIER } from './boundary-gate.mjs';
 import { divergedParents } from './divergence.mjs';
 import { LEGAL_STAGES, transitiveDependents } from './parking.mjs';
+import { deriveOverlapEdges, withOverlapDependsOn } from './overlap-order.mjs';
 import { composePrompt } from './prompt-registry.mjs';
 
 const MODULE = 'integrate-plan';
@@ -38,6 +39,10 @@ function nonEmptyText(value) {
 
 function mspsOf(manifest) {
   return Array.isArray(manifest.msps) ? manifest.msps.filter(isRecord) : [];
+}
+
+function overlapScopeOf(msps) {
+  return msps.map((msp) => ({ id: msp.id, dependsOn: msp.dependsOn, fileScope: msp.fileScope }));
 }
 
 function safeGateBase(value) {
@@ -101,7 +106,7 @@ function requireConfig(config) {
 }
 
 export function topologicalOrder(built, manifest) {
-  const dependsById = new Map(mspsOf(manifest).map((msp) => [msp.id, Array.isArray(msp.dependsOn) ? msp.dependsOn : []]));
+  const dependsById = new Map(withOverlapDependsOn(overlapScopeOf(mspsOf(manifest))).map((msp) => [msp.id, msp.dependsOn]));
   const builtIds = new Set(built.map((entry) => entry.unitId));
   const placed = new Set();
   const ordered = [];
@@ -243,7 +248,7 @@ function blockedByDivergence(manifest, parentIds) {
 }
 
 export function gateBaseChain(ordered, manifest, baseBranch) {
-  const dependsById = new Map(mspsOf(manifest).map((msp) => [msp.id, Array.isArray(msp.dependsOn) ? msp.dependsOn : []]));
+  const dependsById = new Map(withOverlapDependsOn(overlapScopeOf(mspsOf(manifest))).map((msp) => [msp.id, msp.dependsOn]));
   const checkpointById = new Map();
   const bases = new Map();
   for (const entry of ordered) {
@@ -257,7 +262,7 @@ export function gateBaseChain(ordered, manifest, baseBranch) {
   return bases;
 }
 
-function produced(outcomes, divergedParentIds) {
+function produced(outcomes, divergedParentIds, overlapEdges = EMPTY) {
   const ordered = Object.freeze(outcomes);
   const withState = (state) => Object.freeze(ordered.filter((entry) => entry.state === state));
   return Object.freeze({
@@ -266,6 +271,7 @@ function produced(outcomes, divergedParentIds) {
     diverged: withState(DIVERGED),
     divergedParents: Object.freeze([...divergedParentIds]),
     outcomes: ordered,
+    overlapEdges: Object.freeze([...overlapEdges]),
   });
 }
 
@@ -286,7 +292,8 @@ function unreachedOutcome(entry, blocked, settings) {
 export async function integrateBuilt(config, ports) {
   const settings = requireConfig(config);
   const wired = requirePorts(ports);
-  if (!settings.quiescent || settings.built.length === 0) return produced(EMPTY, EMPTY);
+  const overlapEdges = deriveOverlapEdges(mspsOf(settings.manifest));
+  if (!settings.quiescent || settings.built.length === 0) return produced(EMPTY, EMPTY, overlapEdges);
   const ordered = topologicalOrder(settings.built, settings.manifest);
   const divergedParentIds = await divergedIds(settings);
   const blocked = blockedByDivergence(settings.manifest, divergedParentIds);
@@ -296,7 +303,7 @@ export async function integrateBuilt(config, ports) {
     const unreached = unreachedOutcome(entry, blocked, settings);
     outcomes.push(unreached === null ? await gateUnit(entry, bases.get(entry.unitId), settings, wired) : unreached);
   }
-  return produced(outcomes, divergedParentIds);
+  return produced(outcomes, divergedParentIds, overlapEdges);
 }
 
 export function integrateSummary(plan) {
@@ -306,5 +313,6 @@ export function integrateSummary(plan) {
     diverged: plan.diverged.map((entry) => entry.unitId),
     parkedStages: Object.fromEntries(plan.parked.map((entry) => [entry.unitId, entry.stage])),
     outcomes: plan.outcomes.map((entry) => ({ id: entry.unitId, state: entry.state, boundaryFixes: entry.boundaryFixes })),
+    overlapEdges: plan.overlapEdges.map((edge) => ({ from: edge.from, to: edge.to, reason: edge.reason, detail: edge.detail })),
   };
 }

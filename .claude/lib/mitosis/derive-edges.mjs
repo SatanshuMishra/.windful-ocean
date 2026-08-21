@@ -13,7 +13,7 @@ import {
 
 export const DERIVED_EDGE_REASONS = Object.freeze(['coupling-serialize', 'fileScope-overlap']);
 
-const [COUPLING_SERIALIZE_REASON, FILE_SCOPE_OVERLAP_REASON] = DERIVED_EDGE_REASONS;
+export const [COUPLING_SERIALIZE_REASON, FILE_SCOPE_OVERLAP_REASON] = DERIVED_EDGE_REASONS;
 
 const COUPLING_EDGE_RULE = Object.freeze({
   [COUPLING_PARALLEL]: false,
@@ -234,7 +234,7 @@ function declaredDependenciesOf(byId) {
   return { deps, declaredEdgeCount };
 }
 
-function declarationOrderEdge(x, y, positionOf, label) {
+export function declarationOrderEdge(x, y, positionOf, label) {
   const px = positionOf.get(x);
   const py = positionOf.get(y);
   if (px === undefined || py === undefined) {
@@ -243,7 +243,7 @@ function declarationOrderEdge(x, y, positionOf, label) {
   return px > py ? { from: x, to: y } : { from: y, to: x };
 }
 
-function fileScopeOverlapAssertions(byId, ids, positionOf) {
+export function fileScopeOverlapAssertions(byId, ids, positionOf) {
   const assertions = [];
   for (let i = 0; i < ids.length; i++) {
     for (let j = i + 1; j < ids.length; j++) {

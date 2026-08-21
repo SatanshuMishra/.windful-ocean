@@ -589,6 +589,7 @@ function manifestMsp(unit) {
     scope: unit.id,
     integrationBranch: integrationBranchOf(unit.id),
     dependsOn: [...unit.prereqs],
+    fileScope: { edit: [`${unit.id}.txt`], read: [], truncated: null },
   };
 }
 

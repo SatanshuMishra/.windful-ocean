@@ -1,5 +1,6 @@
 import { checkpointRef } from './checkpoint.mjs';
 import { transitiveDependents } from './parking.mjs';
+import { withOverlapDependsOn } from './overlap-order.mjs';
 import { startingProgressOf } from './unit-state.mjs';
 
 export const SHA_HEX_PATTERN = /^[0-9a-f]{7,64}$/i;
@@ -25,12 +26,14 @@ function divergenceToken(value) {
 export function needKeyedParents(manifest, mergedIds) {
   const msps = manifest && typeof manifest === 'object' && !Array.isArray(manifest) && Array.isArray(manifest.msps) ? manifest.msps : [];
   const byId = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
+  const namedMsps = msps.filter((m) => m && typeof m.id === 'string' && m.id.length > 0);
+  const withOverlap = withOverlapDependsOn(namedMsps.map((m) => ({ id: m.id, dependsOn: m.dependsOn, fileScope: m.fileScope })));
   const keyed = [];
   const seen = new Set();
   for (const parentId of Array.isArray(mergedIds) ? mergedIds : []) {
     if (typeof parentId !== 'string' || parentId.length === 0 || seen.has(parentId)) continue;
     seen.add(parentId);
-    const gatesBuilt = transitiveDependents(msps, parentId).some((d) => { const m = byId.get(d); return Boolean(m) && progressOf(m) === 'built'; });
+    const gatesBuilt = transitiveDependents(withOverlap, parentId).some((d) => { const m = byId.get(d); return Boolean(m) && progressOf(m) === 'built'; });
     if (!gatesBuilt) continue;
     keyed.push(parentId);
   }

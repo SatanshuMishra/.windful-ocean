@@ -11,6 +11,8 @@ import {
 import { mspContentHash } from '../recovery.mjs';
 import { createDisposition } from '../unit-state.mjs';
 import { checkpointRef } from '../checkpoint.mjs';
+import { deriveOverlapEdges } from '../overlap-order.mjs';
+import { pack } from './file-scope-fixtures.mjs';
 import { censusOfFile, reportLegacyStatusReads } from './property-read-census.mjs';
 
 function manifestWith(msps) {
@@ -194,6 +196,28 @@ test('park: appends to an existing parked ledger without dropping prior records'
   const second = park(first, { unitId: 'b', stage: 'parallelize' });
   assert.equal(second.parked.length, 2);
   assert.deepEqual(second.parked.map((r) => r.unitId), ['a', 'b']);
+});
+
+test('park: a unit whose fileScope overlaps the parked unit but declares no dependsOn on it is left unparked, even though the overlap module names an edge between them', () => {
+  const before = manifestWith([
+    { id: 'add-truncate-to-strings', fileScope: pack(['src/strings.mjs']) },
+    { id: 'add-pad-to-strings', fileScope: pack(['src/strings.mjs']) },
+  ]);
+  const overlapEdges = deriveOverlapEdges(before.msps);
+  assert.deepEqual(
+    overlapEdges.map((edge) => [edge.from, edge.to]),
+    [['add-pad-to-strings', 'add-truncate-to-strings']],
+    'this fixture is meant to carry a real fileScope overlap; if this assertion fails the rest of the test proves nothing',
+  );
+
+  assert.deepEqual(transitiveDependents(before.msps, 'add-truncate-to-strings'), []);
+
+  const after = park(before, { unitId: 'add-truncate-to-strings', stage: 'plan' });
+
+  const dispositionOf = (m, id) => m.msps.find((x) => x.id === id).disposition;
+  assert.notStrictEqual(dispositionOf(after, 'add-truncate-to-strings'), null, 'the parked unit carries a disposition');
+  assert.strictEqual(dispositionOf(after, 'add-pad-to-strings'), undefined, 'the overlapping sibling was cascade-parked, though nothing declared it depends on the parked unit');
+  assert.deepEqual(after.parked[0].dependents, []);
 });
 
 test('park: rejects an invalid manifest or an unknown unit rather than silently corrupting state', () => {
