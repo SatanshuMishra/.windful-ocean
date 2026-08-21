@@ -358,8 +358,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Prove mitosis works live: a spec-to-trunk run whose every opened pull request is green including receipts, with the engine observing CI rather than shrugging.",
-    "next_step": "RUN THE END-TO-END TEST. Start with the FREE --lane smoke against trunk 4c9bae0c; it costs nothing and its red is definitive. Then at 2026-08-22 21:00 UTC when the spend cap resets, run --lane single, read its receipt, and only then --lane full. Never go straight to full. Between the two lanes, close the substrate pull request and delete its branch or the second lane collides.",
-    "last_session": "2026-08-20/21 session 2: c48 closed and trunk moved to 4c9bae0c via 267, 268 and 269. Three harness blockers to a complete live run were found and fixed before anything was spent. No billed lane ran; the spend cap holds.",
+    "next_step": "DECIDE FIRST, then run. Merge pull request 270, then either close the receipts token-injection hole or accept in writing that an engine-opened pull request's green is untrusted. THEN RUN THE END-TO-END TEST: the FREE --lane smoke against the then-current trunk, and at 2026-08-22 21:00 UTC when the spend cap resets --lane single, read its receipt, then --lane full. Close the substrate pull request and delete its branch between the two lanes.",
+    "last_session": "2026-08-20/21 session 2: c48 closed, trunk moved to 4c9bae0c via 267, 268 and 269, and three harness blockers cleared. 270 then proved by execution that a model's own prose can downgrade a receipts gate. No billed lane ran.",
     "open_risks": [
       {
         "text": "Never let the engine merge a pull request — merge is refused at four independent layers by design, so c28 means serialized ship order plus a blocked-pending-approval handoff",
@@ -618,6 +618,14 @@
         ]
       },
       {
+        "text": "Treat a receipts green on any engine-opened pull request as untrusted until the token guard is case-insensitive — a model rationale carrying a test-removal token downgrades that gate from block to warn, so a billed child can delete tests and still go green",
+        "scope": "c45",
+        "refs": [
+          "PR 270 filed item 4",
+          "carriesReceiptLineToken"
+        ]
+      },
+      {
         "text": "Read the resolved engine root back from the lane's own status file before trusting any result — a hardcoded path once made a verification run silently exercise trunk and exit 0 on a byte-identical baseline",
         "scope": "c45",
         "refs": [
@@ -649,11 +657,11 @@
         ]
       },
       {
-        "text": "Merge the work-type-precedence pull request before the billed run — until it lands, a billed child's own body text can pre-empt the engine's work-type declaration, because the enforcer's regex is unanchored and first-match-wins",
+        "text": "Settle whether the enforcer reads the pull request title as well as the body before scoping the guard fix — it is not vendored here, so if it scans both there is a third injection path nobody has closed",
         "scope": "c45",
         "refs": [
-          "verify.js:466",
-          "fix/mitosis-work-type-precedence"
+          "PR 270 unknown",
+          "verify.js:466"
         ]
       }
     ],
@@ -1338,5 +1346,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-21T04:33:09.283Z"
+  "updated_at": "2026-08-21T04:56:33.627Z"
 }
