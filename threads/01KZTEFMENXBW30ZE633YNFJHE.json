@@ -350,9 +350,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Prove mitosis works live: a spec-to-trunk run whose every opened pull request is green, driven through cost-ordered lanes rather than one long blind wait.",
-    "next_step": "START WITH THE SMOKE LANE: bash full-e2e.sh --lane smoke costs nothing and takes seconds, and confirms the two merged dispatch fixes behave. No billed lane can run until the provider spend limit resets on 2026-08-22 21:00 UTC unless the user raises it; then run --lane single before --lane full. Two design calls are the user's and both change the next run: whether dependsOn blocks at start or only orders the merge, and whether planning should run concurrently rather than eight minutes per unit.",
-    "last_session": "2026-08-20: the merge half completed without losing a stacked child, all four blockers closed, and the harness was rebuilt into three lanes after the user rejected an 80-minute worst case. Two live attempts went red; the second hit a spend limit, exposing two dispatch defects now merged.",
+    "active_goal": "Prove mitosis works live: a spec-to-trunk run whose every opened pull request is green including receipts, with the engine observing CI rather than shrugging.",
+    "next_step": "START by fast-forwarding the PRIMARY checkout - it sat at a8c2cb23 all session while trunk moved to 60e776fd, and the global rules, agents and skills symlink into its working tree. Then close c48: kill the six G14 mutants named in the 2026-08-21 session log as ONE source-touching pull request, proving each locally by mutation before pushing. Then at 2026-08-22 21:00 UTC when the spend cap resets, run --lane smoke, then --lane single, then --lane full.",
+    "last_session": "2026-08-20/21: four defects fixed and merged to trunk - genesis before Prep, parked units counted in ship status, fileScope-derived merge ordering, semantic dependsOn. The free lane gained ENGINE_ROOT and was proven green on trunk. No billed lane ran; the spend cap holds.",
     "open_risks": [
       {
         "text": "Never let the engine merge a pull request — merge is refused at four independent layers by design, so c28 means serialized ship order plus a blocked-pending-approval handoff",
@@ -611,14 +611,6 @@
         ]
       },
       {
-        "text": "Run the smoke lane before any billed lane — it crosses the whole pipeline in seconds for nothing and its red is definitive, while its green says nothing about live behaviour",
-        "scope": "c45",
-        "refs": [
-          "full-e2e.sh --lane smoke",
-          "0648"
-        ]
-      },
-      {
         "text": "Expect every dispatched child to fail with HTTP 429 until the provider spend limit resets on 2026-08-22 21:00 UTC — the account crossed its monthly cap mid-run, so any billed lane reproduces that failure exactly",
         "scope": "c45",
         "refs": [
@@ -627,20 +619,77 @@
         ]
       },
       {
-        "text": "Decide whether dependsOn blocks a unit from starting or only orders its merge, before the next live run — the decomposer linked two units that merely share a file, so one rejected child took out two units",
+        "text": "Run the smoke lane against the then-current trunk before any billed lane — it crosses the whole pipeline in seconds for nothing and its red is definitive, while its green proves only wiring and says nothing about live behaviour",
         "scope": "c45",
         "refs": [
-          "journal genesis dependsOn",
-          "add-pad-to-strings"
+          "full-e2e.sh --lane smoke",
+          "ENGINE_ROOT",
+          "0648"
         ]
       },
       {
-        "text": "Expect roughly eight minutes of sequential planning per unit before the journal exists — prep runs entirely before the first journal byte, so a healthy four-unit run looks dead for half an hour",
+        "text": "Run the single lane before the full lane — one live unit surfaces a real-dispatch defect for one unit's billing, where going straight to full spends four units' worth to learn the same thing",
         "scope": "c45",
         "refs": [
-          "unit-planning.mjs:301",
-          "engine.mjs:288-291",
-          "phase-driver.mjs:311-320"
+          "full-e2e.sh --lane single",
+          "full-e2e-SINGLE-SPEC.md"
+        ]
+      },
+      {
+        "text": "Expect the full lane to open a four-deep pull request stack and to run fully serialized — every unit edits README.md and index.mjs, so all four overlap and the lease dispatches one per tick",
+        "scope": "c45",
+        "refs": [
+          "0654",
+          "leases.mjs:69",
+          "run-document fileScope.edit"
+        ]
+      },
+      {
+        "text": "Merge that stack parent-first, deleting each parent branch and confirming its ref is gone before merging the child — GitHub retargets a child only on base deletion, so otherwise the child merges into a dead branch and never reaches trunk",
+        "scope": "c45",
+        "refs": [
+          "git merge-base --is-ancestor",
+          "0472",
+          "0519"
+        ]
+      },
+      {
+        "text": "Expect roughly fifteen minutes before a four-unit run finishes planning — planning stays sequential by ruling, though the genesis record now lands at the start of Prep so the run is no longer silent while it happens",
+        "scope": "c45",
+        "refs": [
+          "0652",
+          "unit-planning.mjs:352-359"
+        ]
+      },
+      {
+        "text": "Ship the G14 mutant fixes as a source-touching change, never as a tests-only diff — a tests-only diff short-circuits the receipts gate and returns PASS in seconds with G14 refereeing nothing",
+        "scope": "c48",
+        "refs": [
+          "0653",
+          "verify.js:496"
+        ]
+      },
+      {
+        "text": "Remove the meaningless zero at ship-plan.mjs:553 rather than trying to test it — those two survivors are genuine equivalent mutants, and block mode carries no per-survivor exemption",
+        "scope": "c48",
+        "refs": [
+          "0653",
+          "ship-plan.mjs:551-555"
+        ]
+      },
+      {
+        "text": "Fast-forward the primary checkout before running any gate verb, and never revert the user's uncommitted files there — three verbs census that checkout rather than the commit under test",
+        "scope": "c48",
+        "refs": [
+          "canonical-config-dir.mjs:78",
+          "0635"
+        ]
+      },
+      {
+        "text": "Never use git stash in a worktree here — the stash stack is shared across every worktree of the repository, and a no-op push plus an unconditional pop stole another branch's entry this session",
+        "scope": "c48",
+        "refs": [
+          "memory: git-stash-is-shared-across-worktrees"
         ]
       }
     ],
@@ -659,36 +708,6 @@
         "ref": "0382-pathsoverlap-over-reports-never-under-reports",
         "title": "pathsOverlap may over-report overlap and must never under-report",
         "scope": "c8"
-      },
-      {
-        "ref": "0374-approved-msp-stack-a0-through-d3",
-        "title": "The approved MSP stack, A0 through D3",
-        "scope": "thread"
-      },
-      {
-        "ref": "0377-spec-approved-and-successor-thread-opened",
-        "title": "The SPEC is approved and implementation moves to this thread",
-        "scope": "thread"
-      },
-      {
-        "ref": "0378-mitosis-may-not-implement-its-own-replacement",
-        "title": "Mitosis is prohibited as the engine of its own replacement; the stack ships by plain subagent dispatch",
-        "scope": "thread"
-      },
-      {
-        "ref": "0383-g11-ack-erasure-accepted-recorded-filed",
-        "title": "The G11 ack erasure is accepted, recorded in two places, and filed upstream",
-        "scope": "thread"
-      },
-      {
-        "ref": "0431-review-size-rule-corrected-against-its-sources",
-        "title": "The 200-400 review-size rule is tightened and one of its three citations retired",
-        "scope": "thread"
-      },
-      {
-        "ref": "0438-receipts-gates-supersede-all-home-grown-mandates",
-        "title": "Receipts gates@1.1 becomes the sole verification standard and every home-grown mandate is retired",
-        "scope": "thread"
       },
       {
         "ref": "0384-a1-truncated-payload-fails-closed",
@@ -774,11 +793,6 @@
         "ref": "0432-c5-splits-and-ships-the-eighth-verb",
         "title": "C5 splits and ships the eighth verb; C6 takes no verb and skills byte-cleanliness holds to D1",
         "scope": "c3"
-      },
-      {
-        "ref": "0439-divergence-check-survives-the-mirror-census-mandate",
-        "title": "The mirror census MANDATE is retired while the divergence CHECK survives as G15's receipt",
-        "scope": "thread"
       },
       {
         "ref": "0440-third-defect-does-not-reproduce-as-filed",
@@ -946,11 +960,6 @@
         "scope": "c7"
       },
       {
-        "ref": "0484-unit-verdict-sha-contract-fixed-by-default-schema",
-        "title": "The unit verdict sha contract is fixed by a default schema conditioned on isolation mode",
-        "scope": "thread"
-      },
-      {
         "ref": "0485-c6-pre-move-baseline-struck-as-unsatisfiable",
         "title": "c6's pre-move baseline comparison is struck as unsatisfiable at any merge order",
         "scope": "c6"
@@ -961,11 +970,6 @@
         "scope": "c7"
       },
       {
-        "ref": "0488-structuredoutput-grant-must-land-on-main",
-        "title": "The StructuredOutput grant lands on main as its own change because ~/.claude/agents is a symlink",
-        "scope": "thread"
-      },
-      {
         "ref": "0489-n1-run-clears-the-falsifier-at-1-0",
         "title": "The n=1 run clears the falsifier at 1.0 dispatches per unit, with the vacuity caveat in the verdict",
         "scope": "c7"
@@ -974,11 +978,6 @@
         "ref": "0492-culminating-merge-bypasses-g11",
         "title": "The culminating merge bypasses G11 rather than acknowledging eleven test retirements",
         "scope": "c7"
-      },
-      {
-        "ref": "0494-end-to-end-mitosis-is-the-goal-not-checkpointed-and-green",
-        "title": "End-to-end /mitosis is this thread's goal, and checkpointed-and-green does not satisfy it",
-        "scope": "thread"
       },
       {
         "ref": "0497-engine-serializes-ship-order-because-it-may-never-merge",
@@ -1001,16 +1000,6 @@
         "scope": "c31"
       },
       {
-        "ref": "0504-g11-live-tripwire-is-disabled-in-this-repo",
-        "title": "The G11 live tripwire is disabled here; the enforcer gate stays armed",
-        "scope": "thread"
-      },
-      {
-        "ref": "0512-overnight-autonomy-grants-for-the-remaining-stack",
-        "title": "Overnight autonomy: one CI fix attempt, and scoped destructive repair",
-        "scope": "thread"
-      },
-      {
         "ref": "0514-g14-equivalent-mutant-has-no-compliant-channel",
         "title": "G14's equivalent-mutant declaration has no compliant channel, and is proposed as a gap",
         "scope": "c28"
@@ -1019,26 +1008,6 @@
         "ref": "0515-the-decomposer-declares-security-review-required",
         "title": "The decomposer declares securityReviewRequired; it is never defaulted",
         "scope": "c27"
-      },
-      {
-        "ref": "0516-three-gates-name-a-remedy-channel-that-cannot-be-used",
-        "title": "Three gates name a remedy channel that cannot be used; proposed as one gap",
-        "scope": "thread"
-      },
-      {
-        "ref": "0518-stacked-prs-merge-through-the-async-rest-endpoint",
-        "title": "A stacked pull request merges through the async REST endpoint, never gh pr merge",
-        "scope": "thread"
-      },
-      {
-        "ref": "0519-branch-deletion-closes-children-it-does-not-retarget-them",
-        "title": "Retarget a stacked child explicitly; branch deletion closes it rather than moving it",
-        "scope": "thread"
-      },
-      {
-        "ref": "0520-semgrep-drift-red-is-cdn-variance-not-a-ruleset-change",
-        "title": "The semgrep p/default drift red is CDN variance; the pin stays unvendored",
-        "scope": "thread"
       },
       {
         "ref": "0521-e2e-proof-runs-live-not-on-the-fakebin-substrate",
@@ -1161,11 +1130,6 @@
         "scope": "c29"
       },
       {
-        "ref": "0573-audit-to-root-cause-before-any-fan-out-implementation",
-        "title": "The next phase is a bounded audit to root cause and a whole solution, never another reviewer loop",
-        "scope": "thread"
-      },
-      {
         "ref": "0576-audit-answers-0573-with-thirteen-root-causes",
         "title": "The 0573 audit is complete and both families reduce to thirteen named root causes",
         "scope": "c28"
@@ -1251,74 +1215,14 @@
         "scope": "c28"
       },
       {
-        "ref": "0615-the-spec-is-the-ceiling-and-a-review-question-is-not-a-reopener",
-        "title": "The SPEC is the ceiling; a design review's own open question is not a licence to reopen it",
-        "scope": "thread"
-      },
-      {
-        "ref": "0616-what-makes-a-green-suite-load-bearing",
-        "title": "Why 37,647 lines of tests caught none of the thirteen root causes, and the two-tier rule that fixes it",
-        "scope": "thread"
-      },
-      {
-        "ref": "0617-remaining-units-branch-off-main-stacking-is-retired",
-        "title": "Every remaining unit branches off main and merges to main; the stacked-PR topology is retired",
-        "scope": "thread"
-      },
-      {
-        "ref": "0618-four-user-rulings-closing-the-designs-open-questions",
-        "title": "Four user rulings close the design's open questions; the remaining two are filed, not asked",
-        "scope": "thread"
-      },
-      {
-        "ref": "0619-test-cleanup-is-a-follow-up-on-this-thread-not-a-detour",
-        "title": "The test-suite cleanup is a follow-up criterion on this thread, sequenced strictly after mitosis runs",
-        "scope": "thread"
-      },
-      {
-        "ref": "0621-g9-block-is-a-tracked-downgrade-because-the-trunk-is-red",
-        "title": "M8a's G9 block is a tracked downgrade; the red trunk is surfaced, not fixed in flight",
-        "scope": "thread"
-      },
-      {
-        "ref": "0622-m9-operator-override-ships-as-data-not-as-a-cli-flag",
-        "title": "M9's operator override ships as data on the run spec; the CLI flag belongs to a cli.mjs-owning unit",
-        "scope": "thread"
-      },
-      {
-        "ref": "0623-user-authorizes-a-trunk-repair-outside-the-frozen-stack",
-        "title": "The user authorizes a trunk repair outside the frozen 24 so G9 stops blocking every remaining unit",
-        "scope": "thread"
-      },
-      {
-        "ref": "0624-an-unavailable-inventory-reports-unavailable-never-empty",
-        "title": "The skill census reports itself unavailable rather than empty, and the settings-declared plugin route is rejected",
-        "scope": "thread"
-      },
-      {
-        "ref": "0625-m6-g14-remediation-lands-rather-than-downgrades",
-        "title": "M6's G14 remediation lands as its own pull request rather than a downgrade",
-        "scope": "thread"
-      },
-      {
         "ref": "0626-m15-substrate-reset-and-the-human-merge-half",
         "title": "The M15 substrate is the reset harness, and its merge half clears by human merge",
         "scope": "c28"
       },
       {
-        "ref": "0627-m17-acceptance-retargets-to-the-read-census",
-        "title": "User-ratified: M17's acceptance retargets from the literal census to the read census",
-        "scope": "thread"
-      },
-      {
         "ref": "0628-m15-three-rulings-before-the-live-run",
         "title": "Three rulings before M15's live run: the retry half, the engine pin, and the disarmed sentinel",
         "scope": "c30"
-      },
-      {
-        "ref": "0629-pre-rename-journal-recovery-loss-accepted-as-specified",
-        "title": "M17's pre-rename journal recovery loss is accepted as specified, not treated as a defect",
-        "scope": "thread"
       },
       {
         "ref": "0630-the-live-run-is-human-triggered-by-construction",
@@ -1419,6 +1323,26 @@
         "ref": "0654-aggregation-files-bound-parallelism-and-stacking-stays",
         "title": "Aggregation files bound mitosis parallelism, and the resulting PR stack stays",
         "scope": "c45"
+      },
+      {
+        "ref": "0651-dependson-splits-into-two-edge-kinds",
+        "title": "dependsOn splits into a machine-derived overlap edge and a semantic edge",
+        "scope": "thread"
+      },
+      {
+        "ref": "0652-planning-stays-sequential-genesis-moves-early",
+        "title": "Planning stays sequential; the run signals life early instead",
+        "scope": "thread"
+      },
+      {
+        "ref": "0653-equivalent-mutants-are-unclearable-under-g14-block",
+        "title": "An equivalent mutant is unclearable by wording under G14 block mode",
+        "scope": "thread"
+      },
+      {
+        "ref": "0654-aggregation-files-bound-parallelism-and-stacking-stays",
+        "title": "Aggregation files bound mitosis parallelism, and the PR stack stays",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -1430,5 +1354,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-21T01:37:55.231Z"
+  "updated_at": "2026-08-21T01:39:54.743Z"
 }
