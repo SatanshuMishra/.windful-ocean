@@ -357,9 +357,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Drive a live billed run to a merged trunk, fixing each real blocker the run exposes rather than widening the search for new ones.",
-    "next_step": "Read run 4's outcome. It runs with ENGINE_ROOT pointed at the plan-revision-budget worktree at cafae8fb, so the receipt describes that checkout and not trunk. If it ships, merge 271 and 272, fast-forward the primary checkout, then close the substrate pull request and delete its branch before the full lane. If it parks again, read the park record's diagnosis and request.detail first - three runs each parked for a different real reason, and none was a repeat.",
-    "last_session": "2026-08-21: smoke green on trunk. Four billed single-lane runs. Each exposed one real blocker: a harness heartbeat that killed a healthy engine, an ambiguous fixture spec, and a plan revision budget that was never actually enforced. 271 and 272 opened; neither merged.",
+    "active_goal": "Prove mitosis works live: a spec-to-trunk run whose every opened pull request is green including receipts, with the engine observing CI rather than shrugging.",
+    "next_step": "RESUME THE CHILD THREAD, not this one: mitosis-testing-architecture-spec-implementation. Four billed runs proved the loop cannot close from here - each surfaces one terminal defect because the only test of composition uses a stub that cannot fail. c45 stays open and blocked on that child shipping all eight MSPs. Do not spend another billed run on discovery before M4's sweep is green.",
+    "last_session": "2026-08-21: four billed runs, three fixes shipped (271, 272 merged), run 4 crossed the whole pipeline then dropped a built unit on resume. Root cause named in 0663; a frozen eight-MSP SPEC authored and handed to a child thread.",
     "open_risks": [
       {
         "text": "Never let the engine merge a pull request — merge is refused at four independent layers by design, so c28 means serialized ship order plus a blocked-pending-approval handoff",
@@ -618,37 +618,35 @@
         ]
       },
       {
-        "text": "Treat the plan revision budget as unproven until a run converges with it — the constant was never enforced, runPlanning was hardcoded to two rounds, so every prior reading of that value described something the engine did not do",
+        "text": "Resume the child thread rather than restarting billed runs here — every run costs about five dollars and seventeen minutes and returns exactly one defect, because each one is terminal and stops the run",
         "scope": "c45",
         "refs": [
-          "0661",
-          "unit-planning.mjs runPlanning",
-          "PR 272"
+          "child thread mitosis-testing-architecture-spec-implementation",
+          "0663"
         ]
       },
       {
-        "text": "Do not read PR 271 as closing the committed node_modules symlink — addedWorktree is the only worktree creation the engine owns, and the child's real worktree is still created by the child from prompt text, so the fixed path is not the path that produced the defect",
+        "text": "Treat pull request 271 as unconfirmed — its own implementer reported it binds addedWorktree while the child creates its worktree from prompt text, so the symlink may still reach a real pull request",
         "scope": "c45",
         "refs": [
           "PR 271",
-          "boundary-collect.mjs addedWorktree",
-          "prompt-execute.mjs:68"
+          "M5 of the SPEC"
         ]
       },
       {
-        "text": "Point ENGINE_ROOT at the intended checkout and read it back from the lane status file — run 4 exercises a worktree, not trunk, so its receipt is evidence about cafae8fb and says nothing about what main does",
+        "text": "Read run 4's receipt as evidence about a worktree, never about trunk — its engineRoot resolved to the plan-revision-budget worktree, so nothing in it describes what main does",
         "scope": "c45",
         "refs": [
-          "full-e2e-single-status.json engineRoot",
-          "cafae8fb"
+          "cafae8fb",
+          "fix/mitosis-plan-revision-budget"
         ]
       },
       {
-        "text": "Expect a fixture spec ambiguity to surface as a NeedsHuman park rather than a failure — a child that finds an undefined arithmetic boundary escalates, and the run ends quiescent at exit 3 with nothing shipped",
+        "text": "Expect the reviewer to reject the first plan — it did on all four runs this session, so prep costs five to seven dispatches per unit against a declared falsifier of ten, and the full lane multiplies that by four",
         "scope": "c45",
         "refs": [
-          "full-e2e-SINGLE-SPEC.md",
-          "full-e2e-SPEC.md"
+          "measured 2026-08-21",
+          "dispatchesPerShippedUnitMeasured"
         ]
       }
     ],
@@ -1363,5 +1361,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-21T18:13:51.388Z"
+  "updated_at": "2026-08-21T18:15:16.503Z"
 }
