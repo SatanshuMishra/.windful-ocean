@@ -337,6 +337,13 @@
       "struck_by": null
     },
     {
+      "id": "c49",
+      "text": "The three harness blockers to a complete live run close, and the engine stops betting on model compliance: overlap-explained edges are machine-dropped and every pull request declares its work type.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c45",
       "text": "A live run reaches a merged trunk from a written spec: every declared unit ships, every pull request it opens is green including receipts, and the engine observes CI rather than shrugging.",
       "done": false,
@@ -1331,5 +1338,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-21T04:32:52.106Z"
+  "updated_at": "2026-08-21T04:33:02.784Z"
 }
