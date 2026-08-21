@@ -102,3 +102,65 @@ test('integrateSummary reports the overlap edge that ordered two units sharing n
     { from: 'add-pad-to-strings', to: 'add-truncate-to-strings', reason: 'fileScope-overlap', detail: 'src/strings.mjs' },
   ]);
 });
+
+function refusingIntegratePorts() {
+  const teardowns = [];
+  return {
+    teardowns,
+    ports: {
+      boundaryGate: async () => { throw new Error('the boundary gate was reached for a unit integrate should never have walked'); },
+      dispatchPrompt: async () => { throw new Error('a child was dispatched for a unit integrate should never have walked'); },
+      teardownHeadWorktree: async (request) => { teardowns.push(request); },
+    },
+  };
+}
+
+function integrateConfig(extra = {}) {
+  return {
+    built: [],
+    manifest: manifestOf([msp('add-truncate-to-strings', pack(['src/strings.mjs']))]),
+    repoRoot: '/tmp/does-not-matter',
+    runId: 'run1',
+    quiescent: false,
+    ...extra,
+  };
+}
+
+test('integrate walks nothing while the run is short of quiescence, even with a built unit already waiting for it', async () => {
+  const shortOfQuiescence = refusingIntegratePorts();
+  const plan = await integrateBuilt(integrateConfig({
+    quiescent: false,
+    built: [built('add-truncate-to-strings', null)],
+  }), shortOfQuiescence.ports);
+
+  assert.deepEqual(plan.outcomes, [], 'a run short of quiescence produced an outcome for a unit it must not have walked');
+  assert.deepEqual(plan.parked, []);
+  assert.deepEqual(shortOfQuiescence.teardowns, []);
+});
+
+test('a quiescent run holding nothing built probes no merged prerequisite for divergence, because it has no built work to protect', async () => {
+  const nothingBuilt = refusingIntegratePorts();
+  const plan = await integrateBuilt(integrateConfig({
+    quiescent: true,
+    built: [],
+    shipped: ['shipped-parent'],
+    manifest: manifestOf([
+      msp('shipped-parent', pack(['src/parent.mjs'])),
+      { id: 'held-child', progress: 'built', dependsOn: ['shipped-parent'], fileScope: pack(['src/child.mjs']) },
+    ]),
+  }), nothingBuilt.ports);
+
+  assert.deepEqual(plan.divergedParents, [], 'a merged prerequisite was folded to diverged for a run that built nothing it could hold back');
+  assert.deepEqual(plan.outcomes, []);
+});
+
+test('integrate walks the same waiting unit the moment the run reaches quiescence, parking it on the checkpoint ref it never carried', async () => {
+  const quiescent = refusingIntegratePorts();
+  const plan = await integrateBuilt(integrateConfig({
+    quiescent: true,
+    built: [built('add-truncate-to-strings', null)],
+  }), quiescent.ports);
+
+  assert.deepEqual(plan.outcomes.map((entry) => [entry.unitId, entry.state]), [['add-truncate-to-strings', 'parked']]);
+  assert.match(plan.parked[0].diagnosis, /carries no checkpoint ref/);
+});

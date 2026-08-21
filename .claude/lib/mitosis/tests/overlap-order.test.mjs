@@ -120,3 +120,33 @@ test('a duplicate msp id refuses rather than guessing a declaration order', () =
     /declared twice/,
   );
 });
+
+test('an msps argument that is not an array is refused naming the exact shape that arrived, so a null, a missing value and an object are told apart', () => {
+  assert.throws(
+    () => deriveOverlapEdges(null),
+    { name: 'TypeError', message: 'overlap-order: msps must be an array, received null' },
+  );
+  assert.throws(
+    () => deriveOverlapEdges(undefined),
+    { name: 'TypeError', message: 'overlap-order: msps must be an array, received undefined' },
+  );
+  assert.throws(
+    () => deriveOverlapEdges({ msps: [] }),
+    { name: 'TypeError', message: 'overlap-order: msps must be an array, received object' },
+  );
+});
+
+test('the same refusal names the arrived shape through every exported entry point, not only the edge derivation', () => {
+  assert.throws(
+    () => overlapPredecessorsOf(undefined),
+    { name: 'TypeError', message: 'overlap-order: msps must be an array, received undefined' },
+  );
+  assert.throws(
+    () => withOverlapDependsOn({ msps: [] }),
+    { name: 'TypeError', message: 'overlap-order: msps must be an array, received object' },
+  );
+  assert.throws(
+    () => withOverlapDependsOn(null),
+    { name: 'TypeError', message: 'overlap-order: msps must be an array, received null' },
+  );
+});
