@@ -24,6 +24,14 @@ for (const fixture of PROMPT_FIXTURE_CASES) {
   });
 }
 
+test('the decompose prompt defines dependsOn as a semantic dependency and excludes mere file overlap', () => {
+  const decompose = PROMPT_FIXTURE_CASES.find((fixture) => fixture.kind === 'decompose');
+  const composed = composePrompt(decompose.kind, decompose.input);
+  assert.ok(composed.includes('dependsOn is a SEMANTIC dependency'), 'the prompt no longer defines dependsOn as a semantic dependency');
+  assert.ok(composed.includes('merely edit the same file are NOT a dependency'), 'the prompt no longer excludes mere file overlap from dependsOn');
+  assert.ok(composed.includes('expressed through fileScope alone'), 'the prompt no longer routes same-file overlap through fileScope alone');
+});
+
 test('every composed prompt is a non-empty string with no unresolved interpolation or stringified object', () => {
   for (const fixture of PROMPT_FIXTURE_CASES) {
     const composed = composePrompt(fixture.kind, fixture.input);
