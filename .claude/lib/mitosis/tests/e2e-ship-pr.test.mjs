@@ -543,6 +543,77 @@ test('the merged-pull-request probe is skipped when no integrated unit declares 
   assert.deepEqual(plan.opened.map((entry) => entry.unitId), ['beta']);
 });
 
+const OVERLAPPING_SCOPE = Object.freeze(pack(['src/strings.mjs']));
+
+const ALPHA_MSP = Object.freeze({
+  id: 'alpha',
+  title: 'unit alpha',
+  rationale: 'fixture rationale for unit alpha',
+  changeType: 'feat',
+  scope: 'alpha',
+  integrationBranch: 'mitosis/alpha-integration',
+  builtSha: '5566778899001122334455667788990011223344',
+  green: true,
+  dependsOn: [],
+  fileScope: OVERLAPPING_SCOPE,
+});
+
+const MERGED_ALPHA_ON_TRUNK = Object.freeze([Object.freeze({
+  headRefName: 'mitosis/alpha-integration',
+  url: 'https://github.com/acme/widgets/pull/2',
+  mergedAt: '2026-01-01T00:00:00Z',
+  mergeCommit: Object.freeze({ oid: 'aabbccddeeff00112233445566778899aabbccdd' }),
+})]);
+
+test('two units that declare no prerequisite but edit the same path still probe the forge, and the merged one has its head retired', async () => {
+  const probed = [];
+  const retiredBranches = [];
+  const ports = shippingPorts({
+    reconcile: (values) => { probed.push(values); return MERGED_ALPHA_ON_TRUNK; },
+    mergedIntoBase: () => true,
+    retireHead: (request) => { retiredBranches.push(request.branch); return { deleted: true, tip: null, reason: null }; },
+  });
+
+  const plan = await shipIntegrated(shippingConfig({
+    manifest: {
+      baseBranch: 'main',
+      sourcePrefix: 'mitosis',
+      msps: [ALPHA_MSP, { ...BETA_MSP, dependsOn: [], fileScope: OVERLAPPING_SCOPE }],
+    },
+  }), ports.ports);
+
+  assert.deepEqual(probed, [{ ownerRepo: 'acme/widgets', baseBranch: 'main', sourcePrefix: 'mitosis', repoHost: null }], 'no unit declared a prerequisite, but beta edits the same path alpha does, so the merged-pull-request probe must run rather than be skipped on the raw declaration');
+  assert.deepEqual(retiredBranches, ['mitosis/alpha-integration'], 'the overlap-derived prerequisite is merged onto the trunk, so its head must be retired rather than left standing for the next child to merge into');
+  assert.deepEqual(plan.retired.map((entry) => [entry.unitId, entry.branch, entry.deleted]), [['alpha', 'mitosis/alpha-integration', true]]);
+  assert.deepEqual(plan.opened.map((entry) => entry.unitId), ['beta'], 'the overlap-derived prerequisite is already merged, so the dependent is not held behind it');
+});
+
+test('a unit whose only prerequisite is the file overlap is held behind it, so an overlapping sibling never opens a pull request on work that has not shipped', async () => {
+  const ports = shippingPorts({ reconcile: () => [] });
+  const plan = await shipIntegrated(shippingConfig({
+    integrated: [
+      { unitId: 'beta', state: 'integrated', resumePoint: { branch: null, ref: null, stage: 'ship' } },
+      { unitId: 'gamma', state: 'integrated', resumePoint: { branch: null, ref: null, stage: 'ship' } },
+    ],
+    manifest: {
+      baseBranch: 'main',
+      sourcePrefix: 'mitosis',
+      msps: [
+        ALPHA_MSP,
+        { ...BETA_MSP, dependsOn: [], fileScope: OVERLAPPING_SCOPE },
+        { ...GAMMA_MSP, dependsOn: [], fileScope: OVERLAPPING_SCOPE },
+      ],
+    },
+  }), ports.ports);
+
+  assert.deepEqual(ports.spawned, [], 'no unit declared a prerequisite, yet every unit edits the same path, so none may reach the pull-request tool ahead of the sibling the overlap orders first');
+  assert.deepEqual(plan.opened.map((entry) => entry.unitId), []);
+  assert.deepEqual(plan.blocked.map((entry) => [entry.record.unitId, [...entry.held]]), [
+    ['beta', ['alpha']],
+    ['gamma', ['alpha', 'beta']],
+  ], 'the hold is read off the overlap-merged graph, so each unit waits on every sibling ordered ahead of it and not only on what it declared');
+});
+
 test('a unit the run parked before Integrate ever handed it to Ship keeps the run from reporting every declared unit shipped', async () => {
   const ports = shippingPorts();
   const plan = await shipIntegrated(shippingConfig({
