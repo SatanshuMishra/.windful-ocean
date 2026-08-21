@@ -71,9 +71,25 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Ship all eight MSPs of the frozen testing-architecture SPEC so that a green mitosis suite implies mitosis is expected to work on a live run.",
-    "next_step": "M7 next: enumerate the five failure branches, delete each locally, and record which test reddens with its assertion quoted; file any branch with no reddening test as an explicit gap. M8 is the only billed MSP and stays blocked on M1 merged plus M4's sweep green on a merged base. Before either, unblock PR 273: its two test-job failures, a banned-token check on the word provenance inside cassette.mjs and the tests/cassettes census, also fail PR 277 which is stacked on it.",
-    "last_session": "2026-08-21: shipped M1 through M5 plus M6 with a downgrade, as pull requests 275, 273, 277, 274 and 276; M3 needed none. Run 4's drop proved to be Integrate-to-Ship, not resume. PR 271 does not fix the node_modules defect.",
+    "next_step": "Merge PR 278 first, then DELETE feat/mitosis-cassette-loader and confirm the ref is gone; until 278 lands that branch is the only place PR 277's history lives. Then M7: enumerate the five failure branches, delete each locally, record which test reddens with its assertion quoted, and file any branch with no reddening test as an explicit gap. M8 is the only billed MSP and stays blocked on M4's sweep green on a merged trunk.",
+    "last_session": "2026-08-21: M1 through M6 shipped and merged as PRs 273-276. PR 277 merged into a live base branch and never reached the trunk; recovered by cherry-pick as PR 278, which also greens the two census guards that made main red.",
     "open_risks": [
+      {
+        "text": "Census and lint tests pass vacuously inside a worktree — /worktrees/ sits in their own excluded-segments list, so they census an empty set; main reached 17 failing tests while every contributing pull request reported green locally",
+        "scope": "thread",
+        "refs": [
+          "attribution-census.test.mjs",
+          "memory: census-tests-false-pass-inside-a-worktree"
+        ]
+      },
+      {
+        "text": "Main carries 15 pre-existing test failures beyond the two PR 278 fixes — across agent-schema-lint, determinism-lint, mitosis-gate, name-integrity-census, prompt-side-effects and retirement-census, none required to merge",
+        "scope": "thread",
+        "refs": [
+          "PR 278 baseline",
+          "f3304b86"
+        ]
+      },
       {
         "text": "Teardown's rmSync fallback deleted an arbitrary directory outside the repository and returned success — three pre-existing call sites reach it, including the exported removeHeadWorktree wired as a port, and only the new reclaim path is bounded",
         "scope": "thread",
@@ -83,15 +99,7 @@
         ]
       },
       {
-        "text": "PR 273 is red and blocks PR 277 stacked on it — a banned-token check fires on the word provenance inside cassette.mjs, and the tests/cassettes census fails; neither file is in 277's own diff",
-        "scope": "thread",
-        "refs": [
-          "PR 273",
-          "PR 277"
-        ]
-      },
-      {
-        "text": "PR 274 is deliberately red because its test proves a live defect — the implement-task worktree still commits a node_modules symlink, and PR 271 fixed a different worktree path entirely",
+        "text": "The node_modules symlink defect is still live on the trunk — PR 271 fixed the boundary gate's worktree, not the implement-task worktree the child builds from prompt text, and prompt-execute.mjs is unchanged across it",
         "scope": "thread",
         "refs": [
           "PR 274",
@@ -100,18 +108,17 @@
         ]
       },
       {
-        "text": "PR 277's green receipts check is a downgrade pass, not a cleared gate — the word reverted in an inertness line matched a ladder tag and short-circuited all eight re-run gates in ten seconds",
-        "scope": "thread",
-        "refs": [
-          "PR 277",
-          "0659"
-        ]
-      },
-      {
         "text": "M6 withheld two of three decoration deletions and c6 stays open — they hold the suite's only two defences against a test call site spawning the real billable binary",
         "scope": "thread",
         "refs": [
           "0667"
+        ]
+      },
+      {
+        "text": "PR 278's body states 3187 passing where the captured number is 3185 — a transcription slip the author flagged, and a pull request body cannot be edited after creation",
+        "scope": "thread",
+        "refs": [
+          "PR 278"
         ]
       }
     ],
@@ -159,5 +166,5 @@
     ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-21T23:04:10.956Z"
+  "updated_at": "2026-08-21T23:04:29.112Z"
 }
