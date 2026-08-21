@@ -312,7 +312,7 @@ export function integrateSummary(plan) {
     parked: plan.parked.map((entry) => entry.unitId),
     diverged: plan.diverged.map((entry) => entry.unitId),
     parkedStages: Object.fromEntries(plan.parked.map((entry) => [entry.unitId, entry.stage])),
-    outcomes: plan.outcomes.map((entry) => ({ id: entry.unitId, state: entry.state, boundaryFixes: entry.boundaryFixes })),
+    outcomes: plan.outcomes.map((entry) => ({ id: entry.unitId, state: entry.state, boundaryFixes: entry.boundaryFixes, diagnosis: entry.diagnosis })),
     overlapEdges: plan.overlapEdges.map((edge) => ({ from: edge.from, to: edge.to, reason: edge.reason, detail: edge.detail })),
   };
 }
