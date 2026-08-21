@@ -17,6 +17,9 @@ const TWO_UNITS = Object.freeze([
   Object.freeze({ id: 'beta', behaviour: CLAUDE_BEHAVIOURS.succeed, prereqs: ['alpha'], boundaryViolation: true }),
 ]);
 
+const OUTCOME_KEYS = Object.freeze(['boundaryFixes', 'diagnosis', 'id', 'state']);
+const SURVIVED_FIX_CAUSE = 'the boundary violation survived the one bounded fix attempt';
+
 function buildAndIntegrate(sandbox, repair) {
   planRun(sandbox, TWO_UNITS, { boundaryFix: repair });
   const run = runMitosisCli(sandbox);
@@ -36,8 +39,8 @@ test('Integrate runs the real boundary gate per built unit and bounds the violat
 
     assert.equal(boundaryFixArgvs(sandbox).length, 1, 'exactly one boundary-fix prompt is composed: the clean unit composes none and the violating unit composes one');
     assert.deepEqual(integrate.summary.integrate.outcomes, [
-      { id: 'alpha', state: 'integrated', boundaryFixes: 0 },
-      { id: 'beta', state: 'integrated', boundaryFixes: 1 },
+      { id: 'alpha', state: 'integrated', boundaryFixes: 0, diagnosis: null },
+      { id: 'beta', state: 'integrated', boundaryFixes: 1, diagnosis: null },
     ]);
     assert.deepEqual(integrate.summary.integrate.integrated, ['alpha', 'beta']);
     assert.deepEqual(integrate.summary.integrate.parked, []);
@@ -50,10 +53,17 @@ test('a boundary violation that survives its one fix parks the unit, and is neve
     const integrate = buildAndIntegrate(sandbox, 'none');
 
     assert.equal(boundaryFixArgvs(sandbox).length, 1, 'the fix is bounded at one attempt: a surviving violation parks rather than dispatching again');
-    assert.deepEqual(integrate.summary.integrate.outcomes, [
-      { id: 'alpha', state: 'integrated', boundaryFixes: 0 },
-      { id: 'beta', state: 'parked', boundaryFixes: 1 },
-    ]);
+    const [alpha, beta] = integrate.summary.integrate.outcomes;
+    assert.equal(integrate.summary.integrate.outcomes.length, 2, 'Integrate reports exactly one outcome record per built unit');
+    assert.deepEqual(alpha, { id: 'alpha', state: 'integrated', boundaryFixes: 0, diagnosis: null });
+    assert.deepEqual(Object.keys(beta).sort(), OUTCOME_KEYS, 'the parked outcome carries a different record shape than the integrated one, so a resume path reading one cannot read the other');
+    assert.deepEqual({ id: beta.id, state: beta.state, boundaryFixes: beta.boundaryFixes }, { id: 'beta', state: 'parked', boundaryFixes: 1 });
+    assert.equal(typeof beta.diagnosis, 'string', `the parked unit carries no diagnosis string, so the run reports the loss without its cause: ${JSON.stringify(beta.diagnosis)}`);
+    assert.equal(
+      beta.diagnosis.startsWith(SURVIVED_FIX_CAUSE),
+      true,
+      `the parked unit's diagnosis does not name the surviving boundary violation as the cause: ${beta.diagnosis}`,
+    );
     assert.deepEqual(integrate.summary.integrate.integrated, ['alpha']);
     assert.deepEqual(integrate.summary.integrate.parked, ['beta']);
     assert.equal(integrate.summary.integrate.parkedStages.beta, 'execute');
