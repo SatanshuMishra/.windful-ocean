@@ -525,24 +525,32 @@ function provisionModules(headRoot, baseRoot, io) {
   return { ok: true, strategy: 'install' };
 }
 
-function teardown(repoRoot, path, io, label = 'base') {
+function attemptedRemoval(repoRoot, path, io) {
   let removed = null;
-  let thrown = null;
   try {
     removed = io.run('git', ['worktree', 'remove', '--force', '--', path], { cwd: repoRoot, deadlineMs: WORKTREE_DEADLINE_MS });
   } catch (error) {
-    thrown = failureText(error, 'unknown spawn failure');
+    return `the removal could not be spawned (${failureText(error, 'unknown spawn failure')})`;
   }
-  if (thrown === null && cleanlyRan(removed) && removed.status === 0) return null;
-  const reported = thrown === null
-    ? `git reported ${JSON.stringify(removed === null || removed === undefined ? null : removed.stderr)}`
-    : `the removal could not be spawned (${thrown})`;
+  if (cleanlyRan(removed) && removed.status === 0) return null;
+  return `git reported ${JSON.stringify(removed === null || removed === undefined ? null : removed.stderr)}`;
+}
+
+function teardown(repoRoot, path, io, label = 'base') {
+  const reported = attemptedRemoval(repoRoot, path, io);
+  if (reported === null) return null;
   try {
     io.removePath(path);
     return null;
   } catch (error) {
     return `the ${label} worktree at ${path} was left behind: ${reported}, and the fallback removal failed (${failureText(error, 'unknown filesystem failure')})`;
   }
+}
+
+function reclaimTeardown(repoRoot, path, io) {
+  const reported = attemptedRemoval(repoRoot, path, io);
+  if (reported === null) return null;
+  return `git declined to remove the leaked worktree at ${path}, and a reclaim never substitutes a recursive delete for a removal git declined: ${reported}`;
 }
 
 function withSuppressions(census, suppressions) {
@@ -655,7 +663,7 @@ function excludedFromCommits(path, entry, io) {
   return { ok: true };
 }
 
-export { BOUNDARY_NAMESPACE_SEGMENTS, insideBoundaryNamespace } from './boundary-worktree-reclaim.mjs';
+export { BOUNDARY_NAMESPACE_SEGMENTS } from './boundary-worktree-reclaim.mjs';
 
 function materializedWorktree(repoRoot, path, revision, label, io) {
   let added;
@@ -693,7 +701,7 @@ export function addedWorktree(repoRoot, path, revision, label, io) {
   if (first.ok) return excludedWorktree(path, label, io, NO_RECLAIM);
   const reclaim = reclaimedWorktree(repoRoot, path, io, Object.freeze({
     deadlineMs: WORKTREE_DEADLINE_MS,
-    removeWorktree: (resolved) => teardown(repoRoot, resolved, io, 'leaked'),
+    removeWorktree: (resolved) => reclaimTeardown(repoRoot, resolved, io),
   }));
   if (!reclaim.reclaimed) return Object.freeze({ ok: false, error: refusedText(first, reclaim), reclaim });
   const second = materializedWorktree(repoRoot, path, revision, label, io);

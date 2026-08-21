@@ -29,10 +29,6 @@ function namespaceSegments(realRoot, path) {
   return shaped ? Object.freeze([...segments]) : null;
 }
 
-export function insideBoundaryNamespace(repoRoot, path) {
-  return namespaceSegments(pathResolve(repoRoot), path) !== null;
-}
-
 function steppedInto(carried, segment, io) {
   if (carried.error !== null) return carried;
   const step = pathJoin(carried.path, segment);
@@ -141,7 +137,7 @@ function removedAfterRecheck(repoRoot, path, resolved, io, options) {
   }
   const left = options.removeWorktree(resolved);
   if (left === null) return Object.freeze({ reclaimed: true, destroyed: true, path: resolved, reason: null });
-  return Object.freeze({ reclaimed: false, destroyed: true, path: resolved, reason: left });
+  return Object.freeze({ reclaimed: false, destroyed: false, path: resolved, reason: left });
 }
 
 export function reclaimedWorktree(repoRoot, path, io, options) {
