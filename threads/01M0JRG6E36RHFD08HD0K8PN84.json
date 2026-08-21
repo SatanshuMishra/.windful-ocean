@@ -3,7 +3,7 @@
   "id": "01M0JRG6E36RHFD08HD0K8PN84",
   "slug": "mitosis-testing-architecture-spec-implementation",
   "title": "Implement and ship the frozen mitosis testing-architecture SPEC",
-  "status": "active",
+  "status": "paused",
   "parent_id": "01KZTEFMENXBW30ZE633YNFJHE",
   "predecessor_id": null,
   "completion_criteria": [
@@ -140,5 +140,5 @@
     ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-21T18:14:58.864Z"
+  "updated_at": "2026-08-21T18:15:03.667Z"
 }
