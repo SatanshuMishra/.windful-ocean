@@ -1,0 +1,82 @@
+{
+  "schema_version": 2,
+  "id": "01M0JRG6E36RHFD08HD0K8PN84",
+  "slug": "mitosis-testing-architecture-spec-implementation",
+  "title": "Implement and ship the frozen mitosis testing-architecture SPEC",
+  "status": "active",
+  "parent_id": "01KZTEFMENXBW30ZE633YNFJHE",
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "id": "c1",
+      "text": "M1: run-store gains recordDispatch persisting each dispatch's structured response to dispatches.jsonl, with the four preserved 2026-08-21 scratch directories copied into the repository first.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c2",
+      "text": "M2: cassette.mjs exports loadCassette, scriptFor and CASSETTE_SCHEMA, rejecting all five invalid shapes named in the SPEC including a recorded cassette carrying a null sourceRun.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c3",
+      "text": "M3: buildStubDispatch takes a cassette argument; unset leaves smoke byte-identical to trunk, a two-reject cassette yields three plan-review dispatches, and exhaustion emits cassette-exhausted.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c4",
+      "text": "M4: all ten state and transition scenarios run from full-e2e-sweep.sh with per-scenario exit codes, and row 8, the built unit dropped on resume, is proven red on the parent and green after.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c5",
+      "text": "M5: the prompt side-effect harness executes every shell command the implement prompt instructs inside a trailing-slash gitignore fixture, and is confirmed red at 05b29b5e before being called correct.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c6",
+      "text": "M6: all 150 mitosis test files carry a bucket of predictive, decoration or rewrite with a stated reason, every decoration file is deleted, and node --test stays green afterwards.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c7",
+      "text": "M7: each of the five named failure branches carries a test that reddens when that branch is deleted, with the assertion quoted, or is filed as an explicit gap naming the branch.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c8",
+      "text": "M8: one billed single-lane run harvests cassettes with provenance recorded and a sourceRun, and the M4 sweep re-runs against them with any outcome difference reported as a finding.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    }
+  ],
+  "vcs_ref": null,
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "active_goal": "",
+    "next_step": "",
+    "last_session": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-08-21T18:14:31.619Z",
+  "updated_at": "2026-08-21T18:14:31.619Z"
+}
