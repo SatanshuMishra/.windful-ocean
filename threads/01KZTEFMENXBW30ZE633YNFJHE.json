@@ -318,7 +318,7 @@
     {
       "id": "c46",
       "text": "Four defects blocking a trustworthy billed run reach trunk: genesis before Prep, parked units counted in ship status, merge order derived from fileScope, and dependsOn defined as semantic.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -1416,5 +1416,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-21T01:37:23.004Z"
+  "updated_at": "2026-08-21T01:37:39.009Z"
 }
