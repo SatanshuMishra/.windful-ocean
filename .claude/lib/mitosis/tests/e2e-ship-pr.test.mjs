@@ -613,3 +613,21 @@ test('a msp whose mandated pull-request fields cannot be read composes no argv r
     '--title from the msp change type, scope and title',
   ]);
 });
+
+test('a walk that reached Ship with no integrated unit at all reports nothing pending, rather than reading every declared msp as parked before ship', async () => {
+  const ports = shippingPorts();
+  const plan = await shipIntegrated({
+    ...SHIP_CONFIG,
+    integrated: [],
+    manifest: { baseBranch: 'main', sourcePrefix: 'mitosis', msps: [{ ...BETA_MSP, dependsOn: [] }, { ...GAMMA_MSP, dependsOn: [] }] },
+  }, ports.ports);
+
+  assert.deepEqual(plan.outcomes, [], 'Ship was handed no integrated unit, so it can have settled none');
+  assert.deepEqual(ports.spawned, [], 'no pull-request tool is spawned by a walk that held no unit');
+  assert.equal(
+    plan.status,
+    'nothing-pending',
+    'a walk that held nothing is a run with nothing pending, not a run blocked on two declared msps it was never handed',
+  );
+  assert.deepEqual(shipSummary(plan).opened, []);
+});

@@ -639,3 +639,34 @@ test('driverPorts selects the real wait when none is injected, proven by the exa
   assert.throws(() => ports.wait(0), /wait needs a positive integer count of milliseconds/);
   await assert.doesNotReject(ports.wait(1));
 });
+
+const UNWRITABLE_GENESIS_REQUEST = Object.freeze({ repoRoot: '', path: '', manifest: { logicalRunId: 'r1' } });
+
+test('driverPorts selects an injected writeGenesis over the real one, proven by the injected call receiving the exact request the port was handed and answering for it', () => {
+  const calls = [];
+  const injected = (request) => { calls.push(request); return 'the injected genesis answer'; };
+  const ports = driverPorts(noopDriverIo(), () => ({}), { writeGenesis: injected }, '/repo');
+
+  assert.equal(ports.writeGenesis(UNWRITABLE_GENESIS_REQUEST), 'the injected genesis answer');
+  assert.deepEqual(calls, [UNWRITABLE_GENESIS_REQUEST]);
+  assert.equal(calls[0], UNWRITABLE_GENESIS_REQUEST, 'the injected writeGenesis is handed the request by reference, not a copy of it');
+});
+
+test('driverPorts selects the real writeGenesis when none is injected, proven by the exact refusal only journal-store writeGenesis produces', () => {
+  const ports = driverPorts(noopDriverIo(), () => ({}), {}, '/repo');
+
+  assert.throws(
+    () => ports.writeGenesis(null),
+    {
+      name: 'TypeError',
+      message: 'journal-store: writeGenesis takes one plain object carrying repoRoot, path and manifest, received null',
+    },
+  );
+  assert.throws(
+    () => ports.writeGenesis(UNWRITABLE_GENESIS_REQUEST),
+    {
+      name: 'TypeError',
+      message: 'journal-store: repoRoot must be a non-empty string naming the repository root the journal is written inside, received string',
+    },
+  );
+});

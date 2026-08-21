@@ -384,3 +384,31 @@ test('needKeyedParents: a non-Error lattice failure propagates rendered as its s
   );
   assert.equal(caught.error.cause, thrown, 'the original non-Error throw is preserved by reference as the cause');
 });
+
+test('needKeyedParents: an msp declared with an empty-string id, one whose id is not a string, and a null entry are all dropped, so a well-formed dependent still keys its merged parent', () => {
+  const manifest = { msps: [
+    { id: '', progress: 'built', dependsOn: ['parent'], fileScope: pack(['scope/blank/**']) },
+    { id: 42, progress: 'built', dependsOn: ['parent'], fileScope: pack(['scope/numeric/**']) },
+    null,
+    { id: 'child', progress: 'built', dependsOn: ['parent'], fileScope: pack(['scope/child/**']) },
+  ] };
+
+  assert.deepEqual(
+    needKeyedParents(manifest, ['parent']),
+    ['parent'],
+    'an unnamed or malformed msp entry has no position in declaration order and is dropped, rather than refusing the whole fold',
+  );
+});
+
+test('needKeyedParents: an empty-string id is dropped rather than keyed, so a merged parent gated only by an unnamed dependent keys nothing', () => {
+  const manifest = { msps: [
+    { id: '', progress: 'built', dependsOn: ['parent'], fileScope: pack(['scope/blank/**']) },
+    { id: 'unrelated', progress: 'pr-open', dependsOn: [], fileScope: pack(['scope/unrelated/**']) },
+  ] };
+
+  assert.deepEqual(
+    needKeyedParents(manifest, ['parent']),
+    [],
+    'the only dependent naming this parent carries no id, so nothing the fold can name gates built work',
+  );
+});
