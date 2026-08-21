@@ -60,10 +60,14 @@ function spy(io) {
   const inner = io.run;
   return Object.freeze({
     describePath: describedBy(io.readFile),
+    writeFile: () => {},
     ...io,
     spawned,
     run: (binary, argv, options) => {
       spawned.push(`${binary} ${argv.join(' ')}`);
+      if (binary === 'git' && argv.includes('--git-path')) {
+        return { outcome: 'completed', status: 0, stdout: `${(options && options.cwd) || ''}/.git/info/exclude`, stderr: '' };
+      }
       return inner(binary, argv, options);
     },
   });

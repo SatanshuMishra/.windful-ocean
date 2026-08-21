@@ -55,6 +55,9 @@ function tscIo(plan) {
       : plan.describe(String(path), regularFile(path, Buffer.byteLength(sourceOf(path), 'utf8')))),
     run: (binary, argv, options) => {
       spawned.push(Object.freeze({ binary, argv: Object.freeze([...argv]), options }));
+      if (binary === 'git' && argv.includes('--git-path')) {
+        return { outcome: 'completed', status: 0, stdout: `${(options && options.cwd) || ''}/.git/info/exclude`, stderr: '' };
+      }
       if (argv.includes('--listFiles')) {
         const root = argv[argv.length - 1];
         return { outcome: 'completed', status: 0, stdout: `${checked[sideOf(root)].map((file) => `${root}/${file}`).join('\n')}\n`, stderr: '' };
@@ -64,6 +67,7 @@ function tscIo(plan) {
       }
       return CLEAN_CHILD;
     },
+    writeFile: () => {},
     makeDir: () => {},
     symlink: () => {},
     removePath: () => {},

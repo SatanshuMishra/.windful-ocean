@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join as pathJoin } from 'node:path';
 import { choosingScope, collectEslintConfig, collectTsconfigOptions } from './boundary-config-surface.mjs';
 import {
@@ -124,6 +124,7 @@ export const REAL_BOUNDARY_IO = Object.freeze({
   run: (binary, argv, options) => execRun(binary, argv, options),
   exists: (path) => existsSync(path),
   readFile: (path) => readFileSync(path, 'utf8'),
+  writeFile: (path, content) => writeFileSync(path, content, 'utf8'),
   describePath: (path) => describeRealPath(path),
   makeDir: (path) => mkdirSync(path, { recursive: true }),
   symlink: (target, path) => symlinkSync(target, path, 'dir'),
@@ -603,7 +604,46 @@ export function gatherSides(plan, io) {
   };
 }
 
-function addedWorktree(repoRoot, path, revision, label, io) {
+function excludePathFor(path, io) {
+  let resolved;
+  try {
+    resolved = io.run('git', ['rev-parse', '--path-format=absolute', '--git-path', 'info/exclude'], { cwd: path, deadlineMs: WORKTREE_DEADLINE_MS });
+  } catch (error) {
+    return { ok: false, error: `the exclude file for the worktree at ${path} could not be located: ${failureText(error, 'unknown spawn failure')}` };
+  }
+  if (!cleanlyRan(resolved) || resolved.status !== 0) {
+    return { ok: false, error: `git rev-parse --git-path info/exclude in ${path} reported ${JSON.stringify(resolved === null || resolved === undefined ? null : resolved.stderr)}` };
+  }
+  const excludePath = resolved.stdout.trim();
+  if (excludePath.length === 0) {
+    return { ok: false, error: `git rev-parse --git-path info/exclude in ${path} printed an empty path` };
+  }
+  return { ok: true, excludePath };
+}
+
+function excludedFromCommits(path, entry, io) {
+  const located = excludePathFor(path, io);
+  if (!located.ok) return located;
+  const { excludePath } = located;
+  let existing = '';
+  if (io.exists(excludePath)) {
+    try {
+      existing = io.readFile(excludePath);
+    } catch (error) {
+      return { ok: false, error: `the exclude file at ${excludePath} could not be read: ${failureText(error, 'unknown read failure')}` };
+    }
+  }
+  if (existing.split('\n').some((line) => line.trim() === entry)) return { ok: true };
+  const next = existing.length === 0 || existing.endsWith('\n') ? `${existing}${entry}\n` : `${existing}\n${entry}\n`;
+  try {
+    io.writeFile(excludePath, next);
+  } catch (error) {
+    return { ok: false, error: `the exclude file at ${excludePath} could not be written: ${failureText(error, 'unknown write failure')}` };
+  }
+  return { ok: true };
+}
+
+export function addedWorktree(repoRoot, path, revision, label, io) {
   let added;
   try {
     added = io.run('git', ['worktree', 'add', '--detach', '--', path, revision], { cwd: repoRoot, deadlineMs: WORKTREE_DEADLINE_MS });
@@ -612,6 +652,10 @@ function addedWorktree(repoRoot, path, revision, label, io) {
   }
   if (!cleanlyRan(added) || added.status !== 0) {
     return { ok: false, error: `the ${label} worktree could not be materialized at ${path}: git reported ${JSON.stringify(added === null || added === undefined ? null : added.stderr)}` };
+  }
+  const excluded = excludedFromCommits(path, NODE_MODULES, io);
+  if (!excluded.ok) {
+    return { ok: false, error: `the ${label} worktree at ${path} was materialized but ${NODE_MODULES} could not be kept out of its commits: ${excluded.error}` };
   }
   return { ok: true };
 }

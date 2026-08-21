@@ -65,6 +65,7 @@ function fixtureIo(overrides) {
     },
     exists: () => true,
     readFile: () => '{}',
+    writeFile: () => {},
     makeDir: () => {},
     symlink: () => {},
     removePath: (path) => { removed.push(path); },
@@ -75,6 +76,9 @@ function fixtureIo(overrides) {
   const inner = merged.run;
   merged.run = (binary, argv, options) => {
     spawned.push(`${binary} ${argv.join(' ')}`);
+    if (binary === 'git' && argv.includes('--git-path')) {
+      return { outcome: 'completed', status: 0, stdout: `${(options && options.cwd) || ''}/.git/info/exclude`, stderr: '' };
+    }
     return inner(binary, argv, options);
   };
   if (typeof merged.describePath !== 'function') merged.describePath = describedBy(merged.readFile);
