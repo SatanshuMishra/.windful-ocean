@@ -11,6 +11,7 @@ import {
 } from './merge-policy.mjs';
 import { PR_TOOL_DIRECTORY, buildNodeCommand } from './node-commands.mjs';
 import { LEGAL_STAGES, park } from './parking.mjs';
+import { workTypeLineFor } from './pr-work-type.mjs';
 import { withOverlapDependsOn } from './overlap-order.mjs';
 import { branchToMspId, reconcileShippedSet } from './recovery.mjs';
 import { SHIP_PUBLISH_ACTIONS } from './ship-publish.mjs';
@@ -201,6 +202,7 @@ function prCreateValues(facts) {
     baseBranch: facts.base,
     title: facts.title,
     why: whatSentenceFrom(facts.why),
+    workType: workTypeLineFor(facts.changeType),
     what: whatSentenceFrom(facts.what),
     verified: verifiedLines(facts)[0] ?? null,
     notVerified: RECEIPTS_NOT_VERIFIED,
@@ -253,6 +255,7 @@ function factsOf(entry, msp, settings, published) {
     title: prTitleOf(msp),
     why: msp.rationale,
     what: msp.title,
+    changeType: nonEmptyText(msp.changeType),
     boundaryClean: entry.state === INTEGRATED,
   });
 }

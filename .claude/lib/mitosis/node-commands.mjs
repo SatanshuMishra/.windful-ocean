@@ -145,6 +145,7 @@ const SUPERSEDE = Object.freeze({
 const SHIP = Object.freeze({
   'open-pr': (v, t) => {
     const verified = v.verified === null || v.verified === undefined ? null : t.prValue('verified', v.verified);
+    const workType = v.workType === null || v.workType === undefined ? null : t.prValue('workType', v.workType);
     return [
       NODE_END_OF_OPTIONS,
       `${t.script('gitLibDir', v.gitLibDir, PR_TOOL_PATH)}${PATH_SEPARATOR}${basenameOf(PR_TOOL_PATH)}`, PR_CREATE,
@@ -153,6 +154,7 @@ const SHIP = Object.freeze({
       '--base', t.ref('baseBranch', v.baseBranch),
       '--title', t.prTitle('title', v.title),
       '--why', t.prValue('why', v.why),
+      ...(workType === null ? [] : ['--why', workType]),
       '--what', t.prValue('what', v.what),
       ...(verified === null ? [] : ['--verified', verified]),
       '--not-verified', t.prValue('notVerified', v.notVerified),

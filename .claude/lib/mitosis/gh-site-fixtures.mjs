@@ -244,12 +244,14 @@ const SHIP_PR_VALUES = Object.freeze({
   why: 'the unit is built and its parents are merged',
   what: 'open one pull request on the rebased integration head',
   verified: 'boundary gate - clean',
+  workType: 'work-type: feature',
   notVerified: 'ci on the fresh head - not run',
 });
 
 const DERIVED_SHIP_VERIFIED = Object.freeze({
   '--verified': 'the incumbent spells only the not-verified flag for this stage and states no verification the host measured; the boundary gate runs in the host rather than in the child, so the one check this engine watches to a verdict is reported as the verified line the incumbent leaves it no place for, and it is emitted only when that gate cleared rather than always',
   '<verified>': 'the same emitted verification; the value is the boundary gate verdict the host read for this unit rather than a line the incumbent spells, and no other check reaches the body as verified',
+  '<workType>': 'the receipts enforcer at verify.js:1020 reads a work-type: feature line as the sole escape from a load-error block, and this line is derived in-process from the msp own declared change type by pr-work-type.mjs rather than spelled anywhere in the incumbent prose; it is emitted only when the eight-type table maps the change type to one',
 });
 
 const PR_BODY_WRITING_RULE = 'Write each --what and --why value as a full sentence a reviewer who has never seen this code would understand: start with a capital letter, end with a full stop, and name no file, line number or internal id.';
@@ -300,6 +302,7 @@ const NODE_PR_FIXTURES = [
       '--base', '<baseBranch>',
       '--title', '<title>',
       '--why', '<why>',
+      '--why', '<workType>',
       '--what', '<what>',
       '--verified', '<verified>',
       '--not-verified', '<notVerified>',
@@ -312,6 +315,7 @@ const NODE_PR_FIXTURES = [
       ...BASE_PLACEHOLDER,
       '<title>': Object.freeze({ incumbent: '${JSON.stringify(prTitleFor(msp))}', field: 'title', value: SHIP_PR_VALUES.title }),
       '<why>': Object.freeze({ incumbent: '${JSON.stringify(msp.rationale)}', field: 'why', value: SHIP_PR_VALUES.why }),
+      '<workType>': Object.freeze({ field: 'workType', value: SHIP_PR_VALUES.workType }),
       '<what>': Object.freeze({ incumbent: '${JSON.stringify(msp.title)}', field: 'what', value: SHIP_PR_VALUES.what }),
       '<verified>': Object.freeze({ field: 'verified', value: SHIP_PR_VALUES.verified }),
       '<notVerified>': Object.freeze({ incumbent: '${JSON.stringify(PR_NOT_VERIFIED_OPEN_CI)}', field: 'notVerified', value: SHIP_PR_VALUES.notVerified }),
