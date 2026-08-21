@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { removeHeadWorktree } from './boundary-collect.mjs';
@@ -25,9 +26,9 @@ import { shipSummary } from './ship-plan.mjs';
 import { publishShipHead } from './ship-publish.mjs';
 import { resolveAll } from './superpowers-prompts.mjs';
 import { parseLsRemote } from './transcription-parsers.mjs';
-import { readJudgment, runJudgment } from './unit-judgment.mjs';
+import { JUDGMENT_VERDICT_SCHEMA, readJudgment, runJudgment } from './unit-judgment.mjs';
 import { planningSummary } from './unit-planning.mjs';
-import { IMPLEMENT_STAGE, planRemediatedAttempt } from './unit-remediation.mjs';
+import { DIAGNOSIS_SCHEMA, IMPLEMENT_STAGE, planRemediatedAttempt } from './unit-remediation.mjs';
 
 const MODULE = 'mitosis-cli';
 const GIT_BINARY = 'git';
@@ -62,6 +63,11 @@ const UNBILLED_ENVELOPE = normalizeEnvelope({
   permission_denials: null,
   api_error_status: null,
 });
+const PROMPT_HASH_HEX_LENGTH = 16;
+const JUDGMENT_KIND_ORDER = Object.freeze(['review', 'security']);
+const IMPLEMENT_KIND = 'implement';
+const REDISPATCH_KIND = 'redispatch';
+const DIAGNOSE_KIND = 'diagnose';
 
 const REQUIRED_FLAGS = Object.freeze({
   '--spec': 'spec',
@@ -199,6 +205,72 @@ function stateRecorder(handle, at) {
     if (!isDispatchRecord(record)) return;
     units = Object.freeze({ ...units, [record.id]: record.state });
     handle.commitState({ at, units });
+  };
+}
+
+function promptHashOf(prompt) {
+  return createHash('sha256').update(typeof prompt === 'string' ? prompt : '').digest('hex').slice(0, PROMPT_HASH_HEX_LENGTH);
+}
+
+function schemaNameOf(schema) {
+  if (schema === JUDGMENT_VERDICT_SCHEMA) return 'JUDGMENT_VERDICT_SCHEMA';
+  if (schema === DIAGNOSIS_SCHEMA) return 'DIAGNOSIS_SCHEMA';
+  return null;
+}
+
+function dispatchResponseOf(verdict) {
+  const isRecord = verdict !== null && typeof verdict === 'object' && !Array.isArray(verdict);
+  return {
+    ok: isRecord && verdict.ok === true,
+    outcome: isRecord && typeof verdict.outcome === 'string' ? verdict.outcome : null,
+    structured: isRecord && verdict.structured !== undefined ? verdict.structured : null,
+    error: isRecord && typeof verdict.error === 'string' ? verdict.error : null,
+  };
+}
+
+function dispatchKindTracker() {
+  const iterations = new Map();
+  let judgmentsSeen = 0;
+  let implementFamilySeen = 0;
+  const nextIteration = (kind) => {
+    const next = (iterations.get(kind) ?? 0) + 1;
+    iterations.set(kind, next);
+    return next;
+  };
+  return (schema) => {
+    if (schema === JUDGMENT_VERDICT_SCHEMA) {
+      judgmentsSeen += 1;
+      const kind = JUDGMENT_KIND_ORDER[Math.min(judgmentsSeen, JUDGMENT_KIND_ORDER.length) - 1];
+      return { kind, iteration: nextIteration(kind) };
+    }
+    if (schema === DIAGNOSIS_SCHEMA) return { kind: DIAGNOSE_KIND, iteration: nextIteration(DIAGNOSE_KIND) };
+    implementFamilySeen += 1;
+    const kind = implementFamilySeen === 1 ? IMPLEMENT_KIND : REDISPATCH_KIND;
+    return { kind, iteration: nextIteration(kind) };
+  };
+}
+
+function recordingDispatchFn(dispatchFn, unitId, observedAt, recordDispatch) {
+  if (typeof recordDispatch !== 'function') return dispatchFn;
+  const nextKind = dispatchKindTracker();
+  return async (payload) => {
+    const { kind, iteration } = nextKind(payload.schema);
+    let verdict;
+    let thrown = null;
+    try {
+      verdict = await dispatchFn(payload);
+    } catch (error) {
+      thrown = error;
+    }
+    recordDispatch(unitId, {
+      observedAt,
+      kind,
+      iteration,
+      request: { schemaName: schemaNameOf(payload.schema), promptHash: promptHashOf(payload.prompt) },
+      response: thrown === null ? dispatchResponseOf(verdict) : { ok: false, outcome: null, structured: null, error: messageOf(thrown) },
+    });
+    if (thrown !== null) throw thrown;
+    return verdict;
   };
 }
 
@@ -485,6 +557,13 @@ function defaultObservePlan(probe) {
   return observePlanArtifact(probe.repoRoot, probe.planPath);
 }
 
+function dispatchStateRecorder(dispatchState) {
+  return (unitId, record) => {
+    if (dispatchState.handle === null || typeof dispatchState.handle.recordDispatch !== 'function') return;
+    dispatchState.handle.recordDispatch(unitId, record);
+  };
+}
+
 export function driverPorts(io, makePorts, deps, repoRoot) {
   const openRunFn = deps.openRun === undefined ? openRun : deps.openRun;
   const foldJournalFn = deps.foldJournal === undefined ? foldFile : deps.foldJournal;
@@ -497,6 +576,7 @@ export function driverPorts(io, makePorts, deps, repoRoot) {
   const skillPointersFn = deps.skillPointers === undefined ? defaultSkillPointers : deps.skillPointers;
   const observePlanFn = deps.observePlan === undefined ? defaultObservePlan : deps.observePlan;
   const waitFn = deps.wait === undefined ? realWait : deps.wait;
+  const dispatchState = { handle: null, at: null };
   return Object.freeze({
     openRun: (request) => openRunFn(request),
     skillPointers: () => skillPointersFn(),
@@ -518,13 +598,17 @@ export function driverPorts(io, makePorts, deps, repoRoot) {
     recordFix: recordFixPort(runFn),
     pushFix: gitCiPort(runFn, 'push'),
     release: (handle) => releaseRun(handle, io),
-    makeObserver: (config) => observeAll([
-      unitRecorder(config.handle, config.at),
-      stateRecorder(config.handle, config.at),
-      usageRecorder(config.handle, config.at),
-      dispatchFailureReporter(io),
-    ]),
-    makePorts: (config) => makePorts(config),
+    makeObserver: (config) => {
+      dispatchState.handle = config.handle;
+      dispatchState.at = config.at;
+      return observeAll([
+        unitRecorder(config.handle, config.at),
+        stateRecorder(config.handle, config.at),
+        usageRecorder(config.handle, config.at),
+        dispatchFailureReporter(io),
+      ]);
+    },
+    makePorts: (config) => makePorts({ ...config, recordDispatch: dispatchStateRecorder(dispatchState), dispatchObservedAt: () => dispatchState.at }),
   });
 }
 
@@ -696,7 +780,13 @@ export function realPorts(config, deps = {}) {
       if (planned !== null && planned.approved !== true) return planPark(planned);
       const request = requireUnitRequest(config, unit);
       const judgment = declaredJudgment(config, unit);
-      const dispatchOne = (payload) => dispatchFn({ ...payload, signal: context.signal });
+      const dispatchObservedAt = typeof config.dispatchObservedAt === 'function' ? config.dispatchObservedAt() : null;
+      const dispatchOne = recordingDispatchFn(
+        (payload) => dispatchFn({ ...payload, signal: context.signal }),
+        unit.id,
+        dispatchObservedAt,
+        dispatchObservedAt === null ? undefined : config.recordDispatch,
+      );
       const attempt = await attemptRequest(ledger, config, unit, request, dispatchOne);
       if (!attempt.ok) return remediationPark(attempt);
       const verdict = verdictShape(await dispatchOne(attempt.request));
