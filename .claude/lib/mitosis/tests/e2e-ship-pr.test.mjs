@@ -56,6 +56,7 @@ const BETA_FACTS = Object.freeze({
   title: 'feat(beta): unit beta',
   why: 'fixture rationale for unit beta',
   what: 'unit beta',
+  changeType: 'feat',
   boundaryClean: true,
 });
 
@@ -173,10 +174,44 @@ test('the composed argv carries every mandated field once, in the order the tool
     '--base', 'main',
     '--title', 'feat(beta): unit beta',
     '--why', 'Fixture rationale for unit beta.',
+    '--why', 'work-type: feature',
     '--what', 'Unit beta.',
     '--verified', 'boundary gate - clean',
     '--not-verified', 'receipts enforcer - not run',
   ]);
+});
+
+const WORK_TYPE_LINE_TYPES = Object.freeze({ feat: 'feature', refactor: 'refactor', chore: 'chore' });
+const WORK_TYPE_NO_LINE_TYPES = Object.freeze(['fix', 'docs', 'test', 'perf', 'ci']);
+
+test('the composed argv carries the work-type line the receipts enforcer requires, for every change type the table maps to one', () => {
+  for (const [changeType, workType] of Object.entries(WORK_TYPE_LINE_TYPES)) {
+    const argv = [...composePrCreateArgv({ ...BETA_FACTS, changeType, title: `${changeType}(beta): unit beta` }).argv];
+    assert.deepEqual(argv.filter((token) => token.startsWith('work-type:')), [`work-type: ${workType}`], `${changeType} composed ${JSON.stringify(argv)}`);
+  }
+});
+
+test('the composed argv carries no work-type line at all for a change type the table maps to none', () => {
+  for (const changeType of WORK_TYPE_NO_LINE_TYPES) {
+    const argv = [...composePrCreateArgv({ ...BETA_FACTS, changeType, title: `${changeType}(beta): unit beta` }).argv];
+    assert.deepEqual(argv.filter((token) => token.startsWith('work-type:')), [], `${changeType} composed ${JSON.stringify(argv)}`);
+  }
+});
+
+test('a change type outside the declared table refuses composition rather than silently omitting the work-type line', () => {
+  const composed = composePrCreateArgv({ ...BETA_FACTS, changeType: 'sneak' });
+  assert.equal(composed.ok, false);
+  assert.equal(composed.argv, null);
+  assert.match(composed.refusal, /pr-work-type.*sneak/s);
+});
+
+test('the composed argv, work-type line included, still validates through the real pull-request tool and stays inside the why value ceiling', () => {
+  const composed = composePrCreateArgv({ ...BETA_FACTS, changeType: 'feat' });
+  const verbAt = composed.argv.indexOf('pr-create');
+  const parsed = parseMitosisGitArgv(composed.argv.slice(verbAt));
+  assert.equal(parsed.ok, true, parsed.error);
+  assert.ok(parsed.opts.why.length <= 3, `--why carries ${parsed.opts.why.length} values, over the ceiling`);
+  assert.ok(parsed.opts.why.includes('work-type: feature'));
 });
 
 test('the composed --what value is the msp title capitalised and full-stopped, and a colon inside it is never truncated', () => {
