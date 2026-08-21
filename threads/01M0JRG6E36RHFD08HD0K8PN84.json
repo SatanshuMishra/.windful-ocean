@@ -10,35 +10,35 @@
     {
       "id": "c1",
       "text": "M1: run-store gains recordDispatch persisting each dispatch's structured response to dispatches.jsonl, with the four preserved 2026-08-21 scratch directories copied into the repository first.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c2",
       "text": "M2: cassette.mjs exports loadCassette, scriptFor and CASSETTE_SCHEMA, rejecting all five invalid shapes named in the SPEC including a recorded cassette carrying a null sourceRun.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c3",
       "text": "M3: buildStubDispatch takes a cassette argument; unset leaves smoke byte-identical to trunk, a two-reject cassette yields three plan-review dispatches, and exhaustion emits cassette-exhausted.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c4",
       "text": "M4: all ten state and transition scenarios run from full-e2e-sweep.sh with per-scenario exit codes, and row 8, the built unit dropped on resume, is proven red on the parent and green after.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c5",
       "text": "M5: the prompt side-effect harness executes every shell command the implement prompt instructs inside a trailing-slash gitignore fixture, and is confirmed red at 05b29b5e before being called correct.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -70,49 +70,48 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship all eight MSPs of the frozen testing-architecture SPEC, so that a green mitosis suite implies mitosis is expected to work on a live run.",
-    "next_step": "START HERE. Read m15/TESTING-ARCHITECTURE-SPEC.md in full, then fast-forward the primary checkout to origin/main before anything reads the engine. Dispatch a dedicated agent per MSP, M1 first. The SPEC is FROZEN per 0664: no edits, no scope growth, no reordering; ship all eight before proposing any follow-up. Where an MSP blocks, stack the next PR on it and keep going. M1 step 0 copies the four temp evidence dirs into the repo - do it before macOS deletes them.",
-    "last_session": "Opened 2026-08-21 from the parent session that authored the SPEC. No implementation has started; every criterion is untouched.",
+    "active_goal": "Ship all eight MSPs of the frozen testing-architecture SPEC so that a green mitosis suite implies mitosis is expected to work on a live run.",
+    "next_step": "M7 next: enumerate the five failure branches, delete each locally, and record which test reddens with its assertion quoted; file any branch with no reddening test as an explicit gap. M8 is the only billed MSP and stays blocked on M1 merged plus M4's sweep green on a merged base. Before either, unblock PR 273: its two test-job failures, a banned-token check on the word provenance inside cassette.mjs and the tests/cassettes census, also fail PR 277 which is stacked on it.",
+    "last_session": "2026-08-21: shipped M1 through M5 plus M6 with a downgrade, as pull requests 275, 273, 277, 274 and 276; M3 needed none. Run 4's drop proved to be Integrate-to-Ship, not resume. PR 271 does not fix the node_modules defect.",
     "open_risks": [
       {
-        "text": "Copy the four preserved scratch directories into the repository before writing any code — they are macOS temp directories holding the only journals and usage records from the 2026-08-21 runs, and the operating system deletes them without warning",
+        "text": "Teardown's rmSync fallback deleted an arbitrary directory outside the repository and returned success — three pre-existing call sites reach it, including the exported removeHeadWorktree wired as a port, and only the new reclaim path is bounded",
         "scope": "thread",
         "refs": [
-          "M1 step 0",
-          "/var/folders/tz/b798spt96sjfyy924nf0cw4c0000gn/T/m15-single-live.{XVIlQv,JfZ9lA,qtphU4,MjnrRd}"
+          "boundary-collect.mjs",
+          "H2"
         ]
       },
       {
-        "text": "Fast-forward the primary checkout before any MSP reads the engine — it sits behind trunk, so the merged symlink and revision-budget fixes are not in force locally and a run would exercise the wrong code",
+        "text": "PR 273 is red and blocks PR 277 stacked on it — a banned-token check fires on the word provenance inside cassette.mjs, and the tests/cassettes census fails; neither file is in 277's own diff",
         "scope": "thread",
         "refs": [
-          "local 05b29b5e",
-          "trunk c2992f78"
+          "PR 273",
+          "PR 277"
         ]
       },
       {
-        "text": "Derive the dispatch-kind set from every dispatchRequest call site rather than trusting the SPEC's list — the SPEC marks this as the one place it stops short, and an invented enum would land inside a persisted record format",
+        "text": "PR 274 is deliberately red because its test proves a live defect — the implement-task worktree still commits a node_modules symlink, and PR 271 fixed a different worktree path entirely",
         "scope": "thread",
         "refs": [
-          "SPEC section 6",
-          "M1"
-        ]
-      },
-      {
-        "text": "Confirm M5's test is red at the pre-271 commit before calling it correct — pull request 271 may not fix the symptom it claims, since it binds addedWorktree while the child creates its worktree from prompt text",
-        "scope": "thread",
-        "refs": [
+          "PR 274",
           "PR 271",
-          "05b29b5e",
-          "M5"
+          "prompt-execute.mjs"
         ]
       },
       {
-        "text": "Only M8 may spend money — every other MSP is provable with free instruments, and a billed run before M4 is green buys no information that a scenario sweep would not have given first",
+        "text": "PR 277's green receipts check is a downgrade pass, not a cleared gate — the word reverted in an inertness line matched a ladder tag and short-circuited all eight re-run gates in ten seconds",
         "scope": "thread",
         "refs": [
-          "M8",
-          "M4"
+          "PR 277",
+          "0659"
+        ]
+      },
+      {
+        "text": "M6 withheld two of three decoration deletions and c6 stays open — they hold the suite's only two defences against a test call site spawning the real billable binary",
+        "scope": "thread",
+        "refs": [
+          "0667"
         ]
       }
     ],
@@ -155,5 +154,5 @@
     ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-21T22:29:17.683Z"
+  "updated_at": "2026-08-21T22:29:54.749Z"
 }
