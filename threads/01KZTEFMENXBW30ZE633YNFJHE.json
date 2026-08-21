@@ -1342,6 +1342,11 @@
         "ref": "0662-a-built-unit-is-lost-at-the-resume-boundary",
         "title": "A unit that reached built is dropped on resume, so the run ships nothing after paying for the work",
         "scope": "c45"
+      },
+      {
+        "ref": "0663-the-stub-became-the-specification",
+        "title": "The always-succeeding stub became the specification, so a green suite says nothing about live",
+        "scope": "c45"
       }
     ],
     "out_of_scope": [
@@ -1353,5 +1358,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-21T06:41:17.767Z"
+  "updated_at": "2026-08-21T18:08:09.829Z"
 }
