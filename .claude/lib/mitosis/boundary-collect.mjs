@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join as pathJoin, relative as pathRelative, resolve as pathResolve, sep } from 'node:path';
 import { choosingScope, collectEslintConfig, collectTsconfigOptions } from './boundary-config-surface.mjs';
 import {
@@ -11,6 +11,7 @@ import {
   within,
 } from './boundary-scan-scope.mjs';
 import { censusListedFiles, censusTscLines } from './boundary-tsc-lines.mjs';
+import { NO_RECLAIM, reclaimedWorktree } from './boundary-worktree-reclaim.mjs';
 import { run as execRun } from './exec-run.mjs';
 
 export const IDENTITY_SEPARATOR = '\u0000';
@@ -120,12 +121,23 @@ function describeRealPath(path) {
   return { ok: true, path: real, kind: pathKind(stats), regular: false, size: 0 };
 }
 
+function describeLink(path) {
+  let stats;
+  try {
+    stats = lstatSync(path);
+  } catch (error) {
+    return { ok: false, error: failureText(error, 'unknown link-stat failure') };
+  }
+  return { ok: true, symbolicLink: stats.isSymbolicLink(), directory: stats.isDirectory() };
+}
+
 export const REAL_BOUNDARY_IO = Object.freeze({
   run: (binary, argv, options) => execRun(binary, argv, options),
   exists: (path) => existsSync(path),
   readFile: (path) => readFileSync(path, 'utf8'),
   writeFile: (path, content) => writeFileSync(path, content, 'utf8'),
   describePath: (path) => describeRealPath(path),
+  linkKind: (path) => describeLink(path),
   makeDir: (path) => mkdirSync(path, { recursive: true }),
   symlink: (target, path) => symlinkSync(target, path, 'dir'),
   removePath: (path) => rmSync(path, { recursive: true, force: true }),
@@ -643,58 +655,7 @@ function excludedFromCommits(path, entry, io) {
   return { ok: true };
 }
 
-export const BOUNDARY_NAMESPACE_SEGMENTS = Object.freeze(['.mitosis', 'boundary']);
-const WORKTREE_REGISTRY_PREFIX = 'worktree ';
-const NO_RECLAIM = Object.freeze({ reclaimed: false, reason: null });
-
-export function insideBoundaryNamespace(repoRoot, path) {
-  const segments = pathRelative(pathResolve(repoRoot), pathResolve(path)).split(sep);
-  const shaped = segments.length === BOUNDARY_NAMESPACE_SEGMENTS.length + 2
-    && segments.every((segment) => segment.length > 0 && segment !== '.' && segment !== '..');
-  return shaped && BOUNDARY_NAMESPACE_SEGMENTS.every((segment, index) => segments[index] === segment);
-}
-
-function comparablePath(path, io) {
-  const described = io.describePath(path);
-  return described.ok ? described.path : pathResolve(path);
-}
-
-function registeredWorktree(repoRoot, path, io) {
-  let listed;
-  try {
-    listed = io.run('git', ['worktree', 'list', '--porcelain'], { cwd: repoRoot, deadlineMs: WORKTREE_DEADLINE_MS });
-  } catch (error) {
-    return { ok: false, error: `the worktree registry of ${repoRoot} could not be read: ${failureText(error, 'unknown spawn failure')}` };
-  }
-  if (!cleanlyRan(listed) || listed.status !== 0) {
-    return { ok: false, error: `git worktree list --porcelain in ${repoRoot} reported ${JSON.stringify(listed === null || listed === undefined ? null : listed.stderr)}` };
-  }
-  const wanted = comparablePath(path, io);
-  const registered = listed.stdout.split('\n')
-    .filter((line) => line.startsWith(WORKTREE_REGISTRY_PREFIX))
-    .some((line) => comparablePath(line.slice(WORKTREE_REGISTRY_PREFIX.length).trim(), io) === wanted);
-  return { ok: true, registered };
-}
-
-function unlockedWorktree(repoRoot, path, io) {
-  try {
-    io.run('git', ['worktree', 'unlock', '--', path], { cwd: repoRoot, deadlineMs: WORKTREE_DEADLINE_MS });
-  } catch (error) {
-    return failureText(error, 'unknown spawn failure');
-  }
-  return null;
-}
-
-function reclaimedWorktree(repoRoot, path, io) {
-  if (!insideBoundaryNamespace(repoRoot, path)) return NO_RECLAIM;
-  const registration = registeredWorktree(repoRoot, path, io);
-  if (!registration.ok) return { reclaimed: false, reason: registration.error };
-  if (!registration.registered) return NO_RECLAIM;
-  const spawnFailure = unlockedWorktree(repoRoot, path, io);
-  const left = teardown(repoRoot, path, io, 'leaked');
-  if (left === null) return { reclaimed: true, reason: null };
-  return { reclaimed: false, reason: spawnFailure === null ? left : `${left}, and the lock could not be lifted (${spawnFailure})` };
-}
+export { BOUNDARY_NAMESPACE_SEGMENTS, insideBoundaryNamespace } from './boundary-worktree-reclaim.mjs';
 
 function materializedWorktree(repoRoot, path, revision, label, io) {
   let added;
@@ -707,14 +668,37 @@ function materializedWorktree(repoRoot, path, revision, label, io) {
   return { ok: false, error: `the ${label} worktree could not be materialized at ${path}: git reported ${JSON.stringify(added === null || added === undefined ? null : added.stderr)}` };
 }
 
+function excludedWorktree(path, label, io, reclaim) {
+  const excluded = excludedFromCommits(path, NODE_MODULES, io);
+  if (excluded.ok) return Object.freeze({ ok: true, reclaim });
+  return Object.freeze({
+    ok: false,
+    error: `the ${label} worktree at ${path} was materialized but ${NODE_MODULES} could not be kept out of its commits: ${excluded.error}`,
+    reclaim,
+  });
+}
+
+function refusedText(first, reclaim) {
+  if (reclaim.reason === null) return first.error;
+  if (!reclaim.destroyed) return `${first.error}; the leaked worktree could not be reclaimed: ${reclaim.reason}`;
+  return `${first.error}; the worktree at ${reclaim.path} was removed and the reclaim still failed: ${reclaim.reason}`;
+}
+
+function retriedText(first, second, reclaim) {
+  return `${second.error}; this followed the removal of the leaked worktree at ${reclaim.path}, whose original refusal was: ${first.error}`;
+}
+
 export function addedWorktree(repoRoot, path, revision, label, io) {
   const first = materializedWorktree(repoRoot, path, revision, label, io);
-  const reclaim = first.ok ? NO_RECLAIM : reclaimedWorktree(repoRoot, path, io);
-  const settled = reclaim.reclaimed ? materializedWorktree(repoRoot, path, revision, label, io) : first;
-  if (!settled.ok) return reclaim.reason === null ? settled : { ok: false, error: `${settled.error}; the leaked worktree could not be reclaimed: ${reclaim.reason}` };
-  const excluded = excludedFromCommits(path, NODE_MODULES, io);
-  if (excluded.ok) return { ok: true };
-  return { ok: false, error: `the ${label} worktree at ${path} was materialized but ${NODE_MODULES} could not be kept out of its commits: ${excluded.error}` };
+  if (first.ok) return excludedWorktree(path, label, io, NO_RECLAIM);
+  const reclaim = reclaimedWorktree(repoRoot, path, io, Object.freeze({
+    deadlineMs: WORKTREE_DEADLINE_MS,
+    removeWorktree: (resolved) => teardown(repoRoot, resolved, io, 'leaked'),
+  }));
+  if (!reclaim.reclaimed) return Object.freeze({ ok: false, error: refusedText(first, reclaim), reclaim });
+  const second = materializedWorktree(repoRoot, path, revision, label, io);
+  if (!second.ok) return Object.freeze({ ok: false, error: retriedText(first, second, reclaim), reclaim });
+  return excludedWorktree(path, label, io, reclaim);
 }
 
 function linkedModules(sourceRoot, targetRoot, io) {

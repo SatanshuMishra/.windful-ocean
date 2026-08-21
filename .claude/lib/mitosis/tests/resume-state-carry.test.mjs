@@ -120,7 +120,6 @@ function disposableRepo() {
 function killedRunLeftAt(repo, path) {
   mkdirSync(dirname(path), { recursive: true });
   gitIn(repo.root, ['worktree', 'add', '--detach', '--quiet', '--', path, repo.head]);
-  gitIn(repo.root, ['worktree', 'lock', '--', path]);
   return path;
 }
 
@@ -147,7 +146,7 @@ function assertLeftStanding(repo, path, materialized, what) {
   assert.ok(registeredPaths(repo).some((entry) => basename(entry) === basename(path)), `${what} lost its worktree registration`);
 }
 
-test('a resumed run reclaims the locked base worktree its killed invocation leaked inside the run boundary namespace', () => {
+test('a resumed run reclaims the base worktree its killed invocation leaked inside the run boundary namespace', () => {
   const repo = disposableRepo();
   try {
     const leaked = killedRunLeftAt(repo, boundaryPathOf(repo, UNIT));
