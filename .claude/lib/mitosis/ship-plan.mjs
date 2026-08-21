@@ -559,7 +559,7 @@ function requireWatched(watched) {
 
 function declaredUnitTotal(manifest, orderedLength) {
   if (orderedLength === 0) return orderedLength;
-  const declared = Array.isArray(manifest.msps) ? manifest.msps.length : 0;
+  const declared = Array.isArray(manifest.msps) ? manifest.msps.length : orderedLength;
   return Math.max(declared, orderedLength);
 }
 
