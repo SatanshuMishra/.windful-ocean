@@ -1383,6 +1383,11 @@
         "ref": "0651-dependson-splits-into-two-edge-kinds",
         "title": "dependsOn splits into a machine-derived overlap edge and a semantic edge",
         "scope": "c45"
+      },
+      {
+        "ref": "0652-planning-stays-sequential-genesis-moves-early",
+        "title": "Planning stays sequential; the run signals life early instead",
+        "scope": "c45"
       }
     ],
     "out_of_scope": [
@@ -1394,5 +1399,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-20T23:34:22.811Z"
+  "updated_at": "2026-08-21T01:36:29.713Z"
 }
