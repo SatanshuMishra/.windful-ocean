@@ -1,3 +1,4 @@
+import { filterDeclaredEdges } from './declared-edges.mjs';
 import { requireFileScopePack } from './msp-file-scope.mjs';
 import { composePrompt } from './prompt-registry.mjs';
 import { buildInitialManifest } from './recovery.mjs';
@@ -132,6 +133,14 @@ function requireUnitFileScope(msp) {
   }
 }
 
+function requireFilteredEdges(modelDeclared, scopes, order) {
+  try {
+    return filterDeclaredEdges(modelDeclared, scopes, order);
+  } catch (error) {
+    throw new RunDocumentError(`${MODULE}: the declared dependency edges could not be separated from the edges file overlap already implies: ${reasonOf(error)}`);
+  }
+}
+
 function requireUnitPrompt(text, id) {
   if (typeof text !== 'string' || text.length === 0) {
     refuseUnit(id, `composed no prompt text (received ${JSON.stringify(text)}); dispatch refuses a request carrying no non-empty prompt, so the unit would settle as a dispatch failure without a child ever having run`);
@@ -220,12 +229,13 @@ function buildRequest(promptText, defaults) {
   return Object.freeze(request);
 }
 
-function buildUnitSpec({ msp, prereqs, fileScope, run, prompt, defaults, compose }) {
+function buildUnitSpec({ msp, prereqs, modelDeclaredPrereqs, fileScope, run, prompt, defaults, compose }) {
   const promptText = composeUnitPrompt(compose, msp.id, promptInputFor(msp, fileScope, run, prompt));
   const judgment = judgmentFor(msp, fileScope, run, prompt);
   return Object.freeze({
     id: msp.id,
     prereqs,
+    modelDeclaredPrereqs,
     fileScope,
     task: msp.rationale,
     isolation: prompt.isolation,
@@ -235,21 +245,24 @@ function buildUnitSpec({ msp, prereqs, fileScope, run, prompt, defaults, compose
   });
 }
 
+function withModelDeclared(entries, msps) {
+  const declaredById = new Map(msps.map((msp) => [msp.id, msp.modelDeclaredDependsOn]));
+  return entries.map((entry) => ({ ...entry, modelDeclaredDependsOn: declaredById.get(entry.id) }));
+}
+
 function buildManifest(run, msps) {
-  return {
-    ...buildInitialManifest({
-      logicalRunId: run.logicalRunId,
-      harnessRunId: run.harnessRunId,
-      spec: run.spec,
-      repoRoot: run.repoRoot,
-      baseBranch: run.baseBranch,
-      sourcePrefix: run.sourcePrefix,
-      clusters: run.clusters,
-      msps,
-      specContentHash: run.specContentHash,
-    }),
-    parked: [],
-  };
+  const initial = buildInitialManifest({
+    logicalRunId: run.logicalRunId,
+    harnessRunId: run.harnessRunId,
+    spec: run.spec,
+    repoRoot: run.repoRoot,
+    baseBranch: run.baseBranch,
+    sourcePrefix: run.sourcePrefix,
+    clusters: run.clusters,
+    msps,
+    specContentHash: run.specContentHash,
+  });
+  return { ...initial, msps: withModelDeclared(initial.msps, msps), parked: [] };
 }
 
 export function buildRunDocument(input, deps = {}) {
@@ -261,17 +274,24 @@ export function buildRunDocument(input, deps = {}) {
   const compose = requireComposer(deps);
   const msps = requireMspList(decomposition.msps);
   const ids = requireUnitIds(msps);
-  const prereqs = new Map(msps.map((msp) => [msp.id, requirePrereqs(msp, ids)]));
+  const modelDeclared = new Map(msps.map((msp) => [msp.id, requirePrereqs(msp, ids)]));
   const scopes = new Map(msps.map((msp) => [msp.id, requireUnitFileScope(msp)]));
+  const prereqs = requireFilteredEdges(modelDeclared, scopes, msps.map((msp) => msp.id));
   const specs = msps.map((msp) => buildUnitSpec({
     msp,
     prereqs: prereqs.get(msp.id),
+    modelDeclaredPrereqs: modelDeclared.get(msp.id),
     fileScope: scopes.get(msp.id),
     run,
     prompt,
     defaults,
     compose,
   }));
-  const normalized = msps.map((msp) => ({ ...msp, dependsOn: prereqs.get(msp.id), fileScope: scopes.get(msp.id) }));
+  const normalized = msps.map((msp) => ({
+    ...msp,
+    dependsOn: prereqs.get(msp.id),
+    modelDeclaredDependsOn: modelDeclared.get(msp.id),
+    fileScope: scopes.get(msp.id),
+  }));
   return Object.freeze({ specs: Object.freeze(specs), manifest: buildManifest(run, normalized) });
 }
