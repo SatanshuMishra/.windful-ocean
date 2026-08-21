@@ -45,7 +45,7 @@
     {
       "id": "c6",
       "text": "M6: every mitosis test file carries a bucket and a reason; a decoration file is deleted only where its behaviour is covered elsewhere, and each withheld deletion is filed with the coverage it holds.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -77,28 +77,29 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship all eight MSPs of the frozen testing-architecture SPEC so that a green mitosis suite implies mitosis is expected to work on a live run.",
-    "next_step": "Merge PR 278 first, then DELETE feat/mitosis-cassette-loader and confirm the ref is gone; until 278 lands that branch is the only place PR 277's history lives. Then M7: enumerate the five failure branches, delete each locally, record which test reddens with its assertion quoted, and file any branch with no reddening test as an explicit gap. M8 is the only billed MSP and stays blocked on M4's sweep green on a merged trunk.",
-    "last_session": "2026-08-21: M1 through M6 shipped and merged as PRs 273-276. PR 277 merged into a live base branch and never reached the trunk; recovered by cherry-pick as PR 278, which also greens the two census guards that made main red.",
+    "active_goal": "Close the instrument so a green pipeline is proof mitosis will work live and a red one means it will not, then finish M7 and M8.",
+    "next_step": "Four items in order, then stop. 1: merge 278, delete feat/mitosis-cassette-loader, confirm the ref is gone. 2: triage main's 15 failures once into fix or file, one pass, no exploration. 3: make the test job a required check so red cannot accumulate unseen. 4: M7, then M8 as the proof run. Verify every step from a foreign-path clone at the head SHA, never inside a worktree. File everything else and open no further review rounds.",
+    "last_session": "2026-08-21: shipped M1 to M6, merged as 273-276. 277 merged into a live base branch and never reached the trunk; recovered with the two census fixes as 278. Root cause of the repair cycles named: census tests pass vacuously inside a worktree.",
     "open_risks": [
       {
-        "text": "Census and lint tests pass vacuously inside a worktree — /worktrees/ sits in their own excluded-segments list, so they census an empty set; main reached 17 failing tests while every contributing pull request reported green locally",
+        "text": "Verify from a disposable clone at the head SHA, never inside a worktree — the census and lint tests skip any path holding /worktrees/, so they pass over an empty set exactly where agents work, and that is what let 17 failures reach the trunk",
         "scope": "thread",
         "refs": [
           "attribution-census.test.mjs",
+          "0669",
           "memory: census-tests-false-pass-inside-a-worktree"
         ]
       },
       {
-        "text": "Main carries 15 pre-existing test failures beyond the two PR 278 fixes — across agent-schema-lint, determinism-lint, mitosis-gate, name-integrity-census, prompt-side-effects and retirement-census, none required to merge",
+        "text": "Triage main's 15 pre-existing failures in one pass and no more — until the trunk is green a red pipeline cannot mean anything, and the test job is not a required check so nothing stops more red arriving",
         "scope": "thread",
         "refs": [
-          "PR 278 baseline",
-          "f3304b86"
+          "f3304b86",
+          "0670"
         ]
       },
       {
-        "text": "Teardown's rmSync fallback deleted an arbitrary directory outside the repository and returned success — three pre-existing call sites reach it, including the exported removeHeadWorktree wired as a port, and only the new reclaim path is bounded",
+        "text": "Treat teardown's unbounded directory removal as live — it deleted a directory outside the repository and returned success, and three existing call sites still reach it including the one wired as a port",
         "scope": "thread",
         "refs": [
           "boundary-collect.mjs",
@@ -106,26 +107,12 @@
         ]
       },
       {
-        "text": "The node_modules symlink defect is still live on the trunk — PR 271 fixed the boundary gate's worktree, not the implement-task worktree the child builds from prompt text, and prompt-execute.mjs is unchanged across it",
+        "text": "The committed node_modules symlink is still unfixed on the trunk — the earlier fix changed the boundary gate's worktree, not the one the child builds from prompt text, which is why M5's test is red on main and should stay red",
         "scope": "thread",
         "refs": [
           "PR 274",
           "PR 271",
           "prompt-execute.mjs"
-        ]
-      },
-      {
-        "text": "M6 withheld two of three decoration deletions and c6 stays open — they hold the suite's only two defences against a test call site spawning the real billable binary",
-        "scope": "thread",
-        "refs": [
-          "0667"
-        ]
-      },
-      {
-        "text": "PR 278's body states 3187 passing where the captured number is 3185 — a transcription slip the author flagged, and a pull request body cannot be edited after creation",
-        "scope": "thread",
-        "refs": [
-          "PR 278"
         ]
       }
     ],
@@ -183,5 +170,5 @@
     ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-21T23:28:54.655Z"
+  "updated_at": "2026-08-21T23:29:21.136Z"
 }
