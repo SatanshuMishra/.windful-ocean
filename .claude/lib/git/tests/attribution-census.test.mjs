@@ -27,6 +27,14 @@ const BANNED = Object.freeze([
 
 const EXCLUDED_SEGMENTS = Object.freeze(['/tests/', '/worktrees/']);
 
+const EXEMPTIONS = Object.freeze([
+  Object.freeze({
+    file: '.claude/lib/mitosis/cassette.mjs',
+    token: 'provenance',
+    reason: 'cassette record field name mandated verbatim by the frozen cassette-format SPEC ("provenance": "recorded" | "authored"); not an attribution flag',
+  }),
+]);
+
 function walkMjsFiles(dir, out) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = `${dir}/${entry.name}`;
@@ -56,16 +64,29 @@ function firstOccurrenceLine(lowerContent, lowerToken) {
 test('no census file carries a banned attribution token', () => {
   const files = censusFiles();
   const violations = [];
+  const usedExemptions = new Set();
   for (const file of files) {
     const raw = readFileSync(file, 'utf8');
     const lower = raw.toLowerCase();
+    const relativeFile = file.slice(REPO_ROOT.length + 1);
     for (const token of BANNED) {
       const lowerToken = token.toLowerCase();
       const line = firstOccurrenceLine(lower, lowerToken);
-      if (line !== null) {
-        violations.push(`${file}:${line} contains the banned token ${JSON.stringify(token)}`);
+      if (line === null) continue;
+      const exemption = EXEMPTIONS.find(
+        (entry) => entry.file === relativeFile && entry.token === token,
+      );
+      if (exemption) {
+        usedExemptions.add(exemption);
+        continue;
       }
+      violations.push(`${file}:${line} contains the banned token ${JSON.stringify(token)}`);
     }
   }
   assert.deepEqual(violations, []);
+
+  const staleExemptions = EXEMPTIONS.filter((entry) => !usedExemptions.has(entry)).map(
+    (entry) => `${entry.file} no longer contains the banned token ${JSON.stringify(entry.token)}; remove the stale exemption`,
+  );
+  assert.deepEqual(staleExemptions, []);
 });
