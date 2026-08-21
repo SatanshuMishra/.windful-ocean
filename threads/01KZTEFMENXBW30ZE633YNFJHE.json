@@ -1337,6 +1337,11 @@
         "ref": "0661-plan-revision-budget-raised-to-three",
         "title": "A unit gets three plan revisions, not one, because one revision does not converge in practice",
         "scope": "c45"
+      },
+      {
+        "ref": "0662-a-built-unit-is-lost-at-the-resume-boundary",
+        "title": "A unit that reached built is dropped on resume, so the run ships nothing after paying for the work",
+        "scope": "c45"
       }
     ],
     "out_of_scope": [
@@ -1348,5 +1353,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-21T06:24:05.348Z"
+  "updated_at": "2026-08-21T06:41:17.767Z"
 }
