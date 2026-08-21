@@ -332,7 +332,7 @@
     {
       "id": "c48",
       "text": "The G14 mutants surviving on trunk are killed, each proven by a local mutation that reddens a named assertion, in a source-touching change so the gate referees it instead of short-circuiting.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -351,8 +351,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Prove mitosis works live: a spec-to-trunk run whose every opened pull request is green including receipts, with the engine observing CI rather than shrugging.",
-    "next_step": "START by fast-forwarding the PRIMARY checkout - it sat at a8c2cb23 all session while trunk moved to 60e776fd, and the global rules, agents and skills symlink into its working tree. Then close c48: kill the six G14 mutants named in the 2026-08-21 session log as ONE source-touching pull request, proving each locally by mutation before pushing. Then at 2026-08-22 21:00 UTC when the spend cap resets, run --lane smoke, then --lane single, then --lane full.",
-    "last_session": "2026-08-20/21: four defects fixed and merged to trunk - genesis before Prep, parked units counted in ship status, fileScope-derived merge ordering, semantic dependsOn. The free lane gained ENGINE_ROOT and was proven green on trunk. No billed lane ran; the spend cap holds.",
+    "next_step": "RUN THE END-TO-END TEST. Start with the FREE --lane smoke against trunk 4c9bae0c; it costs nothing and its red is definitive. Then at 2026-08-22 21:00 UTC when the spend cap resets, run --lane single, read its receipt, and only then --lane full. Never go straight to full. Between the two lanes, close the substrate pull request and delete its branch or the second lane collides.",
+    "last_session": "2026-08-20/21 session 2: c48 closed and trunk moved to 4c9bae0c via 267, 268 and 269. Three harness blockers to a complete live run were found and fixed before anything was spent. No billed lane ran; the spend cap holds.",
     "open_risks": [
       {
         "text": "Never let the engine merge a pull request — merge is refused at four independent layers by design, so c28 means serialized ship order plus a blocked-pending-approval handoff",
@@ -611,85 +611,42 @@
         ]
       },
       {
-        "text": "Expect every dispatched child to fail with HTTP 429 until the provider spend limit resets on 2026-08-22 21:00 UTC — the account crossed its monthly cap mid-run, so any billed lane reproduces that failure exactly",
+        "text": "Read the resolved engine root back from the lane's own status file before trusting any result — a hardcoded path once made a verification run silently exercise trunk and exit 0 on a byte-identical baseline",
         "scope": "c45",
         "refs": [
-          "claude.ai/settings/usage",
-          "resetsAt 1787432400"
-        ]
-      },
-      {
-        "text": "Run the smoke lane against the then-current trunk before any billed lane — it crosses the whole pipeline in seconds for nothing and its red is definitive, while its green proves only wiring and says nothing about live behaviour",
-        "scope": "c45",
-        "refs": [
-          "full-e2e.sh --lane smoke",
           "ENGINE_ROOT",
-          "0648"
+          "full-e2e-RUNBOOK.md"
         ]
       },
       {
-        "text": "Run the single lane before the full lane — one live unit surfaces a real-dispatch defect for one unit's billing, where going straight to full spends four units' worth to learn the same thing",
+        "text": "Close the substrate pull request and delete its branch between the single and full lanes — both lanes derive the same branch name from the same unit id, so the second collides on a shared substrate",
         "scope": "c45",
         "refs": [
-          "full-e2e.sh --lane single",
-          "full-e2e-SINGLE-SPEC.md"
+          "full-e2e-check-substrate-clean.mjs",
+          "marker=substrate-not-clean"
         ]
       },
       {
-        "text": "Expect the full lane to open a four-deep pull request stack and to run fully serialized — every unit edits README.md and index.mjs, so all four overlap and the lease dispatches one per tick",
+        "text": "Expect the prompt-compliance criterion to report a missing field until a fresh decomposer document exists — the only run document on hand predates the engine change and measures the old prompt",
         "scope": "c45",
         "refs": [
-          "0654",
-          "leases.mjs:69",
-          "run-document fileScope.edit"
+          "full-e2e-smoke-source-run-document.json"
         ]
       },
       {
-        "text": "Merge that stack parent-first, deleting each parent branch and confirming its ref is gone before merging the child — GitHub retargets a child only on base deletion, so otherwise the child merges into a dead branch and never reaches trunk",
+        "text": "Do not trust a compliance reading taken after a resume — the full lane exercises resume, and the projector drops the preserved model declaration on that path",
         "scope": "c45",
         "refs": [
-          "git merge-base --is-ancestor",
-          "0472",
-          "0519"
+          "recovery.mjs",
+          "modelDeclaredDependsOn"
         ]
       },
       {
-        "text": "Expect roughly fifteen minutes before a four-unit run finishes planning — planning stays sequential by ruling, though the genesis record now lands at the start of Prep so the run is no longer silent while it happens",
+        "text": "Merge the work-type-precedence pull request before the billed run — until it lands, a billed child's own body text can pre-empt the engine's work-type declaration, because the enforcer's regex is unanchored and first-match-wins",
         "scope": "c45",
         "refs": [
-          "0652",
-          "unit-planning.mjs:352-359"
-        ]
-      },
-      {
-        "text": "Ship the G14 mutant fixes as a source-touching change, never as a tests-only diff — a tests-only diff short-circuits the receipts gate and returns PASS in seconds with G14 refereeing nothing",
-        "scope": "c48",
-        "refs": [
-          "0653",
-          "verify.js:496"
-        ]
-      },
-      {
-        "text": "Remove the meaningless zero at ship-plan.mjs:553 rather than trying to test it — those two survivors are genuine equivalent mutants, and block mode carries no per-survivor exemption",
-        "scope": "c48",
-        "refs": [
-          "0653",
-          "ship-plan.mjs:551-555"
-        ]
-      },
-      {
-        "text": "Fast-forward the primary checkout before running any gate verb, and never revert the user's uncommitted files there — three verbs census that checkout rather than the commit under test",
-        "scope": "c48",
-        "refs": [
-          "canonical-config-dir.mjs:78",
-          "0635"
-        ]
-      },
-      {
-        "text": "Never use git stash in a worktree here — the stash stack is shared across every worktree of the repository, and a no-op push plus an unconditional pop stole another branch's entry this session",
-        "scope": "c48",
-        "refs": [
-          "memory: git-stash-is-shared-across-worktrees"
+          "verify.js:466",
+          "fix/mitosis-work-type-precedence"
         ]
       }
     ],
@@ -1374,5 +1331,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-21T03:02:36.692Z"
+  "updated_at": "2026-08-21T04:32:52.106Z"
 }
