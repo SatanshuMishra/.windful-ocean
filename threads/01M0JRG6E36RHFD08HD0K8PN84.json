@@ -145,6 +145,11 @@
         "ref": "0667-two-decoration-deletions-withheld-as-coverage-losses",
         "title": "Two decoration deletions are withheld because they are the only bar on a billed spawn",
         "scope": "c6"
+      },
+      {
+        "ref": "0668-recover-swallowed-stack-by-cherry-pick-not-merge",
+        "title": "A merge swallowed by a live base branch is recovered by cherry-pick, never by merging that branch",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -154,5 +159,5 @@
     ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-21T22:29:54.749Z"
+  "updated_at": "2026-08-21T23:04:10.956Z"
 }
