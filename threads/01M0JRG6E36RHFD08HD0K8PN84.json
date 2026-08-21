@@ -44,9 +44,16 @@
     },
     {
       "id": "c6",
-      "text": "M6: all 150 mitosis test files carry a bucket of predictive, decoration or rewrite with a stated reason, every decoration file is deleted, and node --test stays green afterwards.",
+      "text": "M6: every mitosis test file carries a bucket and a reason; a decoration file is deleted only where its behaviour is covered elsewhere, and each withheld deletion is filed with the coverage it holds.",
       "done": false,
       "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c9",
+      "text": "Green the trunk and land the stranded sweep: the two census guards main fails are fixed and pull request 277's swallowed content is cherry-picked forward, in one pull request against main.",
+      "done": false,
+      "kind": "detour",
       "struck_by": null
     },
     {
@@ -176,5 +183,5 @@
     ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-21T23:28:50.467Z"
+  "updated_at": "2026-08-21T23:28:54.655Z"
 }
