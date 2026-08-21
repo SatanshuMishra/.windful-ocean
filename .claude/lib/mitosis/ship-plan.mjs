@@ -447,7 +447,8 @@ function probeValues(settings) {
 }
 
 async function mergedPrerequisites(settings, ports) {
-  const gated = settings.integrated.some((entry) => declaredPrereqs(settings.manifest, entry.unitId).length > 0);
+  const effective = effectiveManifestOf(settings.manifest);
+  const gated = settings.integrated.some((entry) => declaredPrereqs(effective, entry.unitId).length > 0);
   if (!gated) return new Map();
   const probe = probeValues(settings);
   if (probe === null) return new Map();
@@ -457,7 +458,7 @@ async function mergedPrerequisites(settings, ports) {
 }
 
 function heldPrereqs(manifest, unitId, satisfied) {
-  return declaredPrereqs(manifest, unitId).filter((id) => !satisfied.has(id));
+  return declaredPrereqs(effectiveManifestOf(manifest), unitId).filter((id) => !satisfied.has(id));
 }
 
 function plannedHeadOf(manifest, unitId) {
