@@ -1347,6 +1347,11 @@
         "ref": "0663-the-stub-became-the-specification",
         "title": "The always-succeeding stub became the specification, so a green suite says nothing about live",
         "scope": "c45"
+      },
+      {
+        "ref": "0664-the-testing-spec-is-frozen-at-authoring",
+        "title": "The testing-architecture SPEC is frozen: implement and ship it in full before proposing anything else",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -1358,5 +1363,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-21T18:08:09.829Z"
+  "updated_at": "2026-08-21T18:13:51.388Z"
 }
