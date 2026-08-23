@@ -3,7 +3,7 @@
   "id": "01M0PHEKE1VMK3NREETGWVG57Z",
   "slug": "green-the-trunk-before-the-live-run",
   "title": "Green the trunk so the live run can be measured",
-  "status": "active",
+  "status": "paused",
   "parent_id": "01KZTEFMENXBW30ZE633YNFJHE",
   "predecessor_id": "01M0JRG6E36RHFD08HD0K8PN84",
   "completion_criteria": [
@@ -106,5 +106,5 @@
     ]
   },
   "created_at": "2026-08-23T05:28:17.089Z",
-  "updated_at": "2026-08-23T16:46:18.373Z"
+  "updated_at": "2026-08-23T16:46:42.007Z"
 }
