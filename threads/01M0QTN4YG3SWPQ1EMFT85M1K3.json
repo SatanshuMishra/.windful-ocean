@@ -3,7 +3,7 @@
   "id": "01M0QTN4YG3SWPQ1EMFT85M1K3",
   "slug": "make-the-ship-phase-observable",
   "title": "Make the ship phase observable before the next billed run",
-  "status": "paused",
+  "status": "active",
   "parent_id": "01KZTEFMENXBW30ZE633YNFJHE",
   "predecessor_id": "01M0PHEKE1VMK3NREETGWVG57Z",
   "completion_criteria": [
@@ -107,5 +107,5 @@
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T17:33:31.228Z"
+  "updated_at": "2026-08-23T17:39:33.769Z"
 }
