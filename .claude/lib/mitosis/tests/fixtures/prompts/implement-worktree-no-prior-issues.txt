@@ -6,7 +6,7 @@ Set up an isolated workspace, then implement.
 1. Create a dedicated worktree (observe-then-converge; idempotent under replay). FIRST check whether it already exists: `git -C '/fx/repo' worktree list --porcelain` and `git -C '/fx/repo' rev-parse --verify --quiet 'fx/task-7'`. If a worktree at /fx/wt/task-7 is already checked out on fx/task-7, REUSE it (skip the add). If fx/task-7 exists but no worktree is attached, attach without -b: `git -C '/fx/repo' worktree add '/fx/wt/task-7' 'fx/task-7'`. Otherwise create it fresh (retry once if git reports a lock):
    `git -C '/fx/repo' worktree add -b 'fx/task-7' '/fx/wt/task-7' 'fx-base'`
 2. `cd '/fx/wt/task-7'` and do ALL work there. Follow TDD as the instructions above require.
-3. Bootstrap dependencies before any check (idempotent): `ln -sfn '/fx/repo/node_modules' node_modules`
+3. Bootstrap dependencies before any check (idempotent). The tracked .gitignore only ignores node_modules as a directory, so first make this worktree's private exclude list ignore the literal name; that file lives inside .git and is never a committable artifact: `sh -c 'EXCLUDE_FILE="$(git rev-parse --git-path info/exclude)"; grep -qxF node_modules "$EXCLUDE_FILE" || echo node_modules >> "$EXCLUDE_FILE"'`. Then create the symlink: `ln -sfn '/fx/repo/node_modules' node_modules`
 4. For verification run ONLY the scoped check, never a full build/suite: `'npm' 'run' 'fx-check'`
 5. Commit your work to `'fx/task-7'` (one or more commits). Do NOT remove the worktree.
 
