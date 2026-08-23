@@ -109,6 +109,11 @@
         "ref": "0680-pre-create-the-harness-repository",
         "title": "Pre-create the harness repository instead of granting repository-creation rights",
         "scope": "c1"
+      },
+      {
+        "ref": "0681-decide-the-crash-point-on-settled-state",
+        "title": "Decide the crash point from settled state instead of racing to win it",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -118,5 +123,5 @@
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T17:44:05.618Z"
+  "updated_at": "2026-08-23T17:47:26.602Z"
 }
