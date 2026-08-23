@@ -89,47 +89,6 @@
     "last_session": "Closed c10 and c8. Built and proved the harvest machinery for free before spending, ran the one billed lane, harvested recorded cassettes, replayed the sweep, and opened pull request 280.",
     "open_risks": [
       {
-        "text": "Read this suite's verdict from CI rather than any local run — the primary checkout is the only honest local reader, a fresh clone adds fourteen false failures, and a linked worktree censuses an empty set",
-        "scope": "thread",
-        "refs": [
-          "canonical-config-dir.mjs",
-          "0669",
-          "CI run 32536091141"
-        ]
-      },
-      {
-        "text": "Leave the test job off the required checks until the node_modules trailing-slash defect is fixed — it is genuinely red on main today, so requiring it would block every pull request",
-        "scope": "thread",
-        "refs": [
-          "prompt-side-effects.test.mjs:155",
-          "PR 274",
-          "PR 271"
-        ]
-      },
-      {
-        "text": "Fast-forward the primary checkout before any billed run — the harness reads the engine from there, and recordDispatch is absent from its working tree, so a run today would record nothing",
-        "scope": "thread",
-        "refs": [
-          "run-store.mjs",
-          "origin/main 14c4b268"
-        ]
-      },
-      {
-        "text": "Read a pull request's checks yourself before merging it — the test job is not a required status check here, so GitHub will merge a red pull request on a single click",
-        "scope": "thread",
-        "refs": [
-          "PR 279"
-        ]
-      },
-      {
-        "text": "Treat teardown's unbounded directory removal as live — it deleted a directory outside the repository and returned success, and three call sites still reach it including the one wired as a port",
-        "scope": "thread",
-        "refs": [
-          "boundary-collect.mjs",
-          "H2"
-        ]
-      },
-      {
         "text": "Read pull request 280's checks yourself before merging — the test job is not a required status check here, so a red pull request merges on a single click",
         "scope": "c8",
         "refs": [
@@ -172,6 +131,32 @@
         "refs": [
           "cli.mjs",
           "0674"
+        ]
+      },
+      {
+        "text": "Read this suite's verdict from CI rather than any local run — the primary checkout is the only honest local reader, a fresh clone adds fourteen false failures, and a linked worktree censuses an empty set",
+        "scope": "thread",
+        "refs": [
+          "canonical-config-dir.mjs",
+          "0669",
+          "CI run 32536091141"
+        ]
+      },
+      {
+        "text": "Leave the test job off the required checks until the node_modules trailing-slash defect is fixed — it is genuinely red on main today, so requiring it would block every pull request",
+        "scope": "thread",
+        "refs": [
+          "prompt-side-effects.test.mjs:155",
+          "PR 274",
+          "PR 271"
+        ]
+      },
+      {
+        "text": "Treat teardown's unbounded directory removal as live — it deleted a directory outside the repository and returned success, and three call sites still reach it including the one wired as a port",
+        "scope": "thread",
+        "refs": [
+          "boundary-collect.mjs",
+          "H2"
         ]
       }
     ],
@@ -254,5 +239,5 @@
     ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-23T04:55:56.006Z"
+  "updated_at": "2026-08-23T04:56:11.390Z"
 }
