@@ -161,6 +161,11 @@
         "ref": "0670-remaining-work-closes-the-instrument-not-the-defect-list",
         "title": "The remaining work closes the instrument and stops; no further discovery rounds",
         "scope": "thread"
+      },
+      {
+        "ref": "0671-record-plan-dispatches-before-the-billed-run",
+        "title": "The recorder is fixed to see the planning phase before M8 spends money",
+        "scope": "c8"
       }
     ],
     "out_of_scope": [
@@ -170,5 +175,5 @@
     ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-21T23:29:21.136Z"
+  "updated_at": "2026-08-23T02:57:56.573Z"
 }
