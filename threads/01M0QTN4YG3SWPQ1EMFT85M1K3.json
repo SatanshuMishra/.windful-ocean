@@ -54,21 +54,6 @@
         ]
       },
       {
-        "text": "Recording a dispatch may be necessary but not sufficient for replay — the stub routes by live schema identity and resolves only four kinds, so a cassette for an unrouted kind loads, is never consumed, and can still pass",
-        "scope": "c2",
-        "refs": [
-          "0674"
-        ]
-      },
-      {
-        "text": "Decisions 0666 and 0674 disagree on the dispatch-kind count, twelve against eight — do not scope a fix against either number until the code has settled which vocabulary is which",
-        "scope": "c2",
-        "refs": [
-          "0666",
-          "0674"
-        ]
-      },
-      {
         "text": "Read this suite's verdict from CI rather than any local run — the primary checkout is the only honest local reader, a fresh clone adds fourteen false failures, and a linked worktree censuses an empty set",
         "scope": "thread",
         "refs": [
@@ -83,6 +68,35 @@
           "verify.js:56",
           "verify.js:466"
         ]
+      },
+      {
+        "text": "The harness creates its OWN repository, mitosis-live-pr-harness — earlier guidance to scope the token to the pre-existing substrate repository was wrong, and a token scoped to one existing repository cannot serve it",
+        "scope": "c1",
+        "refs": [
+          "CI run 32654935845"
+        ]
+      },
+      {
+        "text": "Treat the killed investigator's progress line about three confirmed mechanisms as nothing — it narrates work in flight, is not a finding, and citing it would carry an unverified claim into a fix",
+        "scope": "c2",
+        "refs": [
+          "killed dispatch 2026-08-22"
+        ]
+      },
+      {
+        "text": "Recording a dispatch may be necessary but not sufficient for replay — the stub routes by live schema identity and resolves only four kinds, so a cassette for an unrouted kind loads, is never consumed, and can still pass",
+        "scope": "c2",
+        "refs": [
+          "0674"
+        ]
+      },
+      {
+        "text": "Decisions 0666 and 0674 disagree on the dispatch-kind count, twelve against eight — do not scope a fix against either number until the code has settled which vocabulary is which",
+        "scope": "c2",
+        "refs": [
+          "0666",
+          "0674"
+        ]
       }
     ],
     "key_decisions": [],
@@ -93,5 +107,5 @@
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T17:33:17.450Z"
+  "updated_at": "2026-08-23T17:33:26.907Z"
 }
