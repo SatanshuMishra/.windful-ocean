@@ -209,6 +209,7 @@ async function prepPhase(completed, request, ports) {
   const title = phase('Prep');
   const resumed = requirePreceding(completed, 'Resume');
   await ports.writeGenesis({ repoRoot: request.repoRoot, path: request.journalPath, manifest: resumed.manifest });
+  const onRecord = ports.makeObserver({ handle: heldHandle(completed), at: request.at });
   const planned = await planUnits({
     ...planningConfig(request, resumed),
     pointers: () => ports.skillPointers(),
@@ -224,7 +225,7 @@ async function prepPhase(completed, request, ports) {
       taskById: taskById(request.spec),
       planById: planned.byId,
     }),
-    onRecord: ports.makeObserver({ handle: heldHandle(completed), at: request.at }),
+    onRecord,
     planned: planned.outcomes,
   });
 }

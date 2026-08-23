@@ -165,6 +165,7 @@ function dispatchRequest(kind, prep, input, schema) {
     prompt: composeFor(kind, prep.unitId, input),
     schema,
     cwd: prep.repoRoot,
+    unitId: prep.unitId,
     ...(prep.timeoutMs === undefined ? {} : { timeoutMs: prep.timeoutMs }),
   };
 }

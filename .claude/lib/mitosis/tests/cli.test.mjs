@@ -1,11 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pack } from './file-scope-fixtures.mjs';
 import { CLI_USAGE, driverPorts, exitCodeOf, parseCliArgv, realPorts, realWait, runCli } from '../cli.mjs';
+import { runPhases } from '../phase-driver.mjs';
+import { openRun as realOpenRun } from '../run-store.mjs';
+import { PLAN_ARTIFACT_SCHEMA, PLAN_REVIEW_VERDICT_SCHEMA, planArtifactPathFor } from '../unit-planning.mjs';
 import { runVerdictOf } from '../run-verdict.mjs';
 import { Done, NeedsHuman } from '../boundary.mjs';
 import { refusingDispatch } from './dispatch-fixtures.mjs';
@@ -668,5 +671,105 @@ test('driverPorts selects the real writeGenesis when none is injected, proven by
       name: 'TypeError',
       message: 'journal-store: repoRoot must be a non-empty string naming the repository root the journal is written inside, received string',
     },
+  );
+});
+
+function planningPrepFixture(specPath) {
+  return {
+    title: 'unit alpha',
+    rationale: 'do alpha',
+    dependsList: '(none)',
+    specPath,
+    fileScope: pack(['alpha.mjs']),
+  };
+}
+
+function planningDrivenRequest(repoRoot, runId) {
+  return {
+    specPath: '/spec.json',
+    spec: {
+      manifest: { clusters: [], msps: [{ id: 'alpha' }] },
+      specs: [{
+        id: 'alpha',
+        fileScope: pack(['alpha.mjs']),
+        request: { prompt: 'do alpha' },
+        prep: planningPrepFixture('/spec.json'),
+      }],
+    },
+    runId,
+    at: '2026-08-22T00:00:00Z',
+    repoRoot,
+    journalPath: '.mitosis/run.jsonl',
+    repoSlug: 'acme/widgets',
+    integrationBranch: 'integration',
+    window: undefined,
+  };
+}
+
+function stubbedRunResult(binary, argv) {
+  return { outcome: 'completed', binary, argv, command: binary, args: argv, status: 1, stdout: '', stderr: 'stub: no-op', signal: null, error: null };
+}
+
+function planningDispatchScript(expectedPlanPath) {
+  let reviewCalls = 0;
+  return async (request) => {
+    if (request.schema === PLAN_ARTIFACT_SCHEMA) {
+      return { ok: true, outcome: 'success', structured: { planPath: expectedPlanPath } };
+    }
+    if (request.schema === PLAN_REVIEW_VERDICT_SCHEMA) {
+      reviewCalls += 1;
+      if (reviewCalls === 1) {
+        return {
+          ok: true,
+          outcome: 'success',
+          structured: { verdict: 'needs-changes', findings: [{ axis: 'necessity', severity: 'high', detail: 'trim scope' }] },
+        };
+      }
+      return { ok: true, outcome: 'success', structured: { verdict: 'approve' } };
+    }
+    return { ok: true, outcome: 'success', structured: null, result: 'stub dispatch' };
+  };
+}
+
+test('PLANNING DISPATCH RECORDING: a run that drafts, reviews, revises and re-reviews a plan records plan, plan-review and replan dispatches for that unit', async (t) => {
+  const repoRoot = mkdtempSync(join(tmpdir(), 'mitosis-cli-plan-record-'));
+  t.after(() => rmSync(repoRoot, { recursive: true, force: true }));
+  const runId = 'runrec01';
+  const expectedPlanPath = planArtifactPathFor(repoRoot, runId, 'alpha');
+  let handle = null;
+  const deps = {
+    dispatch: planningDispatchScript(expectedPlanPath),
+    skillPointers: () => ({ libDir: '/lib/mitosis', writingPlansGlob: '/plugins/*/skills/writing-plans/SKILL.md' }),
+    observePlan: () => ({ exists: true, isFile: true, size: 10, detail: 'stub observation' }),
+    writeGenesis: async () => {},
+    appendJournalLine: async () => {},
+    foldJournal: () => null,
+    boundaryGate: () => ({ pass: true, output: 'no new finding', blocking: [], baseCensus: null }),
+    teardownHeadWorktree: () => null,
+    wait: async () => {},
+    run: stubbedRunResult,
+    openRun: (request) => { handle = realOpenRun(request); return handle; },
+  };
+  const makePorts = () => ({
+    runUnit: async (unit) => Done({ sha: `sha-${unit.id}`, green: true }),
+    writeGenesis: async () => {},
+    appendJournal: async () => {},
+    writeRef: async () => {},
+    gh: async () => ({ state: 'OPEN' }),
+  });
+  const ports = driverPorts(noopDriverIo(), makePorts, deps, repoRoot);
+  try {
+    await runPhases(planningDrivenRequest(repoRoot, runId), ports);
+  } catch {}
+  assert.ok(handle !== null, 'the run never opened a run store, so no dispatches.jsonl could have been written at all');
+  const dispatchesPath = join(handle.dir, 'dispatches.jsonl');
+  const lines = existsSync(dispatchesPath)
+    ? readFileSync(dispatchesPath, 'utf8').trim().split('\n').filter((line) => line.length > 0).map((line) => JSON.parse(line))
+    : [];
+  const alphaKinds = lines.filter((line) => line.unitId === 'alpha').map((line) => line.kind);
+  assert.deepEqual(
+    alphaKinds,
+    ['plan', 'plan-review', 'replan', 'plan-review'],
+    `expected the planning loop for unit "alpha" to record plan, plan-review, replan, plan-review in order, recorded ${JSON.stringify(alphaKinds)}`,
   );
 });
