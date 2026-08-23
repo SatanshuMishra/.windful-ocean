@@ -3,7 +3,7 @@
   "id": "01M0JRG6E36RHFD08HD0K8PN84",
   "slug": "mitosis-testing-architecture-spec-implementation",
   "title": "Implement and ship the frozen mitosis testing-architecture SPEC",
-  "status": "paused",
+  "status": "done",
   "parent_id": "01KZTEFMENXBW30ZE633YNFJHE",
   "predecessor_id": null,
   "completion_criteria": [
@@ -82,7 +82,7 @@
   "external_refs": [],
   "blocked_by": null,
   "abandoned_reason": null,
-  "closure_statement": null,
+  "closure_statement": "All ten criteria are met and the last pull request's content is confirmed on the trunk. Pull request 280 merged as squash commit 2d0cfa34, which is origin/main's tip; arrival was proven by tree comparison rather than by ancestry, since a squash rewrites the head sha, and rather than by the merged label. The eight-MSP testing-architecture SPEC is fully shipped: the dispatch recorder, the cassette schema and loader, the cassette-driven stub, the ten-scenario state sweep, the prompt side-effect harness, the test-file classification, the failure-branch coverage, and one billed harvest that produced two real findings. The instrument now exists, and it immediately showed that the authored scenario set has a coverage hole exactly where real reviewer behaviour landed. What the instrument does NOT yet show is a working engine: the billed lane stopped at review pass, opened no pull request, and the substrate repository carries zero pull requests, so the parent's c45 stays open and unproven. Three items sit above this thread's ceiling and are filed as new work rather than folded in: a scenario for approval on the last allowed revision, the harness built-wait race, and the four dispatch kinds that carry no unit. Two trunk defects surfaced at close and are dispatched on a successor thread, not here.",
   "spine": {
     "active_goal": "Closed. All eight MSPs of the frozen testing-architecture SPEC shipped, and pull request 280's content is confirmed on the trunk by tree comparison rather than by its merged label.",
     "next_step": "Nothing here. Work continues on the successor thread covering the trunk-greening pass: the gitleaks runKey false positive, the implement-prompt node_modules artifact, making the test job a required check, and the absent MITOSIS_LIVE_GH_TOKEN. The parent thread's c45, a live run reaching a merged trunk, is the front after that and is still unproven.",
@@ -244,5 +244,5 @@
     ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-23T05:27:53.155Z"
+  "updated_at": "2026-08-23T05:28:02.468Z"
 }
