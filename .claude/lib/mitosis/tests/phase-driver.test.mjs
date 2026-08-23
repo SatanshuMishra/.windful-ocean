@@ -434,6 +434,33 @@ test('a built unit is gated once against the declared base branch, and integrate
   }]);
 });
 
+test('a run whose handle carries attempt 2 marks the gate request as a resumed run', async () => {
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', progress: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
+  const stub = stubbedPorts({
+    readJournal: () => journal,
+    openRun: () => Object.freeze({ runKey: 'a1b2c3d4e5f60718', attempt: 2 }),
+  });
+  await runPhases(runRequest(), stub.ports);
+  assert.equal(stub.gated.length, 1, 'the gate must have run exactly once for the one built unit, or the isResumedRun assertion below checks nothing');
+  assert.equal(
+    stub.gated[0].isResumedRun,
+    true,
+    'a run whose own handle proves it is attempt 2 must mark its gate request as a resumed run, or a reclaim downstream can never tell a confirmed-dead predecessor apart from a merely young lock',
+  );
+});
+
+test('a run whose handle carries attempt 1 marks the gate request as not resumed', async () => {
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', progress: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
+  const stub = stubbedPorts({ readJournal: () => journal });
+  await runPhases(runRequest(), stub.ports);
+  assert.equal(stub.gated.length, 1, 'the gate must have run exactly once for the one built unit, or the isResumedRun assertion below checks nothing');
+  assert.equal(
+    stub.gated[0].isResumedRun,
+    false,
+    'a run whose own handle is attempt 1 must never mark its gate request as a resumed run',
+  );
+});
+
 test('a not-comparable boundary verdict parks with its own diagnosis and dispatches no fix child', async () => {
   const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', progress: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
   const detail = 'gateBase "main" and headRef "refs/mitosis/9e8d7c6b/alpha" both resolve to the same tree, so the base is the tree under test';
