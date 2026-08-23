@@ -35,13 +35,65 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
+    "active_goal": "Clear the three prerequisites that make the next billed live run worth paying for: a truthful secret scanner, a prompt that leaves no artifact, and a test job that can block a red merge.",
+    "next_step": "Two implementers are in flight against main, each in its own worktree, each required to prove red then green then an inertness mutation, and neither permitted to merge: fix/gitleaks-runkey-false-positive for c1 and fix/mitosis-implement-prompt-artifact for c2. Read their receipts, do not re-run their checks. Merge is human-gated. c3 waits until c2's pull request is merged, or requiring the job blocks every pull request.",
+    "last_session": "2026-08-22: opened as successor after the testing-architecture thread closed. Both trunk defects were triaged from pull request 280's red checks and dispatched the same session.",
+    "open_risks": [
+      {
+        "text": "The scanner check on the gitleaks fix's own pull request does not exercise the fix — it diffs the base tip against the head, and the offending commit is already on the trunk, so its green is not evidence",
+        "scope": "c1",
+        "refs": [
+          "security.yml",
+          "0676",
+          "PR 280"
+        ]
+      },
+      {
+        "text": "Do not make the test job required before the prompt fix is merged — it is genuinely red on main today, so requiring it first would block every pull request including the fix's own",
+        "scope": "c3",
+        "refs": [
+          "prompt-side-effects.test.mjs:155"
+        ]
+      },
+      {
+        "text": "Read this suite's verdict from CI rather than any local run — the primary checkout is the only honest local reader, a fresh clone adds fourteen false failures, and a linked worktree censuses an empty set",
+        "scope": "thread",
+        "refs": [
+          "canonical-config-dir.mjs",
+          "0669"
+        ]
+      },
+      {
+        "text": "A config-only or test-only diff short-circuits the receipts enforcer to a fast pass with the mutation referee never running — read that as the gate declining to referee, never as a cleared gate",
+        "scope": "thread",
+        "refs": [
+          "0676"
+        ]
+      },
+      {
+        "text": "MITOSIS_LIVE_GH_TOKEN is absent and the workflow refuses to skip silently — the live GitHub lane has never run in CI, it is a human step, and it gates whether the next billed run is worth paying for",
+        "scope": "thread",
+        "refs": [
+          "live-github-substrate",
+          "CI run 32619177275"
+        ]
+      },
+      {
+        "text": "Teardown's unbounded directory removal is still live — it deleted a directory outside the repository and returned success, and three call sites still reach it including the one wired as a port",
+        "scope": "thread",
+        "refs": [
+          "boundary-collect.mjs",
+          "H2"
+        ]
+      }
+    ],
     "key_decisions": [],
-    "out_of_scope": []
+    "out_of_scope": [
+      "The parent's c45, a live run reaching a merged trunk; this thread clears its prerequisites and stops",
+      "The three items filed above the predecessor's ceiling: the last-allowed-revision scenario, the harness built-wait race, and the four dispatch kinds that carry no unit",
+      "Stale mitosis worktrees and squash-landed branches, which are housekeeping rather than correctness"
+    ]
   },
   "created_at": "2026-08-23T05:28:17.089Z",
-  "updated_at": "2026-08-23T05:28:17.089Z"
+  "updated_at": "2026-08-23T05:28:52.935Z"
 }
