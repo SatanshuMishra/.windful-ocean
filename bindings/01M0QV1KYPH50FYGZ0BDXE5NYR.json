@@ -3,10 +3,10 @@
   "thread_id": "01M0PHEKE1VMK3NREETGWVG57Z",
   "repo": "SatanshuMishra/.windful-ocean",
   "branch": "fix/gitleaks-runkey-false-positive",
-  "status": "active",
+  "status": "merged",
   "created_at": "2026-08-23T17:35:08.021Z",
-  "closed_at": null,
-  "closed_reason": null,
+  "closed_at": "2026-08-23T17:35:37.600Z",
+  "closed_reason": "merged",
   "first_commit": "45c924aeac1a596ce6c566e49fa254b42656f9ad",
   "trailer_present": true
 }

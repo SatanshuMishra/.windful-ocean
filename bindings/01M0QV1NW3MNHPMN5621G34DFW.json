@@ -3,10 +3,10 @@
   "thread_id": "01M0PHEKE1VMK3NREETGWVG57Z",
   "repo": "SatanshuMishra/.windful-ocean",
   "branch": "test/mitosis-repin-implement-fixtures",
-  "status": "active",
+  "status": "merged",
   "created_at": "2026-08-23T17:35:08.021Z",
-  "closed_at": null,
-  "closed_reason": null,
+  "closed_at": "2026-08-23T17:35:37.600Z",
+  "closed_reason": "merged",
   "first_commit": "ebba096bc26b7a39762288b9f7e926ec7fd4ce72",
   "trailer_present": true
 }
