@@ -104,6 +104,11 @@
         "ref": "0679-live-run-is-the-only-thing-worth-doing",
         "title": "Only work that moves the engine toward a completed live run gets done",
         "scope": "thread"
+      },
+      {
+        "ref": "0680-pre-create-the-harness-repository",
+        "title": "Pre-create the harness repository instead of granting repository-creation rights",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -113,5 +118,5 @@
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T17:39:48.919Z"
+  "updated_at": "2026-08-23T17:44:05.618Z"
 }
