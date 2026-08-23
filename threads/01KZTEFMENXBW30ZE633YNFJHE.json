@@ -1350,6 +1350,11 @@
         "ref": "0664-the-testing-spec-is-frozen-at-authoring",
         "title": "The testing-architecture SPEC is frozen: implement and ship it in full before proposing anything else",
         "scope": "thread"
+      },
+      {
+        "ref": "0690-reclaim-defect-fixed-before-the-billed-run",
+        "title": "The boundary reclaim defect is fixed before the billed run, not discovered by it again",
+        "scope": "c45"
       }
     ],
     "out_of_scope": [
@@ -1361,5 +1366,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-21T18:15:16.503Z"
+  "updated_at": "2026-08-23T20:11:27.114Z"
 }
