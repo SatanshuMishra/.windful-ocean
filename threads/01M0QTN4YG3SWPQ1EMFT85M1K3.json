@@ -24,7 +24,7 @@
     {
       "id": "c6",
       "text": "The one real red on the trunk is cleared so a billed run starts from a green suite: the stale spawned-child assertion is corrected, without changing engine behaviour to make it pass.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -56,34 +56,12 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Get the engine through a complete live run. The crash point and both hazards are closed; only a credential grant now stands between the lane and its first pass.",
-    "next_step": "Grant the live credential access to the harness repository: contents read and write, pull requests read and write, metadata read, and no administration. Only a human can mint or re-scope a token. Then re-trigger the lane, which costs nothing and dispatches no billed children. Merge pull requests 285 and 286 first if the trunk should carry both fixes before the run. Do not read a repeated creation error as a missing repository; the repository is verified present.",
-    "last_session": "2026-08-23: created the harness repository, fixed the crash-point race that made the last billed run ship nothing, and opened pull requests 285 and 286. The re-triggered lane failed again, now on token visibility rather than on a missing repository.",
+    "active_goal": "Prove mitosis works end to end with a billed live run. The lane passes, the trunk is green, and ship and integrate dispatches now record; the run itself is the remaining proof.",
+    "next_step": "START THE BILLED LIVE RUN — the user approved it for the next session, about five dollars and seventeen minutes. It belongs to the parent thread's c45, so run it there, not here. Every precondition is met: the trunk is green, the live lane passed against the real repository, and the boundary-fix, ci-fix and ci-fact-extract dispatches now record so the run leaves replayable material. This thread's own residual is the decompose kind under c2, which stays blocked and is not a prerequisite.",
+    "last_session": "2026-08-23: merged pull requests 287 and 288, greened the trunk, and after the human re-scoped the token the live GitHub lane passed for the first time, eighteen tests with no skips. Withdrew a wave-planner defect that did not exist.",
     "open_risks": [
       {
-        "text": "Treat the killed investigator's progress line about three confirmed mechanisms as nothing — it narrates work in flight, is not a finding, and citing it would carry an unverified claim into a fix",
-        "scope": "c2",
-        "refs": [
-          "killed dispatch 2026-08-22"
-        ]
-      },
-      {
-        "text": "Recording a dispatch may be necessary but not sufficient for replay — the stub routes by live schema identity and resolves only four kinds, so a cassette for an unrouted kind loads, is never consumed, and can still pass",
-        "scope": "c2",
-        "refs": [
-          "0674"
-        ]
-      },
-      {
-        "text": "Decisions 0666 and 0674 disagree on the dispatch-kind count, twelve against eight — do not scope a fix against either number until the code has settled which vocabulary is which",
-        "scope": "c2",
-        "refs": [
-          "0666",
-          "0674"
-        ]
-      },
-      {
-        "text": "Every billed run so far bought exactly one defect and stopped — about five dollars and seventeen minutes each, because each failure is terminal, so unobservable phases are what make a run expensive",
+        "text": "Budget one defect per billed run — each failure is terminal at about five dollars and seventeen minutes, so an unobservable phase is what makes a run expensive",
         "scope": "thread",
         "refs": [
           "0663"
@@ -98,6 +76,38 @@
         ]
       },
       {
+        "text": "Treat a receipts check that clears in seconds as a downgrade or a skip — the word reverted matches a ladder tag and short-circuits all eight re-run gates, and a tests-only diff skips them by design",
+        "scope": "thread",
+        "refs": [
+          "0688"
+        ]
+      },
+      {
+        "text": "Expect a red pull request to merge on one click — this repository has no required status checks, which is how the stale assertion reached the trunk",
+        "scope": "thread",
+        "refs": [
+          "branch protection returns 404",
+          "0686"
+        ]
+      },
+      {
+        "text": "Take a suite verdict from the fail count rather than the names in the failed log — todo-marked tests print there without counting, and reading them as failures produced a fix brief for a defect that did not exist",
+        "scope": "thread",
+        "refs": [
+          "wave-planner.test.mjs:137",
+          "CI run 32657068524"
+        ]
+      },
+      {
+        "text": "Check whether an existing test already asserts the defect before calling a fix complete — three tests across two sessions expected the broken behaviour outright, and a green suite over them hid every one",
+        "scope": "thread",
+        "refs": [
+          "boundary-gate.test.mjs",
+          "resume-state-carry.test.mjs",
+          "unit-verdict-sha.test.mjs"
+        ]
+      },
+      {
         "text": "Declare work-type chore at creation on a config-only pull request — a toml file counts as source to the enforcer, and an inert work-type value is worse than none because it disables the config-only escape",
         "scope": "thread",
         "refs": [
@@ -106,31 +116,38 @@
         ]
       },
       {
-        "text": "Check whether an existing test already asserts the defect before calling a fix complete — two tests this session expected the broken behaviour outright, and a green suite over them hid both",
-        "scope": "thread",
-        "refs": [
-          "boundary-gate.test.mjs",
-          "resume-state-carry.test.mjs"
-        ]
-      },
-      {
-        "text": "Grant the live credential access to the harness repository before re-triggering anything — the repository is created and verified, so this is the only thing still blocking the lane",
-        "scope": "c1",
-        "refs": [
-          "0683",
-          "CI run 32656517961"
-        ]
-      },
-      {
-        "text": "Never read a repeated creation error as a missing repository — the lookup returns the same empty result for a repository that is absent and for one the token simply cannot see",
+        "text": "Instrument the failing repository read before diagnosing another lane failure — an absent repository and one the token cannot see return the same empty result today",
         "scope": "c1",
         "refs": [
           "live-github-harness.mjs:183",
-          "0683"
+          "0684"
         ]
       },
       {
-        "text": "The crash-point fix lives in untracked harness scripts outside the repository — no suite and no enforcer covers them, so it is invisible to CI and lost if that artifacts directory is cleared",
+        "text": "Do not treat c2 as met at three of four kinds — decompose runs as its own process with no run store, so giving it one means fabricating a synthetic run and key",
+        "scope": "c2",
+        "refs": [
+          "run-store.mjs:121",
+          "decompose-emit.mjs:244"
+        ]
+      },
+      {
+        "text": "Treat recording as necessary but not sufficient for replay — the stub routes by live schema identity, so a cassette for an unrouted kind loads, is never consumed, and can still pass",
+        "scope": "c2",
+        "refs": [
+          "0674"
+        ]
+      },
+      {
+        "text": "Scope dispatch-kind work against twelve kinds — the code freezes twelve and refuses anything outside them, which closes the older eight-versus-twelve disagreement",
+        "scope": "c2",
+        "refs": [
+          "cassette.mjs:21-34",
+          "cassette.mjs:95-100"
+        ]
+      },
+      {
+        "text": "Preserve the untracked harness scripts holding the crash-point fix — no suite and no enforcer covers them, so the fix is invisible to CI and lost if that artifacts directory is cleared",
         "scope": "c3",
         "refs": [
           "full-e2e-lane-live.sh",
@@ -138,7 +155,7 @@
         ]
       },
       {
-        "text": "Two more unbounded recursive removals remain outside the bounded teardown — the same primitive is called directly elsewhere, so this containment does not reach them",
+        "text": "Bound the two recursive removals still outside the bounded teardown — the same primitive is called directly elsewhere, so the containment already shipped does not reach them",
         "scope": "c4",
         "refs": [
           "boundary-collect.mjs:511",
@@ -204,10 +221,10 @@
       }
     ],
     "out_of_scope": [
-      "The billed live run itself, which is the parent thread's c45 and begins only once the credential is granted",
-      "Repairing the worktree reclaim, and the lookup that cannot tell an absent repository from an invisible one; both were filed as findings this session"
+      "Repairing the worktree reclaim, filed as a finding and deliberately left untouched",
+      "Making the test and receipts jobs required status checks, which is the predecessor thread's own remaining criterion"
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T19:02:54.624Z"
+  "updated_at": "2026-08-23T19:04:26.196Z"
 }
