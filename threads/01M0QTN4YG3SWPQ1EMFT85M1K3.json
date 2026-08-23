@@ -164,6 +164,11 @@
         "ref": "0683-same-error-now-means-token-visibility",
         "title": "The repeated creation error now means token visibility, not a missing repository",
         "scope": "c1"
+      },
+      {
+        "ref": "0684-live-lane-blocked-by-pat-visibility-not-missing-repo",
+        "title": "The live lane is blocked by fine-grained PAT visibility, not by a missing repository",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -172,5 +177,5 @@
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T18:04:07.087Z"
+  "updated_at": "2026-08-23T18:31:42.988Z"
 }
