@@ -10,6 +10,7 @@ const BRANCH = 'prompt-side-effects-task';
 const BASE_BRANCH = 'main';
 const SCOPED_CHECK_CMD = Object.freeze(['node', '--version']);
 const BACKTICK_SPAN = /`([^`\n]+)`/g;
+const NODE_MODULES_EXCLUDE_SCRIPT = 'EXCLUDE_FILE="$(git rev-parse --git-path info/exclude)"; grep -qxF node_modules "$EXCLUDE_FILE" || echo node_modules >> "$EXCLUDE_FILE"';
 
 function git(cwd, argv) {
   const result = spawnSync('git', argv, { cwd, encoding: 'utf8' });
@@ -116,6 +117,12 @@ function classifyBacktickSpan(raw, fixture) {
       return Object.freeze({ verdict: 'execute', argv: words });
     }
     return Object.freeze({ verdict: 'halt', reason: `an unrecognized ln invocation appeared in the composed implement prompt: ${JSON.stringify(raw)}` });
+  }
+  if (verb === 'sh') {
+    if (sameWords(rest, ['-c', NODE_MODULES_EXCLUDE_SCRIPT])) {
+      return Object.freeze({ verdict: 'execute', argv: words });
+    }
+    return Object.freeze({ verdict: 'halt', reason: `an unrecognized sh invocation appeared in the composed implement prompt: ${JSON.stringify(raw)}` });
   }
   if (sameWords(words, fixture.scopedCheckCmd)) {
     return Object.freeze({ verdict: 'execute', argv: words });
