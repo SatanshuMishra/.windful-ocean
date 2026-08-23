@@ -174,6 +174,11 @@
         "ref": "0685-recording-lands-before-the-billed-run-harvest-after",
         "title": "Dispatch recording lands before the billed run; cassette harvest is deferred until after it",
         "scope": "c2"
+      },
+      {
+        "ref": "0686-red-trunk-defects-fixed-before-the-billed-run",
+        "title": "The two engine defects red on the trunk are fixed before the billed run, not filed",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -182,5 +187,5 @@
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T18:31:53.106Z"
+  "updated_at": "2026-08-23T18:32:02.429Z"
 }
