@@ -230,6 +230,11 @@
         "ref": "0675-no-authored-scenario-describes-real-reviewer-behaviour",
         "title": "No authored scenario describes what the real reviewer did",
         "scope": "c8"
+      },
+      {
+        "ref": "0676-runkey-is-a-false-positive-suppressed-by-regex-not-by-path",
+        "title": "The scanner hit on the recorded run is a false positive, suppressed by shape and never by path",
+        "scope": "c8"
       }
     ],
     "out_of_scope": [
@@ -239,5 +244,5 @@
     ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-23T04:56:11.390Z"
+  "updated_at": "2026-08-23T05:27:23.550Z"
 }
