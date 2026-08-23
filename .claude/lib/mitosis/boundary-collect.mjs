@@ -539,6 +539,10 @@ function attemptedRemoval(repoRoot, path, io) {
 function teardown(repoRoot, path, io, label = 'base') {
   const reported = attemptedRemoval(repoRoot, path, io);
   if (reported === null) return null;
+  const bound = within(repoRoot, path);
+  if (bound.escapes) {
+    return `the ${label} worktree at ${path} was left behind: ${reported}, and the fallback removal was refused because ${path} resolves outside the repository root ${repoRoot}, so a recursive filesystem delete never runs against it`;
+  }
   try {
     io.removePath(path);
     return null;
