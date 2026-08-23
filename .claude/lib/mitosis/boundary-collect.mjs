@@ -117,8 +117,8 @@ function describeRealPath(path) {
   } catch (error) {
     return { ok: false, error: `${real} could not be described: ${failureText(error, 'unknown stat failure')}` };
   }
-  if (stats.isFile()) return { ok: true, path: real, kind: 'a regular file', regular: true, size: stats.size };
-  return { ok: true, path: real, kind: pathKind(stats), regular: false, size: 0 };
+  if (stats.isFile()) return { ok: true, path: real, kind: 'a regular file', regular: true, size: stats.size, birthtimeMs: stats.birthtimeMs };
+  return { ok: true, path: real, kind: pathKind(stats), regular: false, size: 0, birthtimeMs: stats.birthtimeMs };
 }
 
 function describeLink(path) {
@@ -706,6 +706,7 @@ export function addedWorktree(repoRoot, path, revision, label, io) {
   const reclaim = reclaimedWorktree(repoRoot, path, io, Object.freeze({
     deadlineMs: WORKTREE_DEADLINE_MS,
     removeWorktree: (resolved) => reclaimTeardown(repoRoot, resolved, io),
+    now: Date.now(),
   }));
   if (!reclaim.reclaimed) return Object.freeze({ ok: false, error: refusedText(first, reclaim), reclaim });
   const second = materializedWorktree(repoRoot, path, revision, label, io);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join as pathJoin } from 'node:path';
-import { REAL_BOUNDARY_IO, addedWorktree } from '../boundary-collect.mjs';
+import { REAL_BOUNDARY_IO, WORKTREE_DEADLINE_MS, addedWorktree } from '../boundary-collect.mjs';
 import { reclaimedWorktree } from '../boundary-worktree-reclaim.mjs';
 
 const GIT_DEADLINE_MS = 30000;
@@ -12,6 +12,7 @@ const UNIT = 'strings-truncate';
 const REGISTRY_PREFIX = 'worktree ';
 const VICTIM_EVIDENCE = 'live uncommitted work from a parallel session\n';
 const HUMAN_LOCK_REASON = 'a human locked this';
+const GIT_INITIALIZING_LOCK_REASON = 'initializing';
 
 function gitIn(root, argv) {
   const child = REAL_BOUNDARY_IO.run('git', argv, { cwd: root, deadlineMs: GIT_DEADLINE_MS });
@@ -120,6 +121,45 @@ test('a locked worktree inside the run boundary namespace is refused with its lo
     assert.equal(materialized.ok, false, 'the reclaim reported success having removed a worktree whose lock this run never set');
     assert.match(materialized.error, new RegExp(`is locked \\(${HUMAN_LOCK_REASON}\\); this run never locks a worktree`), `the refusal is not the reclaim's own verdict on the lock, so the lock was never read and only git stopped the removal: ${materialized.error}`);
     assert.ok(registeredPaths(repo).includes(leaked), `the locked worktree at ${leaked} lost its registration`);
+  });
+});
+
+function withStaleBirth(path, ageMs) {
+  return Object.freeze({
+    ...REAL_BOUNDARY_IO,
+    describePath: (asked) => {
+      const real = REAL_BOUNDARY_IO.describePath(asked);
+      if (!real.ok || asked !== path) return real;
+      return { ...real, birthtimeMs: Date.now() - ageMs };
+    },
+  });
+}
+
+test('an initializing lock left behind by an abandoned git worktree add is reclaimed once it outlives the worktree deadline', () => {
+  withScratch((scratch, repo) => {
+    const leaked = worktreeHolding(repo, boundaryPathOf(repo, UNIT));
+    gitIn(repo.root, ['worktree', 'lock', '--reason', GIT_INITIALIZING_LOCK_REASON, '--', leaked]);
+    const abandonedIo = withStaleBirth(leaked, WORKTREE_DEADLINE_MS + 60000);
+
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', abandonedIo);
+
+    assert.equal(materialized.ok, true, `an initializing lock older than the worktree deadline was not reclaimed: ${materialized.error}`);
+    assert.equal(standing(leaked), false, `the abandoned checkout at ${leaked} is still standing after the reclaim reported success`);
+    assert.equal(readFileSync(pathJoin(leaked, 'a.txt'), 'utf8'), 'one\n', `the worktree at ${leaked} was not rebuilt at the requested revision after the reclaim`);
+  });
+});
+
+test('an initializing lock younger than the worktree deadline is refused, since a live worktree add could still hold it', () => {
+  withScratch((scratch, repo) => {
+    const leaked = worktreeHolding(repo, boundaryPathOf(repo, UNIT));
+    gitIn(repo.root, ['worktree', 'lock', '--reason', GIT_INITIALIZING_LOCK_REASON, '--', leaked]);
+
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO);
+
+    assert.equal(standing(leaked), true, `a still-young initializing lock was reclaimed and the worktree a live add could still hold was torn down at ${leaked}`);
+    assert.equal(materialized.ok, false, 'a still-young initializing lock was treated as abandoned rather than possibly live');
+    assert.match(materialized.error, new RegExp(`is locked \\(${GIT_INITIALIZING_LOCK_REASON}\\)`), `the refusal never names the lock reason: ${materialized.error}`);
+    assert.ok(registeredPaths(repo).includes(leaked), `the still-young locked worktree at ${leaked} lost its registration`);
   });
 });
 

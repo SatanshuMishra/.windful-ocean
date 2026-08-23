@@ -8,6 +8,7 @@ const WORKTREE_REGISTRY_PREFIX = 'worktree ';
 const LOCKED_FIELD = 'locked';
 const SEPARATORS = /[\\/]/;
 const REQUIRED_PORTS = Object.freeze(['run', 'describePath', 'linkKind']);
+const GIT_INITIALIZING_LOCK = 'initializing';
 
 function refusal(reason) {
   return Object.freeze({ reclaimed: false, destroyed: false, path: null, reason });
@@ -70,7 +71,7 @@ function resolvedCandidate(repoRoot, path, io) {
   if (described.path !== walked.path) {
     return { ok: false, outside: false, error: `${walked.path} resolves to ${described.path} rather than to itself, so it changed shape while it was being checked` };
   }
-  return { ok: true, outside: false, path: walked.path, error: null };
+  return { ok: true, outside: false, path: walked.path, birthtimeMs: described.birthtimeMs, error: null };
 }
 
 function lockOf(line) {
@@ -126,7 +127,29 @@ function portProblem(io, options) {
   if (options === null || typeof options !== 'object') return 'the reclaim was handed no options object';
   if (typeof options.removeWorktree !== 'function') return 'the reclaim was handed no removeWorktree port, so it could not tear a leaked worktree down';
   if (typeof options.deadlineMs !== 'number') return 'the reclaim was handed no numeric deadlineMs, so its git calls could run unbounded';
+  if (typeof options.now !== 'number') return 'the reclaim was handed no numeric now, so an initializing lock left by git could never be judged abandoned rather than merely young';
   return null;
+}
+
+function pastWorktreeDeadline(candidate, options) {
+  return typeof candidate.birthtimeMs === 'number'
+    && options.now - candidate.birthtimeMs > options.deadlineMs;
+}
+
+function abandonedByGit(lock, candidate, options) {
+  return lock === GIT_INITIALIZING_LOCK && pastWorktreeDeadline(candidate, options);
+}
+
+function unlockedForReclaim(repoRoot, resolved, io, deadlineMs) {
+  let unlocked;
+  try {
+    unlocked = io.run('git', ['worktree', 'unlock', '--', resolved], { cwd: repoRoot, deadlineMs });
+  } catch (error) {
+    return `the initializing lock git left behind at ${resolved} could not be lifted: ${spawnText(error)}`;
+  }
+  const usable = unlocked !== null && typeof unlocked === 'object' && unlocked.outcome === 'completed' && unlocked.status === 0;
+  if (usable) return null;
+  return `git declined to lift the initializing lock it left behind at ${resolved}: ${JSON.stringify(unlocked === null || unlocked === undefined ? null : unlocked.stderr)}`;
 }
 
 function removedAfterRecheck(repoRoot, path, resolved, io, options) {
@@ -149,6 +172,10 @@ export function reclaimedWorktree(repoRoot, path, io, options) {
   if (!registry.ok) return refusal(registry.error);
   const record = recordFor(registry.records, candidate.path, io);
   if (record === undefined) return NO_RECLAIM;
-  if (record.lock !== null) return refusal(lockRefusal(candidate.path, record.lock));
+  if (record.lock !== null) {
+    if (!abandonedByGit(record.lock, candidate, options)) return refusal(lockRefusal(candidate.path, record.lock));
+    const unlocked = unlockedForReclaim(repoRoot, candidate.path, io, options.deadlineMs);
+    if (unlocked !== null) return refusal(unlocked);
+  }
   return removedAfterRecheck(repoRoot, path, candidate.path, io, options);
 }
