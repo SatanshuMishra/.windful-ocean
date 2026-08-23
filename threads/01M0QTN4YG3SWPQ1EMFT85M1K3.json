@@ -114,6 +114,11 @@
         "ref": "0681-decide-the-crash-point-on-settled-state",
         "title": "Decide the crash point from settled state instead of racing to win it",
         "scope": "c3"
+      },
+      {
+        "ref": "0682-park-on-a-collection-refusal",
+        "title": "Park on a collection refusal rather than dispatching a child with nowhere to stand",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -123,5 +128,5 @@
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T17:47:26.602Z"
+  "updated_at": "2026-08-23T17:55:52.127Z"
 }
