@@ -109,6 +109,11 @@ function heldHandle(completed) {
   return probed.handle;
 }
 
+function isResumedAttempt(completed) {
+  const handle = heldHandle(completed);
+  return handle !== null && Number.isInteger(handle.attempt) && handle.attempt > 1;
+}
+
 function unitsOf(spec) {
   const units = Array.isArray(spec.specs) ? spec.specs : [];
   return units.filter((unit) => unit !== null && typeof unit === 'object' && !Array.isArray(unit));
@@ -259,6 +264,7 @@ async function integratePhase(completed, request, ports) {
     repoRoot: request.repoRoot,
     runId: runIdentityOf(advanced.manifest, request.runId),
     isolationById: isolationById(request.spec),
+    isResumedRun: isResumedAttempt(completed),
   }, {
     boundaryGate: (gate) => ports.boundaryGate(gate),
     dispatchPrompt: (dispatched) => ports.dispatchPrompt(dispatched),
