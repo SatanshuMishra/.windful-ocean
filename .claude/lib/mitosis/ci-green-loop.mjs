@@ -253,6 +253,8 @@ async function applyFix(entry, settings, input, ports) {
     prompt: composePrompt(CI_FIX_KIND, input),
     schema: CI_FIX_SCHEMA,
     cwd: settings.repoRoot,
+    unitId: entry.unitId,
+    kind: CI_FIX_KIND,
   });
   if (!isRecord(fixed) || fixed.ok !== true) {
     return `the one bounded ci fix attempt did not run to a verdict, so nothing was recorded: ${dispatchFailure(CI_FIX_KIND, fixed)}`;
@@ -300,6 +302,8 @@ async function watchUnit(entry, settings, ports) {
     prompt: composePrompt(CI_FACT_EXTRACT_KIND, factExtractInput(entry, settings, concluded.ciConclusion, failedChecks, jobs.printed)),
     schema: CI_FACT_SCHEMA,
     cwd: settings.repoRoot,
+    unitId: entry.unitId,
+    kind: CI_FACT_EXTRACT_KIND,
   }));
   if (extracted === null) {
     return outcome(entry, CI_RED_EXHAUSTED, 0, `the ci fact extraction for ${entry.unitId} named no implicated path and no failing assertion file, and an autonomous fix aimed at a file the failure never named is the outcome this loop exists to prevent`);

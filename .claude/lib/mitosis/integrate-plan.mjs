@@ -14,6 +14,7 @@ export const INTEGRATE_STATES = Object.freeze([INTEGRATED, PARKED, DIVERGED]);
 export const INTEGRATE_PARK_STAGE = 'execute';
 export const BOUNDARY_BASE_SEGMENTS = Object.freeze(['.mitosis', 'boundary']);
 export const BOUNDARY_HEAD_SUFFIX = '.head';
+export const BOUNDARY_FIX_KIND = 'boundary-fix';
 
 const REQUIRED_PORTS = Object.freeze(['boundaryGate', 'dispatchPrompt', 'teardownHeadWorktree']);
 const WORKTREE_ISOLATION = 'worktree';
@@ -199,8 +200,10 @@ function collectionRefusal(verdict) {
 async function attemptFix(entry, settings, ports, gateOutput) {
   const headPath = boundaryPathOf(settings, entry.unitId, BOUNDARY_HEAD_SUFFIX);
   const dispatched = await ports.dispatchPrompt({
-    prompt: composePrompt('boundary-fix', boundaryFixInput(entry, settings, gateOutput, headPath)),
+    prompt: composePrompt(BOUNDARY_FIX_KIND, boundaryFixInput(entry, settings, gateOutput, headPath)),
     cwd: headPath,
+    unitId: entry.unitId,
+    kind: BOUNDARY_FIX_KIND,
   });
   return Object.freeze({
     dispatches: 1,
