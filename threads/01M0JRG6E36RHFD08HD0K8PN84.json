@@ -84,9 +84,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "All eight MSPs are implemented and shipped. The remaining action is a human merge of pull request 280 and confirming its content reached the trunk.",
-    "next_step": "One human step, then the thread closes. Merge pull request 280, then confirm its content reached the trunk by ancestry rather than trusting the merged label. Read its checks yourself first; the risks say why a fast enforcer pass there proves nothing. Three items are filed above the ceiling and are new work, not pending work here: a scenario for approval on the last allowed revision, the harness built-wait race, and the four dispatch kinds that carry no unit.",
-    "last_session": "Closed c10 and c8. Built and proved the harvest machinery for free before spending, ran the one billed lane, harvested recorded cassettes, replayed the sweep, and opened pull request 280.",
+    "active_goal": "Closed. All eight MSPs of the frozen testing-architecture SPEC shipped, and pull request 280's content is confirmed on the trunk by tree comparison rather than by its merged label.",
+    "next_step": "Nothing here. Work continues on the successor thread covering the trunk-greening pass: the gitleaks runKey false positive, the implement-prompt node_modules artifact, making the test job a required check, and the absent MITOSIS_LIVE_GH_TOKEN. The parent thread's c45, a live run reaching a merged trunk, is the front after that and is still unproven.",
+    "last_session": "2026-08-22: verified pull request 280 landed by tree comparison, since a squash makes the head sha fail ancestry. Fast-forwarded the primary checkout. Found the merge went in over two red checks, one of them a new scanner false positive recorded as 0676.",
     "open_risks": [
       {
         "text": "Read pull request 280's checks yourself before merging — the test job is not a required status check here, so a red pull request merges on a single click",
@@ -244,5 +244,5 @@
     ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-23T05:27:23.550Z"
+  "updated_at": "2026-08-23T05:27:53.155Z"
 }
