@@ -184,6 +184,11 @@
         "ref": "0687-spawned-child-count-is-a-stale-expectation-not-a-regression",
         "title": "The six-versus-seven spawned-child count is a stale test expectation, not a regression",
         "scope": "thread"
+      },
+      {
+        "ref": "0688-honest-inertness-wording-downgraded-the-receipts-gate-again",
+        "title": "Honest inertness wording downgraded the receipts gate again; the downgrade is accepted, not re-litigated",
+        "scope": "c2"
       }
     ],
     "out_of_scope": [
@@ -192,5 +197,5 @@
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T18:36:28.635Z"
+  "updated_at": "2026-08-23T18:38:28.778Z"
 }
