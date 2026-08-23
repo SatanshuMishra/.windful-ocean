@@ -10,14 +10,14 @@
     {
       "id": "c1",
       "text": "The live GitHub lane executes for the first time and either passes, or its failure is traced to a named root cause at path and line rather than being retried.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c5",
       "text": "A boundary gate that could not collect the sides it compares parks the unit with its own refusal text instead of dispatching a fix child into a directory that was never created.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -31,14 +31,14 @@
     {
       "id": "c3",
       "text": "The harness built-wait race is fixed and proven by a test red on the parent commit, so a billed run cannot be killed mid-flight and charged for nothing.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c4",
       "text": "Teardown's unbounded directory removal is bounded across all three call sites, with a test proving a path outside the repository is refused.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     }
@@ -49,10 +49,32 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Make the phase the engine has never completed observable, and remove the two hazards that can waste or endanger a billed run, before paying for another one.",
-    "next_step": "START AT c1; one file read decides it. The live lane ran for the first time and failed only at creating its own repository, mitosis-live-pr-harness, which the token cannot create. Read ensureRepoExists in the harness module BEFORE advising: if it reuses an existing repository, create that repository by hand once and grant the token access, far cheaper than repository-creation rights. Then re-dispatch c2's diagnosis whole; the killed investigator returned nothing citable. Then c4, then c3.",
-    "last_session": "2026-08-22: opened, triggered the live lane for its first ever run, and had two dispatches stopped so the work moves to a fresh session. Neither agent wrote anything; liveness confirmed from git.",
+    "active_goal": "Get the engine through a complete live run. The crash point and both hazards are closed; only a credential grant now stands between the lane and its first pass.",
+    "next_step": "Grant the live credential access to the harness repository: contents read and write, pull requests read and write, metadata read, and no administration. Only a human can mint or re-scope a token. Then re-trigger the lane, which costs nothing and dispatches no billed children. Merge pull requests 285 and 286 first if the trunk should carry both fixes before the run. Do not read a repeated creation error as a missing repository; the repository is verified present.",
+    "last_session": "2026-08-23: created the harness repository, fixed the crash-point race that made the last billed run ship nothing, and opened pull requests 285 and 286. The re-triggered lane failed again, now on token visibility rather than on a missing repository.",
     "open_risks": [
+      {
+        "text": "Treat the killed investigator's progress line about three confirmed mechanisms as nothing — it narrates work in flight, is not a finding, and citing it would carry an unverified claim into a fix",
+        "scope": "c2",
+        "refs": [
+          "killed dispatch 2026-08-22"
+        ]
+      },
+      {
+        "text": "Recording a dispatch may be necessary but not sufficient for replay — the stub routes by live schema identity and resolves only four kinds, so a cassette for an unrouted kind loads, is never consumed, and can still pass",
+        "scope": "c2",
+        "refs": [
+          "0674"
+        ]
+      },
+      {
+        "text": "Decisions 0666 and 0674 disagree on the dispatch-kind count, twelve against eight — do not scope a fix against either number until the code has settled which vocabulary is which",
+        "scope": "c2",
+        "refs": [
+          "0666",
+          "0674"
+        ]
+      },
       {
         "text": "Every billed run so far bought exactly one defect and stopped — about five dollars and seventeen minutes each, because each failure is terminal, so unobservable phases are what make a run expensive",
         "scope": "thread",
@@ -77,32 +99,43 @@
         ]
       },
       {
-        "text": "The harness creates its OWN repository, mitosis-live-pr-harness — earlier guidance to scope the token to the pre-existing substrate repository was wrong, and a token scoped to one existing repository cannot serve it",
+        "text": "Check whether an existing test already asserts the defect before calling a fix complete — two tests this session expected the broken behaviour outright, and a green suite over them hid both",
+        "scope": "thread",
+        "refs": [
+          "boundary-gate.test.mjs",
+          "resume-state-carry.test.mjs"
+        ]
+      },
+      {
+        "text": "Grant the live credential access to the harness repository before re-triggering anything — the repository is created and verified, so this is the only thing still blocking the lane",
         "scope": "c1",
         "refs": [
-          "CI run 32654935845"
+          "0683",
+          "CI run 32656517961"
         ]
       },
       {
-        "text": "Treat the killed investigator's progress line about three confirmed mechanisms as nothing — it narrates work in flight, is not a finding, and citing it would carry an unverified claim into a fix",
-        "scope": "c2",
+        "text": "Never read a repeated creation error as a missing repository — the lookup returns the same empty result for a repository that is absent and for one the token simply cannot see",
+        "scope": "c1",
         "refs": [
-          "killed dispatch 2026-08-22"
+          "live-github-harness.mjs:183",
+          "0683"
         ]
       },
       {
-        "text": "Recording a dispatch may be necessary but not sufficient for replay — the stub routes by live schema identity and resolves only four kinds, so a cassette for an unrouted kind loads, is never consumed, and can still pass",
-        "scope": "c2",
+        "text": "The crash-point fix lives in untracked harness scripts outside the repository — no suite and no enforcer covers them, so it is invisible to CI and lost if that artifacts directory is cleared",
+        "scope": "c3",
         "refs": [
-          "0674"
+          "full-e2e-lane-live.sh",
+          "full-e2e-lib.sh"
         ]
       },
       {
-        "text": "Decisions 0666 and 0674 disagree on the dispatch-kind count, twelve against eight — do not scope a fix against either number until the code has settled which vocabulary is which",
-        "scope": "c2",
+        "text": "Two more unbounded recursive removals remain outside the bounded teardown — the same primitive is called directly elsewhere, so this containment does not reach them",
+        "scope": "c4",
         "refs": [
-          "0666",
-          "0674"
+          "boundary-collect.mjs:511",
+          "run-store.mjs:599"
         ]
       }
     ],
@@ -134,11 +167,10 @@
       }
     ],
     "out_of_scope": [
-      "The billed live run itself, which is the parent thread's c45 and begins only once these four land",
-      "Teaching the replay stub the full eight-kind vocabulary, which 0674 places out of scope as an engine-behaviour change",
-      "The predecessor thread's c3, making the test job a required check, which is blocked on a human action in the GitHub UI"
+      "The billed live run itself, which is the parent thread's c45 and begins only once the credential is granted",
+      "Repairing the worktree reclaim, and the lookup that cannot tell an absent repository from an invisible one; both were filed as findings this session"
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T18:03:10.186Z"
+  "updated_at": "2026-08-23T18:04:03.975Z"
 }
