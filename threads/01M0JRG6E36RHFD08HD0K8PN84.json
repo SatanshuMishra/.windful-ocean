@@ -190,6 +190,11 @@
         "ref": "0673-billed-run-accepts-the-late-crash-resume-kill",
         "title": "The M8 billed run proceeds without fixing the late crash-resume kill",
         "scope": "c8"
+      },
+      {
+        "ref": "0674-harvest-and-replay-design-for-recorded-cassettes",
+        "title": "Recorded cassettes fold onto the four kinds the replayer can actually route",
+        "scope": "c8"
       }
     ],
     "out_of_scope": [
@@ -199,5 +204,5 @@
     ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-23T04:03:53.274Z"
+  "updated_at": "2026-08-23T04:04:09.002Z"
 }
