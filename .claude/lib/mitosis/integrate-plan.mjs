@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { NOT_COMPARABLE_CLASSIFIER } from './boundary-gate.mjs';
+import { NOT_COMPARABLE_CLASSIFIER, REFUSAL_CLASSIFIER } from './boundary-gate.mjs';
 import { divergedParents } from './divergence.mjs';
 import { LEGAL_STAGES, transitiveDependents } from './parking.mjs';
 import { deriveOverlapEdges, withOverlapDependsOn } from './overlap-order.mjs';
@@ -190,6 +190,12 @@ function notComparableRefusal(verdict) {
   return found === undefined ? null : (nonEmptyText(found.detail) ?? verdict.output);
 }
 
+function collectionRefusal(verdict) {
+  if (!Array.isArray(verdict.blocking)) return null;
+  const found = verdict.blocking.find((item) => isRecord(item) && item.classifier === REFUSAL_CLASSIFIER);
+  return found === undefined ? null : (nonEmptyText(found.detail) ?? verdict.output);
+}
+
 async function attemptFix(entry, settings, ports, gateOutput) {
   const headPath = boundaryPathOf(settings, entry.unitId, BOUNDARY_HEAD_SUFFIX);
   const dispatched = await ports.dispatchPrompt({
@@ -209,6 +215,10 @@ async function gatedOutcome(entry, request, settings, ports) {
   const structural = notComparableRefusal(first);
   if (structural !== null) {
     return outcome(entry, PARKED, 0, `the gate could not compare this unit against a base distinct from its own tree, and no fix a child could make would change that: ${structural}`);
+  }
+  const refused = collectionRefusal(first);
+  if (refused !== null) {
+    return outcome(entry, PARKED, 0, `the gate could not collect the sides it needed to compare, so no worktree exists for a boundary-fix child to work in: ${refused}`);
   }
   const attempt = await attemptFix(entry, settings, ports, first.output);
   if (!attempt.ran) {

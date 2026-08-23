@@ -9,7 +9,7 @@ import { REAL_BOUNDARY_IO, addedWorktree } from '../boundary-collect.mjs';
 
 const UNIT = 'strings-truncate';
 const CHECKPOINT = 'refs/mitosis/run4/strings-truncate';
-const REFUSAL_DETAIL = 'the base worktree could not be created at .mitosis/boundary/run4/strings-truncate because a registered worktree already holds that path';
+const NEW_FINDING_DETAIL = 'eslint identity "no-unused-vars:src/strings.mjs:12" appeared on head only';
 const SPAWN_DETAIL = 'spawn ENOENT: the working directory the child was given does not exist';
 
 function refusingConfig() {
@@ -22,17 +22,17 @@ function refusingConfig() {
   };
 }
 
-function collectionRefusedVerdict() {
+function newBoundaryFindingVerdict() {
   return {
     pass: false,
-    output: REFUSAL_DETAIL,
-    blocking: [{ classifier: 'collection-refused', detail: REFUSAL_DETAIL }],
+    output: `1 new finding(s) this MSP introduced: ${NEW_FINDING_DETAIL}`,
+    blocking: [{ classifier: 'new-finding', detail: NEW_FINDING_DETAIL }],
     notExpected: [],
     usedCachedCensus: false,
     baseCensus: null,
     leaked: null,
-    comparedIdentities: 0,
-    notComparable: true,
+    comparedIdentities: 1,
+    notComparable: false,
   };
 }
 
@@ -60,7 +60,7 @@ function summarizedOutcome(summary) {
 test('a unit parked because its one bounded boundary-fix child never ran carries that reason into the integrate summary', async () => {
   const dispatches = [];
   const plan = await integrateBuilt(refusingConfig(), {
-    boundaryGate: async () => collectionRefusedVerdict(),
+    boundaryGate: async () => newBoundaryFindingVerdict(),
     dispatchPrompt: async (dispatched) => {
       dispatches.push(dispatched);
       return { ok: false, outcome: 'spawn-failed', error: SPAWN_DETAIL };

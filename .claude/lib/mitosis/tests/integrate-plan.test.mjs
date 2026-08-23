@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { gateBaseChain, integrateBuilt, integrateSummary, topologicalOrder } from '../integrate-plan.mjs';
+import { REFUSAL_CLASSIFIER } from '../boundary-gate.mjs';
 import { pack } from './file-scope-fixtures.mjs';
 
 function msp(id, fileScope, dependsOn = []) {
@@ -163,4 +164,33 @@ test('integrate walks the same waiting unit the moment the run reaches quiescenc
 
   assert.deepEqual(plan.outcomes.map((entry) => [entry.unitId, entry.state]), [['add-truncate-to-strings', 'parked']]);
   assert.match(plan.parked[0].diagnosis, /carries no checkpoint ref/);
+});
+
+test('a unit whose boundary gate refuses to collect is parked without dispatching a boundary-fix child into a worktree the gate never built', async () => {
+  const dispatches = [];
+  const detail = 'the base worktree could not be created at .mitosis/boundary/run1/add-truncate-to-strings because no worktree was ever registered for it';
+  const plan = await integrateBuilt(integrateConfig({
+    quiescent: true,
+    built: [built('add-truncate-to-strings', 'refs/mitosis/run1/add-truncate-to-strings')],
+  }), {
+    boundaryGate: async () => ({
+      pass: false,
+      output: detail,
+      blocking: [{ classifier: REFUSAL_CLASSIFIER, detail }],
+      baseCensus: null,
+    }),
+    dispatchPrompt: async (dispatched) => {
+      dispatches.push(dispatched);
+      return { ok: true };
+    },
+    teardownHeadWorktree: async () => {},
+  });
+
+  const outcome = plan.outcomes.find((entry) => entry.unitId === 'add-truncate-to-strings');
+
+  assert.equal(dispatches.length, 0, 'a boundary-fix child was dispatched for a unit whose gate never built a tree for it to work in');
+  assert.equal(outcome.state, 'parked');
+  assert.equal(outcome.boundaryFixes, 0);
+  assert.equal(typeof outcome.diagnosis, 'string');
+  assert.ok(outcome.diagnosis.includes(detail), `the parked diagnosis did not carry the gate's refusal text: ${outcome.diagnosis}`);
 });
