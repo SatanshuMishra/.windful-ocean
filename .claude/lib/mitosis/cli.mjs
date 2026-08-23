@@ -27,7 +27,7 @@ import { publishShipHead } from './ship-publish.mjs';
 import { resolveAll } from './superpowers-prompts.mjs';
 import { parseLsRemote } from './transcription-parsers.mjs';
 import { JUDGMENT_VERDICT_SCHEMA, readJudgment, runJudgment } from './unit-judgment.mjs';
-import { planningSummary } from './unit-planning.mjs';
+import { PLAN_ARTIFACT_SCHEMA, PLAN_REVIEW_VERDICT_SCHEMA, planningSummary } from './unit-planning.mjs';
 import { DIAGNOSIS_SCHEMA, IMPLEMENT_STAGE, planRemediatedAttempt } from './unit-remediation.mjs';
 
 const MODULE = 'mitosis-cli';
@@ -68,6 +68,9 @@ const JUDGMENT_KIND_ORDER = Object.freeze(['review', 'security']);
 const IMPLEMENT_KIND = 'implement';
 const REDISPATCH_KIND = 'redispatch';
 const DIAGNOSE_KIND = 'diagnose';
+const PLAN_KIND = 'plan';
+const PLAN_REVIEW_KIND = 'plan-review';
+const REPLAN_KIND = 'replan';
 
 const REQUIRED_FLAGS = Object.freeze({
   '--spec': 'spec',
@@ -215,6 +218,8 @@ function promptHashOf(prompt) {
 function schemaNameOf(schema) {
   if (schema === JUDGMENT_VERDICT_SCHEMA) return 'JUDGMENT_VERDICT_SCHEMA';
   if (schema === DIAGNOSIS_SCHEMA) return 'DIAGNOSIS_SCHEMA';
+  if (schema === PLAN_ARTIFACT_SCHEMA) return 'PLAN_ARTIFACT_SCHEMA';
+  if (schema === PLAN_REVIEW_VERDICT_SCHEMA) return 'PLAN_REVIEW_VERDICT_SCHEMA';
   return null;
 }
 
@@ -232,6 +237,7 @@ function dispatchKindTracker() {
   const iterations = new Map();
   let judgmentsSeen = 0;
   let implementFamilySeen = 0;
+  let planFamilySeen = 0;
   const nextIteration = (kind) => {
     const next = (iterations.get(kind) ?? 0) + 1;
     iterations.set(kind, next);
@@ -244,6 +250,12 @@ function dispatchKindTracker() {
       return { kind, iteration: nextIteration(kind) };
     }
     if (schema === DIAGNOSIS_SCHEMA) return { kind: DIAGNOSE_KIND, iteration: nextIteration(DIAGNOSE_KIND) };
+    if (schema === PLAN_REVIEW_VERDICT_SCHEMA) return { kind: PLAN_REVIEW_KIND, iteration: nextIteration(PLAN_REVIEW_KIND) };
+    if (schema === PLAN_ARTIFACT_SCHEMA) {
+      planFamilySeen += 1;
+      const kind = planFamilySeen === 1 ? PLAN_KIND : REPLAN_KIND;
+      return { kind, iteration: nextIteration(kind) };
+    }
     implementFamilySeen += 1;
     const kind = implementFamilySeen === 1 ? IMPLEMENT_KIND : REDISPATCH_KIND;
     return { kind, iteration: nextIteration(kind) };
@@ -271,6 +283,18 @@ function recordingDispatchFn(dispatchFn, unitId, observedAt, recordDispatch) {
     });
     if (thrown !== null) throw thrown;
     return verdict;
+  };
+}
+
+function recordingPlanDispatchFn(dispatchFn, dispatchState, recordDispatch) {
+  const wrapped = new Map();
+  return (request) => {
+    const unitId = typeof request.unitId === 'string' && request.unitId.length > 0 ? request.unitId : null;
+    if (unitId === null) return dispatchFn(request);
+    if (!wrapped.has(unitId)) {
+      wrapped.set(unitId, recordingDispatchFn(dispatchFn, unitId, dispatchState.at, recordDispatch));
+    }
+    return wrapped.get(unitId)(request);
   };
 }
 
@@ -577,6 +601,11 @@ export function driverPorts(io, makePorts, deps, repoRoot) {
   const observePlanFn = deps.observePlan === undefined ? defaultObservePlan : deps.observePlan;
   const waitFn = deps.wait === undefined ? realWait : deps.wait;
   const dispatchState = { handle: null, at: null };
+  const dispatchPlanFn = recordingPlanDispatchFn(
+    (request) => dispatchFn(request),
+    dispatchState,
+    dispatchStateRecorder(dispatchState),
+  );
   return Object.freeze({
     openRun: (request) => openRunFn(request),
     skillPointers: () => skillPointersFn(),
@@ -585,7 +614,7 @@ export function driverPorts(io, makePorts, deps, repoRoot) {
     reconcile: reconcilePort(io, runFn, repoRoot),
     boundaryGate: (request) => boundaryGateFn(request),
     teardownHeadWorktree: (request) => teardownHeadWorktreeFn(request),
-    dispatchPrompt: (request) => dispatchFn(request),
+    dispatchPrompt: (request) => dispatchPlanFn(request),
     openPullRequest: (request) => runFn(NODE_BINARY, request.argv, { cwd: request.cwd, deadlineMs: GH_DEADLINE_MS }),
     appendJournal: (request) => appendJournalFn(request),
     writeGenesis: (request) => writeGenesisFn(request),
