@@ -66,14 +66,14 @@
     {
       "id": "c10",
       "text": "Make the recorder see the planning phase: PR 279 merges, the primary checkout fast-forwards past it, and recordDispatch is confirmed present in the live run-store.mjs before any money is spent.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
     {
       "id": "c8",
       "text": "M8: one billed single-lane run harvests cassettes with provenance recorded and a sourceRun, and the M4 sweep re-runs against them with any outcome difference reported as a finding.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     }
@@ -84,9 +84,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Close the instrument so a green pipeline proves mitosis works live, then finish M8 as the proof run.",
-    "next_step": "Three steps, the first two human. 1: merge PR 279, whose CI is clean at 3203 tests and 3200 pass, its one failure being the node_modules defect already red on main. 2: fast-forward the primary checkout with merge --ff-only origin/main; safe, since no incoming commit touches the eight dirty documentation files. 3: then M8, which runs the single billed lane, harvests cassettes carrying provenance and a sourceRun, and re-runs the M4 sweep against them.",
-    "last_session": "Verified 278 landed by content parity, not ancestry. Proved the trunk carries one real failure, not fifteen. Closed M7 as evidence with no repository change. Found the recorder blind to planning before any money was spent, and opened PR 279 to fix it.",
+    "active_goal": "All eight MSPs are implemented and shipped. The remaining action is a human merge of pull request 280 and confirming its content reached the trunk.",
+    "next_step": "One human step, then the thread closes. Merge pull request 280, then confirm its content reached the trunk by ancestry rather than trusting the merged label. Read its checks yourself first; the risks say why a fast enforcer pass there proves nothing. Three items are filed above the ceiling and are new work, not pending work here: a scenario for approval on the last allowed revision, the harness built-wait race, and the four dispatch kinds that carry no unit.",
+    "last_session": "Closed c10 and c8. Built and proved the harvest machinery for free before spending, ran the one billed lane, harvested recorded cassettes, replayed the sweep, and opened pull request 280.",
     "open_risks": [
       {
         "text": "Read this suite's verdict from CI rather than any local run — the primary checkout is the only honest local reader, a fresh clone adds fourteen false failures, and a linked worktree censuses an empty set",
@@ -127,6 +127,51 @@
         "refs": [
           "boundary-collect.mjs",
           "H2"
+        ]
+      },
+      {
+        "text": "Read pull request 280's checks yourself before merging — the test job is not a required status check here, so a red pull request merges on a single click",
+        "scope": "c8",
+        "refs": [
+          "PR 280"
+        ]
+      },
+      {
+        "text": "Treat a fast enforcer pass on pull request 280 as the gate declining to referee — a diff carrying no source short-circuits it and the mutation gate never runs",
+        "scope": "c8",
+        "refs": [
+          "PR 280"
+        ]
+      },
+      {
+        "text": "Pin the engine root to the primary checkout on every sweep run — the driver defaults to a linked worktree, which censuses an empty set and passes vacuously",
+        "scope": "c8",
+        "refs": [
+          "full-e2e-sweep-driver.mjs",
+          "full-e2e-sweep-authored-baseline-2026-08-22"
+        ]
+      },
+      {
+        "text": "Leave the engine root unset when running a billed lane — its default is the primary checkout, and pointing it at a worktree is why the previous billed run recorded nothing",
+        "scope": "c8",
+        "refs": [
+          "full-e2e.sh",
+          "0673"
+        ]
+      },
+      {
+        "text": "Nine of the ten sweep scenarios still replay hand-authored responses and prove nothing about real model behaviour — only one unit was ever recorded",
+        "scope": "c8",
+        "refs": [
+          "m8-strings-truncate-f0117e2e.json"
+        ]
+      },
+      {
+        "text": "The recorded set is not a census of every dispatch — four dispatch kinds carry no unit and are never recorded at all",
+        "scope": "c8",
+        "refs": [
+          "cli.mjs",
+          "0674"
         ]
       }
     ],
@@ -203,11 +248,11 @@
       }
     ],
     "out_of_scope": [
-      "Changing what the planner or reviewer models are asked to do; the four-of-four first-plan rejection rate measured on 2026-08-21 is filed as an observation, not fixed here",
-      "The ship-publish.mjs bypass of the dependency-injection seam, which M4 names as a limit of the sweep rather than repairing",
-      "Any engine change not required to make a failure observable, except the M4 row 8 resume fix, which is the worked example proving the instrument finds real defects"
+      "Changing what the planner or reviewer models are asked to do; the first-plan rejection rate is an observation, not a defect fixed here",
+      "The bypass of the dependency-injection seam in the publish path, named as a limit of the sweep rather than repaired",
+      "Any engine change not required to make a failure observable"
     ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-23T04:50:51.918Z"
+  "updated_at": "2026-08-23T04:55:56.006Z"
 }
