@@ -87,7 +87,13 @@
         ]
       }
     ],
-    "key_decisions": [],
+    "key_decisions": [
+      {
+        "ref": "0677-node-modules-bootstrap-hides-in-the-git-exclude-file",
+        "title": "The node_modules bootstrap is hidden in the git exclude file, not in the tracked ignore file",
+        "scope": "c2"
+      }
+    ],
     "out_of_scope": [
       "The parent's c45, a live run reaching a merged trunk; this thread clears its prerequisites and stops",
       "The three items filed above the predecessor's ceiling: the last-allowed-revision scenario, the harness built-wait race, and the four dispatch kinds that carry no unit",
@@ -95,5 +101,5 @@
     ]
   },
   "created_at": "2026-08-23T05:28:17.089Z",
-  "updated_at": "2026-08-23T05:28:52.935Z"
+  "updated_at": "2026-08-23T05:33:16.085Z"
 }
