@@ -119,6 +119,11 @@
         "ref": "0682-park-on-a-collection-refusal",
         "title": "Park on a collection refusal rather than dispatching a child with nowhere to stand",
         "scope": "c1"
+      },
+      {
+        "ref": "0683-same-error-now-means-token-visibility",
+        "title": "The repeated creation error now means token visibility, not a missing repository",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -128,5 +133,5 @@
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T17:55:52.127Z"
+  "updated_at": "2026-08-23T17:59:26.861Z"
 }
