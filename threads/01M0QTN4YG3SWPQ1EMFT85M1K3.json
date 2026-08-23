@@ -43,8 +43,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Make the phase the engine has never completed observable, and remove the two hazards that can waste or endanger a billed run, before paying for another one.",
-    "next_step": "Three strands are in flight. The live GitHub lane was triggered for the first time as run 32654935845 and its result must be read. An investigator is naming which dispatch kinds go unrecorded and whether they are the ship phase ones. An implementer is bounding teardown's directory removal. The built-wait race is not started. The billed run itself is NOT this thread's work; it is the parent's c45.",
-    "last_session": "2026-08-22: opened after the trunk went green and the live token was set. The four items are the prerequisites recommended before spending on another billed run.",
+    "next_step": "START AT c1; one file read decides it. The live lane ran for the first time and failed only at creating its own repository, mitosis-live-pr-harness, which the token cannot create. Read ensureRepoExists in the harness module BEFORE advising: if it reuses an existing repository, create that repository by hand once and grant the token access, far cheaper than repository-creation rights. Then re-dispatch c2's diagnosis whole; the killed investigator returned nothing citable. Then c4, then c3.",
+    "last_session": "2026-08-22: opened, triggered the live lane for its first ever run, and had two dispatches stopped so the work moves to a fresh session. Neither agent wrote anything; liveness confirmed from git.",
     "open_risks": [
       {
         "text": "Every billed run so far bought exactly one defect and stopped — about five dollars and seventeen minutes each, because each failure is terminal, so unobservable phases are what make a run expensive",
@@ -93,5 +93,5 @@
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T17:29:58.134Z"
+  "updated_at": "2026-08-23T17:33:17.450Z"
 }
