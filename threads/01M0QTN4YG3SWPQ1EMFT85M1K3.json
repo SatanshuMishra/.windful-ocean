@@ -56,9 +56,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Prove mitosis works end to end with a billed live run. The lane passes, the trunk is green, and ship and integrate dispatches now record; the run itself is the remaining proof.",
-    "next_step": "START THE BILLED LIVE RUN — the user approved it for the next session, about five dollars and seventeen minutes. It belongs to the parent thread's c45, so run it there, not here. Every precondition is met: the trunk is green, the live lane passed against the real repository, and the boundary-fix, ci-fix and ci-fact-extract dispatches now record so the run leaves replayable material. This thread's own residual is the decompose kind under c2, which stays blocked and is not a prerequisite.",
-    "last_session": "2026-08-23: merged pull requests 287 and 288, greened the trunk, and after the human re-scoped the token the live GitHub lane passed for the first time, eighteen tests with no skips. Withdrew a wave-planner defect that did not exist.",
+    "active_goal": "Make the ship phase observable and get a live run to open a pull request; the blocker is now that a failed review parks the unit instead of looping a fix.",
+    "next_step": "START BY EXPLAINING, THEN STOP. First, concisely break down for a reader with no domain knowledge why the billed run opened no pull request: the review lens correctly failed the implementation, so the unit parked for a human. Keep it short. Then recommend next steps, worst first, led by tracing why a failed review parks instead of using the remediation modules that already exist. Then WAIT for specific instructions - do not dispatch, do not start work, do not spend.",
+    "last_session": "2026-08-23: fixed the boundary reclaim defect across three rounds and opened pull request 289; the billed run then parked because the review lens correctly failed the implementation, so no pull request opened and the crash fix went unexercised.",
     "open_risks": [
       {
         "text": "Budget one defect per billed run — each failure is terminal at about five dollars and seventeen minutes, so an unobservable phase is what makes a run expensive",
@@ -124,6 +124,63 @@
         ]
       },
       {
+        "text": "Preserve the untracked harness scripts holding the crash-point fix — no suite and no enforcer covers them, so the fix is invisible to CI and lost if that artifacts directory is cleared",
+        "scope": "c3",
+        "refs": [
+          "full-e2e-lane-live.sh",
+          "full-e2e-lib.sh"
+        ]
+      },
+      {
+        "text": "Bound the two recursive removals still outside the bounded teardown — the same primitive is called directly elsewhere, so the containment already shipped does not reach them",
+        "scope": "c4",
+        "refs": [
+          "boundary-collect.mjs:511",
+          "run-store.mjs:599"
+        ]
+      },
+      {
+        "text": "Check whether remediation is merely unwired before calling the retry gap a defect — modules for planning and prompting a fix already exist in the tree",
+        "scope": "c2",
+        "refs": [
+          "unit-remediation.mjs",
+          "remediate-plan.mjs",
+          "prompt-remediate.mjs",
+          "0692"
+        ]
+      },
+      {
+        "text": "Do not treat the boundary reclaim fix as proven — the billed run never crashed, so the path it repairs was never entered",
+        "scope": "c2",
+        "refs": [
+          "PR 289",
+          "bfea5aa3"
+        ]
+      },
+      {
+        "text": "Prove crash recovery with a local zero-cost test rather than another billed run — a paid run only exercises the race when the timing happens to land",
+        "scope": "c2",
+        "refs": [
+          "full-e2e-lane-live.sh",
+          "0692"
+        ]
+      },
+      {
+        "text": "Read the run cost as a floor rather than a measurement — usage recorded one dispatch of four",
+        "scope": "c2",
+        "refs": [
+          "usage.jsonl",
+          "0692"
+        ]
+      },
+      {
+        "text": "Do not cite the declared-criteria comparison log for this run — it was never regenerated and still describes the previous one",
+        "scope": "c2",
+        "refs": [
+          "full-e2e-single-compare-declared-pass-criteria.log"
+        ]
+      },
+      {
         "text": "Do not treat c2 as met at three of four kinds — decompose runs as its own process with no run store, so giving it one means fabricating a synthetic run and key",
         "scope": "c2",
         "refs": [
@@ -144,22 +201,6 @@
         "refs": [
           "cassette.mjs:21-34",
           "cassette.mjs:95-100"
-        ]
-      },
-      {
-        "text": "Preserve the untracked harness scripts holding the crash-point fix — no suite and no enforcer covers them, so the fix is invisible to CI and lost if that artifacts directory is cleared",
-        "scope": "c3",
-        "refs": [
-          "full-e2e-lane-live.sh",
-          "full-e2e-lib.sh"
-        ]
-      },
-      {
-        "text": "Bound the two recursive removals still outside the bounded teardown — the same primitive is called directly elsewhere, so the containment already shipped does not reach them",
-        "scope": "c4",
-        "refs": [
-          "boundary-collect.mjs:511",
-          "run-store.mjs:599"
         ]
       }
     ],
@@ -221,10 +262,10 @@
       }
     ],
     "out_of_scope": [
-      "Repairing the worktree reclaim, filed as a finding and deliberately left untouched",
-      "Making the test and receipts jobs required status checks, which is the predecessor thread's own remaining criterion"
+      "Making the test and receipts jobs required status checks, which is the predecessor thread's own remaining criterion",
+      "Merging pull request 289, which is human-gated and never done from a session"
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T19:04:26.196Z"
+  "updated_at": "2026-08-23T22:22:36.137Z"
 }
