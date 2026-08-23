@@ -189,6 +189,11 @@
         "ref": "0688-honest-inertness-wording-downgraded-the-receipts-gate-again",
         "title": "Honest inertness wording downgraded the receipts gate again; the downgrade is accepted, not re-litigated",
         "scope": "c2"
+      },
+      {
+        "ref": "0689-the-live-github-lane-passed-for-the-first-time",
+        "title": "The live GitHub lane passed for the first time, against a real repository, not a skip",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -197,5 +202,5 @@
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T18:38:28.778Z"
+  "updated_at": "2026-08-23T18:53:03.031Z"
 }
