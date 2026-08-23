@@ -10,7 +10,7 @@
     {
       "id": "c1",
       "text": "The scanner stops reporting the recorded run's runKey, suppressed by field shape and not by path, proven by a full-history scan before and after with both total counts and a positive control.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -36,8 +36,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Clear the three prerequisites that make the next billed live run worth paying for: a truthful secret scanner, a prompt that leaves no artifact, and a test job that can block a red merge.",
-    "next_step": "MERGE PULL REQUEST 284, the scanner config. 283 was closed unmerged and superseded because a body cannot carry the downgrade tag after creation. Its enforcer pass is a DOWNGRADE pass, not a cleared gate: the enforcer's own line reads PASS - honest downgrade unverified-reasoned present - tracked, not claimed as verified. After merging, confirm arrival by tree comparison, mark c1, then do c3 by making the test job a required check on main, which is now safe because the trunk is green.",
-    "last_session": "2026-08-22: trunk went green after 282. The scanner config blocked on the receipt gate, which collides with the configuration exemption, so it ships as a tracked downgrade under 0678 and superseded 283 as pull request 284.",
+    "next_step": "Only c3 remains and it needs no human: make the test job a required status check on main, now safe because the trunk is green at 41532e17. Nothing is denied there, so it is one API call plus a read-back to confirm it took. After that the thread closes and the front returns to the parent's c45, a live run reaching a merged trunk, which is still unproven. Two human steps sit outside this thread: setting MITOSIS_LIVE_GH_TOKEN, and ruling on the filed receipt-versus-configuration gap.",
+    "last_session": "2026-08-22: c1 and c2 both landed. The trunk is green on tests and security at 41532e17, with only the live-GitHub lane red for its absent token. Two accidents were absorbed: a swallowed follow-up commit and a receipt gate collision.",
     "open_risks": [
       {
         "text": "The scanner check on the gitleaks fix's own pull request does not exercise the fix — it diffs the base tip against the head, and the offending commit is already on the trunk, so its green is not evidence",
@@ -106,5 +106,5 @@
     ]
   },
   "created_at": "2026-08-23T05:28:17.089Z",
-  "updated_at": "2026-08-23T06:14:47.723Z"
+  "updated_at": "2026-08-23T16:46:18.373Z"
 }
