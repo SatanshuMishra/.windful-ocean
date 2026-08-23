@@ -99,7 +99,13 @@
         ]
       }
     ],
-    "key_decisions": [],
+    "key_decisions": [
+      {
+        "ref": "0679-live-run-is-the-only-thing-worth-doing",
+        "title": "Only work that moves the engine toward a completed live run gets done",
+        "scope": "thread"
+      }
+    ],
     "out_of_scope": [
       "The billed live run itself, which is the parent thread's c45 and begins only once these four land",
       "Teaching the replay stub the full eight-kind vocabulary, which 0674 places out of scope as an engine-behaviour change",
@@ -107,5 +113,5 @@
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T17:39:33.769Z"
+  "updated_at": "2026-08-23T17:39:48.919Z"
 }
