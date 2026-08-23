@@ -36,8 +36,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Clear the three prerequisites that make the next billed live run worth paying for: a truthful secret scanner, a prompt that leaves no artifact, and a test job that can block a red merge.",
-    "next_step": "MERGE PULL REQUEST 282 FIRST — the trunk is red without it, on two fixture tests whose re-pin was stranded when 281 merged mid-round. Its test check already passed, so it is direct evidence the trunk goes green. After it merges, confirm content arrival by tree comparison, then delete the stranded branch fix/mitosis-implement-prompt-artifact, which is no longer the only home of that commit. Then c3, making the test job required, becomes safe. c1's implementer is still running.",
-    "last_session": "2026-08-22: c2's fix merged as 281 but its fixture re-pin was swallowed by the merge, reddening the trunk on two tests. Recovered onto a fresh branch as pull request 282, whose test check passes.",
+    "next_step": "MERGE PULL REQUEST 284, the scanner config. 283 was closed unmerged and superseded because a body cannot carry the downgrade tag after creation. Its enforcer pass is a DOWNGRADE pass, not a cleared gate: the enforcer's own line reads PASS - honest downgrade unverified-reasoned present - tracked, not claimed as verified. After merging, confirm arrival by tree comparison, mark c1, then do c3 by making the test job a required check on main, which is now safe because the trunk is green.",
+    "last_session": "2026-08-22: trunk went green after 282. The scanner config blocked on the receipt gate, which collides with the configuration exemption, so it ships as a tracked downgrade under 0678 and superseded 283 as pull request 284.",
     "open_risks": [
       {
         "text": "The scanner check on the gitleaks fix's own pull request does not exercise the fix — it diffs the base tip against the head, and the offending commit is already on the trunk, so its green is not evidence",
@@ -106,5 +106,5 @@
     ]
   },
   "created_at": "2026-08-23T05:28:17.089Z",
-  "updated_at": "2026-08-23T06:12:43.029Z"
+  "updated_at": "2026-08-23T06:14:47.723Z"
 }
