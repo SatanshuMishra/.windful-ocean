@@ -92,6 +92,11 @@
         "ref": "0677-node-modules-bootstrap-hides-in-the-git-exclude-file",
         "title": "The node_modules bootstrap is hidden in the git exclude file, not in the tracked ignore file",
         "scope": "c2"
+      },
+      {
+        "ref": "0678-a-scanner-config-ships-under-the-ladder-not-under-a-manufactured-test",
+        "title": "A scanner config ships as a tracked downgrade, because no honest in-suite test exists for it",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -101,5 +106,5 @@
     ]
   },
   "created_at": "2026-08-23T05:28:17.089Z",
-  "updated_at": "2026-08-23T05:43:17.407Z"
+  "updated_at": "2026-08-23T06:12:43.029Z"
 }
