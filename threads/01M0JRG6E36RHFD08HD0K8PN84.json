@@ -52,14 +52,14 @@
     {
       "id": "c9",
       "text": "Green the trunk and land the stranded sweep: the two census guards main fails are fixed and pull request 277's swallowed content is cherry-picked forward, in one pull request against main.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
     {
       "id": "c7",
       "text": "M7: each of the five named failure branches carries a test that reddens when that branch is deleted, with the assertion quoted, or is filed as an explicit gap naming the branch.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -77,42 +77,49 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Close the instrument so a green pipeline is proof mitosis will work live and a red one means it will not, then finish M7 and M8.",
-    "next_step": "Four items in order, then stop. 1: merge 278, delete feat/mitosis-cassette-loader, confirm the ref is gone. 2: triage main's 15 failures once into fix or file, one pass, no exploration. 3: make the test job a required check so red cannot accumulate unseen. 4: M7, then M8 as the proof run. Verify every step from a foreign-path clone at the head SHA, never inside a worktree. File everything else and open no further review rounds.",
-    "last_session": "2026-08-21: shipped M1 to M6, merged as 273-276. 277 merged into a live base branch and never reached the trunk; recovered with the two census fixes as 278. Root cause of the repair cycles named: census tests pass vacuously inside a worktree.",
+    "active_goal": "Close the instrument so a green pipeline proves mitosis works live, then finish M8 as the proof run.",
+    "next_step": "Three steps, the first two human. 1: merge PR 279, whose CI is clean at 3203 tests and 3200 pass, its one failure being the node_modules defect already red on main. 2: fast-forward the primary checkout with merge --ff-only origin/main; safe, since no incoming commit touches the eight dirty documentation files. 3: then M8, which runs the single billed lane, harvests cassettes carrying provenance and a sourceRun, and re-runs the M4 sweep against them.",
+    "last_session": "Verified 278 landed by content parity, not ancestry. Proved the trunk carries one real failure, not fifteen. Closed M7 as evidence with no repository change. Found the recorder blind to planning before any money was spent, and opened PR 279 to fix it.",
     "open_risks": [
       {
-        "text": "Verify from a disposable clone at the head SHA, never inside a worktree — the census and lint tests skip any path holding /worktrees/, so they pass over an empty set exactly where agents work, and that is what let 17 failures reach the trunk",
+        "text": "Read this suite's verdict from CI rather than any local run — the primary checkout is the only honest local reader, a fresh clone adds fourteen false failures, and a linked worktree censuses an empty set",
         "scope": "thread",
         "refs": [
-          "attribution-census.test.mjs",
+          "canonical-config-dir.mjs",
           "0669",
-          "memory: census-tests-false-pass-inside-a-worktree"
+          "CI run 32536091141"
         ]
       },
       {
-        "text": "Triage main's 15 pre-existing failures in one pass and no more — until the trunk is green a red pipeline cannot mean anything, and the test job is not a required check so nothing stops more red arriving",
+        "text": "Leave the test job off the required checks until the node_modules trailing-slash defect is fixed — it is genuinely red on main today, so requiring it would block every pull request",
         "scope": "thread",
         "refs": [
-          "f3304b86",
-          "0670"
+          "prompt-side-effects.test.mjs:155",
+          "PR 274",
+          "PR 271"
         ]
       },
       {
-        "text": "Treat teardown's unbounded directory removal as live — it deleted a directory outside the repository and returned success, and three existing call sites still reach it including the one wired as a port",
+        "text": "Fast-forward the primary checkout before any billed run — the harness reads the engine from there, and recordDispatch is absent from its working tree, so a run today would record nothing",
+        "scope": "thread",
+        "refs": [
+          "run-store.mjs",
+          "origin/main 14c4b268"
+        ]
+      },
+      {
+        "text": "Read a pull request's checks yourself before merging it — the test job is not a required status check here, so GitHub will merge a red pull request on a single click",
+        "scope": "thread",
+        "refs": [
+          "PR 279"
+        ]
+      },
+      {
+        "text": "Treat teardown's unbounded directory removal as live — it deleted a directory outside the repository and returned success, and three call sites still reach it including the one wired as a port",
         "scope": "thread",
         "refs": [
           "boundary-collect.mjs",
           "H2"
-        ]
-      },
-      {
-        "text": "The committed node_modules symlink is still unfixed on the trunk — the earlier fix changed the boundary gate's worktree, not the one the child builds from prompt text, which is why M5's test is red on main and should stay red",
-        "scope": "thread",
-        "refs": [
-          "PR 274",
-          "PR 271",
-          "prompt-execute.mjs"
         ]
       }
     ],
@@ -180,5 +187,5 @@
     ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-23T02:58:11.022Z"
+  "updated_at": "2026-08-23T03:19:09.668Z"
 }
