@@ -22,6 +22,13 @@
       "struck_by": null
     },
     {
+      "id": "c6",
+      "text": "The one real red on the trunk is cleared so a billed run starts from a green suite: the stale spawned-child assertion is corrected, without changing engine behaviour to make it pass.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c2",
       "text": "The four dispatch kinds that carry no unit become recordable, so ship and integrate can be replayed from real responses instead of hand-authored guesses.",
       "done": false,
@@ -202,5 +209,5 @@
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-23T18:53:03.031Z"
+  "updated_at": "2026-08-23T19:02:54.624Z"
 }
