@@ -5,6 +5,7 @@ import { removeHeadWorktree } from './boundary-collect.mjs';
 import { evaluate } from './boundary-gate.mjs';
 import { Done, NeedsHuman } from './boundary.mjs';
 import { validateRefToken } from './checkpoint.mjs';
+import { DISPATCH_KINDS } from './cassette.mjs';
 import { dispatch, normalizeEnvelope } from './dispatch.mjs';
 import { SHA_HEX_PATTERN } from './divergence.mjs';
 import { POST_DISPATCH_RECORD_FAILED } from './engine.mjs';
@@ -243,7 +244,11 @@ function dispatchKindTracker() {
     iterations.set(kind, next);
     return next;
   };
-  return (schema) => {
+  return (payload) => {
+    if (typeof payload.kind === 'string' && DISPATCH_KINDS.includes(payload.kind)) {
+      return { kind: payload.kind, iteration: nextIteration(payload.kind) };
+    }
+    const schema = payload.schema;
     if (schema === JUDGMENT_VERDICT_SCHEMA) {
       judgmentsSeen += 1;
       const kind = JUDGMENT_KIND_ORDER[Math.min(judgmentsSeen, JUDGMENT_KIND_ORDER.length) - 1];
@@ -266,7 +271,7 @@ function recordingDispatchFn(dispatchFn, unitId, observedAt, recordDispatch) {
   if (typeof recordDispatch !== 'function') return dispatchFn;
   const nextKind = dispatchKindTracker();
   return async (payload) => {
-    const { kind, iteration } = nextKind(payload.schema);
+    const { kind, iteration } = nextKind(payload);
     let verdict;
     let thrown = null;
     try {
