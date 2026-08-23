@@ -64,6 +64,13 @@
       "struck_by": null
     },
     {
+      "id": "c10",
+      "text": "Make the recorder see the planning phase: PR 279 merges, the primary checkout fast-forwards past it, and recordDispatch is confirmed present in the live run-store.mjs before any money is spent.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c8",
       "text": "M8: one billed single-lane run harvests cassettes with provenance recorded and a sourceRun, and the M4 sweep re-runs against them with any outcome difference reported as a finding.",
       "done": false,
@@ -187,5 +194,5 @@
     ]
   },
   "created_at": "2026-08-21T18:14:31.619Z",
-  "updated_at": "2026-08-23T03:19:09.668Z"
+  "updated_at": "2026-08-23T03:19:24.625Z"
 }
