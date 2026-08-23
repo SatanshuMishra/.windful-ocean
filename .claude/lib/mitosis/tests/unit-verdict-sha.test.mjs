@@ -235,7 +235,7 @@ test('a worktree unit whose child reports no sha is still refused rather than ch
 
 test('the unit child is asked for its verdict against a schema, which is what makes its sha available', async (t) => {
   const { calls } = await emitThenRun(t);
-  assert.equal(calls.length, 7, 'the run did not spawn exactly one decompose child, one plan child, one plan-review child, one unit child, one review child, one security child and the one bounded boundary fix Integrate composes for the unit this same invocation built');
+  assert.equal(calls.length, 6, 'the run did not spawn exactly one decompose child, one plan child, one plan-review child, one unit child, one review child and one security child; Integrate composes no boundary-fix child here because the gate refuses to collect in this scratch root, and a refusal builds no worktree for such a child to work in');
   const unitArgv = calls[3].argv;
   const at = unitArgv.indexOf('--json-schema');
   assert.notEqual(at, -1, 'the unit child was dispatched with no --json-schema, so its envelope carries no structured_output at all');
