@@ -163,6 +163,32 @@ test('an initializing lock younger than the worktree deadline is refused, since 
   });
 });
 
+test('an initializing lock left behind seconds ago by a crashed prior attempt is reclaimed once this run holds a confirmed-dead predecessor lock', () => {
+  withScratch((scratch, repo) => {
+    const leaked = worktreeHolding(repo, boundaryPathOf(repo, UNIT));
+    gitIn(repo.root, ['worktree', 'lock', '--reason', GIT_INITIALIZING_LOCK_REASON, '--', leaked]);
+
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO, true);
+
+    assert.equal(materialized.ok, true, `a seconds-old initializing lock from a confirmed-dead prior attempt was not reclaimed: ${materialized.error}`);
+    assert.equal(standing(leaked), false, `the abandoned checkout at ${leaked} is still standing after the reclaim reported success`);
+    assert.equal(readFileSync(pathJoin(leaked, 'a.txt'), 'utf8'), 'one\n', `the worktree at ${leaked} was not rebuilt at the requested revision after the reclaim`);
+  });
+});
+
+test('an initializing lock is refused when this run carries no confirmed-dead predecessor, even seconds after the lock was set', () => {
+  withScratch((scratch, repo) => {
+    const leaked = worktreeHolding(repo, boundaryPathOf(repo, UNIT));
+    gitIn(repo.root, ['worktree', 'lock', '--reason', GIT_INITIALIZING_LOCK_REASON, '--', leaked]);
+
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO, false);
+
+    assert.equal(standing(leaked), true, `a lock with no confirmed-dead predecessor was reclaimed and the worktree a live add could still hold was torn down at ${leaked}`);
+    assert.equal(materialized.ok, false, 'an initializing lock was treated as abandoned with no confirmed-dead predecessor to justify it');
+    assert.match(materialized.error, new RegExp(`is locked \\(${GIT_INITIALIZING_LOCK_REASON}\\)`), `the refusal never names the lock reason: ${materialized.error}`);
+  });
+});
+
 test('a leaf swapped to a symlink after the candidate was resolved is refused and the checkout it points at survives', () => {
   withScratch((scratch, repo) => {
     const victim = worktreeHolding(repo, pathJoin(scratch, 'victim-checkout'));

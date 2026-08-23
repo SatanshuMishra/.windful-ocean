@@ -103,6 +103,7 @@ function requireConfig(config) {
     mergedShas: isRecord(config.mergedShas) ? config.mergedShas : Object.freeze({}),
     baseBranch: safeGateBase(config.manifest.baseBranch),
     isolationById: config.isolationById instanceof Map ? config.isolationById : new Map(),
+    isResumedRun: config.isResumedRun === true,
   });
 }
 
@@ -167,6 +168,7 @@ function gateRequest(entry, gateBase, settings) {
     basePath: boundaryPathOf(settings, entry.unitId, ''),
     headRef: checkpointRefOf(entry),
     headPath: boundaryPathOf(settings, entry.unitId, BOUNDARY_HEAD_SUFFIX),
+    isResumedRun: settings.isResumedRun,
   });
 }
 

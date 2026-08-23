@@ -128,6 +128,9 @@ function portProblem(io, options) {
   if (typeof options.removeWorktree !== 'function') return 'the reclaim was handed no removeWorktree port, so it could not tear a leaked worktree down';
   if (typeof options.deadlineMs !== 'number') return 'the reclaim was handed no numeric deadlineMs, so its git calls could run unbounded';
   if (typeof options.now !== 'number') return 'the reclaim was handed no numeric now, so an initializing lock left by git could never be judged abandoned rather than merely young';
+  if (Object.hasOwn(options, 'priorAttemptDead') && typeof options.priorAttemptDead !== 'boolean') {
+    return `the reclaim was handed a priorAttemptDead of ${JSON.stringify(options.priorAttemptDead)} rather than a boolean, so a resumed run's claim over its own dead attempt could not be told apart from ambiguous input`;
+  }
   return null;
 }
 
@@ -137,7 +140,9 @@ function pastWorktreeDeadline(candidate, options) {
 }
 
 function abandonedByGit(lock, candidate, options) {
-  return lock === GIT_INITIALIZING_LOCK && pastWorktreeDeadline(candidate, options);
+  if (lock !== GIT_INITIALIZING_LOCK) return false;
+  if (options.priorAttemptDead === true) return true;
+  return pastWorktreeDeadline(candidate, options);
 }
 
 function unlockedForReclaim(repoRoot, resolved, io, deadlineMs) {
