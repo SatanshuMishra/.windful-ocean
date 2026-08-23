@@ -1360,6 +1360,11 @@
         "ref": "0691-reclaim-review-findings-filed-not-folded",
         "title": "Seven reclaim review findings are filed against the standard rather than folded into the fix",
         "scope": "c45"
+      },
+      {
+        "ref": "0692-review-failure-park-outranks-the-crash-defect",
+        "title": "The billed run parked on a failed review, making the missing fix loop the blocker that outranks the crash defect",
+        "scope": "c45"
       }
     ],
     "out_of_scope": [
@@ -1371,5 +1376,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-23T20:56:02.854Z"
+  "updated_at": "2026-08-23T22:21:38.721Z"
 }
