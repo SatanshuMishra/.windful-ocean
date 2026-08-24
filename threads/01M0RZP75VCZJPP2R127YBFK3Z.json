@@ -296,6 +296,11 @@
         "ref": "0716-substantive-audit-of-the-remaining-twelve-briefs",
         "title": "The twelve remaining briefs shared one defect: a captured exit code with no stated disposition",
         "scope": "c1"
+      },
+      {
+        "ref": "0717-plugin-load-proof-drops-bare-for-a-negative-control",
+        "title": "The plugin-load proof drops the isolation flag and identifies the plugin by path, with an empty-directory control",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -305,5 +310,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T18:39:33.795Z"
+  "updated_at": "2026-08-24T18:54:24.606Z"
 }
