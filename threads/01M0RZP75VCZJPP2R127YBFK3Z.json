@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "id": "01M0RZP75VCZJPP2R127YBFK3Z",
+  "slug": "mitosis-extraction-implementation",
+  "title": "Mitosis extraction implementation: the twenty-two-MSP migration",
+  "status": "active",
+  "parent_id": "01M0QTN4YG3SWPQ1EMFT85M1K3",
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "id": "c1",
+      "text": "The repository exists, the import landed by git archive with no untracked file carried, and continuous integration runs on every pull request.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c2",
+      "text": "The suite is hermetic and tracked-files based: identical pass, fail and total counts from three locations, and an untracked ignored directory changes nothing.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c3",
+      "text": "A vacuous pass is structurally impossible: all six mutations make the lane exit non-zero, each with its fired message quoted.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c4",
+      "text": "Every dispatch outcome and review verdict in the engine's closed vocabularies reaches its declared terminal state through a free replay run.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c5",
+      "text": "The plugin loads from a published repository and the host carries no reference to the removed engine, with every continuous-integration job green in both repositories.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    }
+  ],
+  "vcs_ref": null,
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "active_goal": "",
+    "next_step": "",
+    "last_session": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-08-24T04:15:35.611Z",
+  "updated_at": "2026-08-24T04:15:35.611Z"
+}
