@@ -286,6 +286,11 @@
         "ref": "0714-carry-the-agent-generate-subsystem-as-its-own-unit",
         "title": "The missing modules are carried as their own unit, and the set is six rather than the seven first reported",
         "scope": "c1"
+      },
+      {
+        "ref": "0715-brief-repair-lands-behind-a-lint-that-had-its-own-defect",
+        "title": "The brief repair is gated by a code-block lint that first carried the defect it checked for",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -295,5 +300,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T17:40:19.190Z"
+  "updated_at": "2026-08-24T18:32:33.764Z"
 }
