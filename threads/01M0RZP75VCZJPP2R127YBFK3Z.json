@@ -208,6 +208,11 @@
         "ref": "0706-the-required-check-carries-no-bypass-actor",
         "title": "The required status check carries no bypass actor",
         "scope": "c1"
+      },
+      {
+        "ref": "0707-p9-passes-tree-findings-deferred",
+        "title": "P9 passes at the import base and its tree-scan findings defer to the publication unit",
+        "scope": "c6"
       }
     ],
     "out_of_scope": [
@@ -217,5 +222,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T06:32:27.408Z"
+  "updated_at": "2026-08-24T07:07:43.220Z"
 }
