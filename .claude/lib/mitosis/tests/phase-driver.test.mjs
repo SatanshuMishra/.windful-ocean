@@ -440,7 +440,7 @@ test('a run whose handle carries attempt 2 marks the gate request as a resumed r
   const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', progress: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
   const stub = stubbedPorts({
     readJournal: () => journal,
-    openRun: () => Object.freeze({ runKey: 'a1b2c3d4e5f60718', attempt: 2 }),
+    openRun: () => Object.freeze({ runKey: 'aaaaaaaaaaaaaaaa', attempt: 2 }),
   });
   await runPhases(runRequest(), stub.ports);
   assert.equal(stub.gated.length, 1, 'the gate must have run exactly once for the one built unit, or the isResumedRun assertion below checks nothing');
