@@ -313,6 +313,11 @@
         "ref": "0721-census-stays-in-u2-1-and-the-data-file-carry-folds-into-u2-2",
         "title": "The census stays inside its unit and the data-file carry folds into the next one",
         "scope": "c1"
+      },
+      {
+        "ref": "0722-census-keeps-per-site-entries-rather-than-growing-suppression-rules",
+        "title": "The census keeps per-site allowlist entries rather than growing more suppression rules",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -322,5 +327,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T21:41:37.604Z"
+  "updated_at": "2026-08-24T21:41:49.377Z"
 }
