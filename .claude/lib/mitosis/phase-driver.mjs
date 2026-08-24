@@ -1,5 +1,6 @@
 import { driveCiToGreen } from './ci-green-loop.mjs';
 import { runEngine } from './engine.mjs';
+import { epochMsFromIso } from './instant-epoch.mjs';
 import { integrateBuilt } from './integrate-plan.mjs';
 import { PHASE_TITLES } from './phases.mjs';
 import { planRemediation } from './remediate-plan.mjs';
@@ -265,6 +266,7 @@ async function integratePhase(completed, request, ports) {
     runId: runIdentityOf(advanced.manifest, request.runId),
     isolationById: isolationById(request.spec),
     isResumedRun: isResumedAttempt(completed),
+    nowMs: epochMsFromIso(request.at),
   }, {
     boundaryGate: (gate) => ports.boundaryGate(gate),
     dispatchPrompt: (dispatched) => ports.dispatchPrompt(dispatched),

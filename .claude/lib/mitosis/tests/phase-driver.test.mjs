@@ -264,6 +264,7 @@ test('a unit built during this invocation is gated against the base the run decl
     headRef: 'refs/mitosis/0a1b2c3d/alpha',
     headPath: '/repo/.mitosis/boundary/r1/alpha.head',
     isResumedRun: false,
+    nowMs: 1786795200000,
   }]);
   assert.deepEqual(stub.refs.map((write) => write.ref), ['refs/mitosis/0a1b2c3d/alpha']);
   assert.deepEqual(
@@ -422,6 +423,7 @@ test('a built unit is gated once against the declared base branch, and integrate
     headRef: 'refs/mitosis/9e8d7c6b/alpha',
     headPath: '/repo/.mitosis/boundary/r1/alpha.head',
     isResumedRun: false,
+    nowMs: 1786795200000,
   }]);
   assert.deepEqual(stub.dispatched, [], 'a clean gate composes no boundary-fix prompt');
   assert.deepEqual(driven.phases.Integrate.outcomes, [{
@@ -554,6 +556,7 @@ test('a run, a unit and a base branch a digit opens are keyed into the gate exac
     headRef: 'refs/mitosis/9e8d7c6b/9delta',
     headPath: '/repo/.mitosis/boundary/9f0/9delta.head',
     isResumedRun: false,
+    nowMs: 1786795200000,
   }]);
   assert.deepEqual(driven.phases.Integrate.integrated.map((entry) => entry.unitId), ['9delta']);
   assert.deepEqual(driven.phases.Integrate.parked, []);
@@ -574,6 +577,7 @@ test('a manifest whose declared run identity is empty keys the gate path on the 
     headRef: 'refs/mitosis/0a1b2c3d/9delta',
     headPath: '/repo/.mitosis/boundary/0a1b2c3d/9delta.head',
     isResumedRun: false,
+    nowMs: 1786795200000,
   }]);
   assert.deepEqual(driven.phases.Integrate.integrated.map((entry) => entry.unitId), ['9delta']);
 });

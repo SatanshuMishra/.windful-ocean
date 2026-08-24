@@ -85,7 +85,7 @@ test('a leaked worktree reached through a symlinked leaf is refused and the chec
     mkdirSync(dirname(leaf), { recursive: true });
     symlinkSync(victim, leaf, 'dir');
 
-    const materialized = addedWorktree(repo.root, leaf, repo.head, 'base', REAL_BOUNDARY_IO);
+    const materialized = addedWorktree(repo.root, leaf, repo.head, 'base', REAL_BOUNDARY_IO, false, Date.now());
 
     assert.equal(standing(victim), true, `the reclaim followed a symlinked leaf out of the run boundary namespace and destroyed the checkout at ${victim}`);
     assert.equal(materialized.ok, false, 'the reclaim accepted a leaf that is a symbolic link, so containment was decided on text the filesystem does not agree with');
@@ -102,7 +102,7 @@ test('a leaked worktree reached through a symlinked namespace segment is refused
     const victim = worktreeHolding(repo, pathJoin(outside, RUN_ID, UNIT));
     const candidate = pathJoin(repo.root, '.mitosis', 'boundary', RUN_ID, UNIT);
 
-    const materialized = addedWorktree(repo.root, candidate, repo.head, 'base', REAL_BOUNDARY_IO);
+    const materialized = addedWorktree(repo.root, candidate, repo.head, 'base', REAL_BOUNDARY_IO, false, Date.now());
 
     assert.equal(standing(victim), true, `the reclaim followed a symlinked namespace segment out of the repository and destroyed the checkout at ${victim}`);
     assert.equal(materialized.ok, false, 'the reclaim reported success having torn down a checkout an intermediate symbolic link pointed it at');
@@ -115,7 +115,7 @@ test('a locked worktree inside the run boundary namespace is refused with its lo
     const leaked = worktreeHolding(repo, boundaryPathOf(repo, UNIT));
     gitIn(repo.root, ['worktree', 'lock', '--reason', HUMAN_LOCK_REASON, '--', leaked]);
 
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO);
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO, false, Date.now());
 
     assert.equal(standing(leaked), true, `the reclaim lifted a lock it did not set and tore down the worktree at ${leaked}`);
     assert.equal(materialized.ok, false, 'the reclaim reported success having removed a worktree whose lock this run never set');
@@ -141,7 +141,7 @@ test('an initializing lock left behind by an abandoned git worktree add is recla
     gitIn(repo.root, ['worktree', 'lock', '--reason', GIT_INITIALIZING_LOCK_REASON, '--', leaked]);
     const abandonedIo = withStaleBirth(leaked, WORKTREE_DEADLINE_MS + 60000);
 
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', abandonedIo);
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', abandonedIo, false, Date.now());
 
     assert.equal(materialized.ok, true, `an initializing lock older than the worktree deadline was not reclaimed: ${materialized.error}`);
     assert.equal(standing(leaked), false, `the abandoned checkout at ${leaked} is still standing after the reclaim reported success`);
@@ -154,7 +154,7 @@ test('an initializing lock younger than the worktree deadline is refused, since 
     const leaked = worktreeHolding(repo, boundaryPathOf(repo, UNIT));
     gitIn(repo.root, ['worktree', 'lock', '--reason', GIT_INITIALIZING_LOCK_REASON, '--', leaked]);
 
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO);
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO, false, Date.now());
 
     assert.equal(standing(leaked), true, `a still-young initializing lock was reclaimed and the worktree a live add could still hold was torn down at ${leaked}`);
     assert.equal(materialized.ok, false, 'a still-young initializing lock was treated as abandoned rather than possibly live');
@@ -168,7 +168,7 @@ test('an initializing lock left behind seconds ago by a crashed prior attempt is
     const leaked = worktreeHolding(repo, boundaryPathOf(repo, UNIT));
     gitIn(repo.root, ['worktree', 'lock', '--reason', GIT_INITIALIZING_LOCK_REASON, '--', leaked]);
 
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO, true);
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO, true, Date.now());
 
     assert.equal(materialized.ok, true, `a seconds-old initializing lock from a confirmed-dead prior attempt was not reclaimed: ${materialized.error}`);
     assert.equal(standing(leaked), false, `the abandoned checkout at ${leaked} is still standing after the reclaim reported success`);
@@ -181,7 +181,7 @@ test('an initializing lock is refused when this run carries no confirmed-dead pr
     const leaked = worktreeHolding(repo, boundaryPathOf(repo, UNIT));
     gitIn(repo.root, ['worktree', 'lock', '--reason', GIT_INITIALIZING_LOCK_REASON, '--', leaked]);
 
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO, false);
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO, false, Date.now());
 
     assert.equal(standing(leaked), true, `a lock with no confirmed-dead predecessor was reclaimed and the worktree a live add could still hold was torn down at ${leaked}`);
     assert.equal(materialized.ok, false, 'an initializing lock was treated as abandoned with no confirmed-dead predecessor to justify it');
@@ -207,7 +207,7 @@ test('a leaf swapped to a symlink after the candidate was resolved is refused an
       },
     });
 
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', swappingIo);
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', swappingIo, false, Date.now());
 
     assert.equal(swapped, true, 'the worktree registry was never read, so this run never opened the window the swap needs and proves nothing');
     assert.equal(standing(victim), true, `a leaf swapped after the candidate was resolved destroyed the checkout at ${victim}`);
@@ -224,7 +224,7 @@ test('a candidate whose real path cannot be resolved is refused rather than comp
     rmSync(leaked, { recursive: true, force: true });
     symlinkSync(pathJoin(victim, 'no-such-child'), leaked, 'dir');
 
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO);
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO, false, Date.now());
 
     assert.equal(standing(victim), true, `the reclaim destroyed the checkout at ${victim} while acting on a path it could not resolve`);
     assert.equal(shapeAt(leaked), 'a symbolic link', `the reclaim acted on the unresolvable path at ${leaked} instead of refusing, leaving a registration no later add can get past`);
@@ -264,7 +264,7 @@ test('an ancestor swapped to a symlink inside the removal window is refused and 
       },
     });
 
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', swappingIo);
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', swappingIo, false, Date.now());
 
     assert.equal(swapped, true, 'no removal was ever attempted, so this run never opened the window the swap needs and proves nothing');
     assert.deepEqual(stillCarrying(planted), planted, `an ancestor swapped inside the removal window was followed out of the run boundary namespace and the files under ${victim} were destroyed`);
@@ -303,7 +303,7 @@ test('a unit directory whose name carries a path separator is never treated as i
   withScratch((scratch, repo) => {
     const leaked = worktreeHolding(repo, boundaryPathOf(repo, SEPARATED_UNIT));
 
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO);
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO, false, Date.now());
 
     assert.equal(materialized.ok, false, 'a unit name carrying a path separator was accepted, so containment was decided on a segment that means one thing here and another elsewhere');
     assert.deepEqual(materialized.reclaim, UNTOUCHED, `a unit name carrying a path separator was reclaimed: ${JSON.stringify(materialized.reclaim)}`);
@@ -318,7 +318,7 @@ test('a namespace segment whose link kind cannot be read is refused and the work
       linkKind: (asked) => (asked === leaked ? { ok: false, error: 'permission denied' } : REAL_BOUNDARY_IO.linkKind(asked)),
     });
 
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', blind);
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', blind, false, Date.now());
 
     assert.equal(standing(leaked), true, `the worktree at ${leaked} was torn down on the strength of an inspection that failed`);
     assert.equal(materialized.ok, false, 'the reclaim acted on a segment whose link kind it could never read');
@@ -332,7 +332,7 @@ test('a regular file occupying the unit path is refused as no directory a leaked
     mkdirSync(dirname(occupied), { recursive: true });
     writeFileSync(occupied, VICTIM_EVIDENCE);
 
-    const materialized = addedWorktree(repo.root, occupied, repo.head, 'base', REAL_BOUNDARY_IO);
+    const materialized = addedWorktree(repo.root, occupied, repo.head, 'base', REAL_BOUNDARY_IO, false, Date.now());
 
     assert.equal(materialized.ok, false, 'the reclaim reported success over a path no worktree could be standing at');
     assert.match(materialized.error, /is not a directory, so no leaked worktree could be standing there/, `the refusal never names the kind of entry that stopped it: ${materialized.error}`);
@@ -344,7 +344,7 @@ test('a repository root that cannot be resolved is refused rather than walked as
   withScratch((scratch, repo) => {
     const leaked = worktreeHolding(repo, boundaryPathOf(repo, UNIT));
 
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', describingOnly(repo.root, { ok: false, error: 'the root is gone' }));
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', describingOnly(repo.root, { ok: false, error: 'the root is gone' }), false, Date.now());
 
     assert.equal(standing(leaked), true, `the worktree at ${leaked} was torn down while the repository root it was measured against was never resolved`);
     assert.equal(materialized.ok, false, 'the reclaim walked a repository root it could not resolve');
@@ -356,7 +356,7 @@ test('a candidate whose resolution fails at the last step is refused and the wor
   withScratch((scratch, repo) => {
     const leaked = worktreeHolding(repo, boundaryPathOf(repo, UNIT));
 
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', describingOnly(leaked, { ok: false, error: 'the candidate is gone' }));
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', describingOnly(leaked, { ok: false, error: 'the candidate is gone' }), false, Date.now());
 
     assert.equal(standing(leaked), true, `the worktree at ${leaked} was torn down on a real path that was never established`);
     assert.equal(materialized.ok, false, 'the reclaim acted on a candidate whose real path it could not resolve');
@@ -370,7 +370,7 @@ test('a candidate that resolves to somewhere other than itself is refused and th
     const elsewhere = pathJoin(scratch, 'elsewhere');
     const answer = { ok: true, path: elsewhere, kind: 'a directory', regular: false, size: 0 };
 
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', describingOnly(leaked, answer));
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', describingOnly(leaked, answer), false, Date.now());
 
     assert.equal(standing(leaked), true, `the worktree at ${leaked} was torn down though the path it resolves to disagreed with the path that was walked`);
     assert.equal(materialized.ok, false, 'the reclaim accepted a candidate that resolves somewhere other than itself');
@@ -383,7 +383,7 @@ test('a worktree registry that cannot be spawned is refused rather than read as 
     const leaked = worktreeHolding(repo, boundaryPathOf(repo, UNIT));
     const unspawnable = registryAnswering(() => { throw new Error('the registry could not be spawned'); });
 
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', unspawnable);
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', unspawnable, false, Date.now());
 
     assert.equal(standing(leaked), true, `the worktree at ${leaked} was acted on without the registry that says whether git owns it`);
     assert.equal(materialized.ok, false, 'the reclaim carried on with no registry to check the candidate against');
@@ -396,7 +396,7 @@ test('a worktree registry git did not complete is refused rather than read as an
     const leaked = worktreeHolding(repo, boundaryPathOf(repo, UNIT));
     const unreadable = registryAnswering(() => ({ outcome: 'completed', status: 128, stdout: '', stderr: 'the registry is unreadable' }));
 
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', unreadable);
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', unreadable, false, Date.now());
 
     assert.equal(standing(leaked), true, `the worktree at ${leaked} was acted on against a registry listing git never completed`);
     assert.equal(materialized.ok, false, 'the reclaim carried on with a registry listing git reported it could not produce');
@@ -410,7 +410,7 @@ test('a directory occupying the run boundary namespace that git registers as no 
     mkdirSync(occupied, { recursive: true });
     writeFileSync(pathJoin(occupied, 'evidence.txt'), VICTIM_EVIDENCE);
 
-    const materialized = addedWorktree(repo.root, occupied, repo.head, 'base', REAL_BOUNDARY_IO);
+    const materialized = addedWorktree(repo.root, occupied, repo.head, 'base', REAL_BOUNDARY_IO, false, Date.now());
 
     assert.equal(standing(occupied), true, `the directory at ${occupied} was torn down though git registers no worktree there`);
     assert.equal(materialized.ok, false, 'the add reported success over a path something else already occupies');

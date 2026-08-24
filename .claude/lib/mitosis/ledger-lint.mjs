@@ -1,10 +1,10 @@
 import { readdirSync, readFileSync, statSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { DAY_MS, epochMsFromCivil, epochMsFromIso } from './instant-epoch.mjs';
 
 export const DEFAULT_MAX_AGE_DAYS = 14;
 
-const DAY_MS = 86400000;
 const SOURCE_EXTENSIONS = new Set(['.mjs', '.js', '.cjs', '.ts', '.tsx', '.jsx']);
 const COMMIT_HASH = '[0-9a-f]{7,40}';
 const IDENTIFIER = '[A-Za-z_$][A-Za-z0-9_$]*';
@@ -13,44 +13,6 @@ const IDENTIFIER_RE = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
 function escapeIdentifier(name) {
   return String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-const MONTH_LENGTHS = Object.freeze([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]);
-
-function isLeapYear(year) {
-  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-}
-
-function daysInMonth(year, month) {
-  return month === 2 && isLeapYear(year) ? 29 : MONTH_LENGTHS[month - 1];
-}
-
-function daysFromCivil(year, month, day) {
-  const shifted = month <= 2 ? year - 1 : year;
-  const era = Math.floor(shifted / 400);
-  const yearOfEra = shifted - era * 400;
-  const dayOfYear = Math.floor((153 * (month + (month > 2 ? -3 : 9)) + 2) / 5) + day - 1;
-  const dayOfEra = yearOfEra * 365 + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100) + dayOfYear;
-  return era * 146097 + dayOfEra - 719468;
-}
-
-function epochMsFromCivil(year, month, day) {
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
-  if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) return null;
-  return daysFromCivil(year, month, day) * DAY_MS;
-}
-
-function epochMsFromIso(text) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?Z?)?$/.exec(String(text ?? ''));
-  if (match === null) return null;
-  const midnight = epochMsFromCivil(Number(match[1]), Number(match[2]), Number(match[3]));
-  if (midnight === null) return null;
-  const hours = match[4] === undefined ? 0 : Number(match[4]);
-  const minutes = match[5] === undefined ? 0 : Number(match[5]);
-  const seconds = match[6] === undefined ? 0 : Number(match[6]);
-  const millis = match[7] === undefined ? 0 : Number(match[7].padEnd(3, '0'));
-  if (hours > 23 || minutes > 59 || seconds > 59) return null;
-  return midnight + hours * 3600000 + minutes * 60000 + seconds * 1000 + millis;
 }
 
 function requireNow(options, caller) {

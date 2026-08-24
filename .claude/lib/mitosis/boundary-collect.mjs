@@ -700,13 +700,13 @@ function retriedText(first, second, reclaim) {
   return `${second.error}; this followed the removal of the leaked worktree at ${reclaim.path}, whose original refusal was: ${first.error}`;
 }
 
-export function addedWorktree(repoRoot, path, revision, label, io, priorAttemptDead = false) {
+export function addedWorktree(repoRoot, path, revision, label, io, priorAttemptDead = false, nowMs) {
   const first = materializedWorktree(repoRoot, path, revision, label, io);
   if (first.ok) return excludedWorktree(path, label, io, NO_RECLAIM);
   const reclaim = reclaimedWorktree(repoRoot, path, io, Object.freeze({
     deadlineMs: WORKTREE_DEADLINE_MS,
     removeWorktree: (resolved) => reclaimTeardown(repoRoot, resolved, io),
-    now: Date.now(),
+    now: nowMs,
     priorAttemptDead: priorAttemptDead === true,
   }));
   if (!reclaim.reclaimed) return Object.freeze({ ok: false, error: refusedText(first, reclaim), reclaim });
@@ -756,7 +756,7 @@ function staleHeadWorktree(repoRoot, headPath, headRef, io) {
 }
 
 function collectedAgainstHead(request, io) {
-  const { repoRoot, gateBase, basePath, headPath, headRef, isResumedRun } = request;
+  const { repoRoot, gateBase, basePath, headPath, headRef, isResumedRun, nowMs } = request;
   if (io.exists(headPath)) {
     const state = staleHeadWorktree(repoRoot, headPath, headRef, io);
     if (state.stale) {
@@ -767,11 +767,11 @@ function collectedAgainstHead(request, io) {
           error: `the head worktree at ${headPath} sits at ${state.actualSha}, not the requested ${headRef} (${state.requestedSha}), and could not be cleared to re-materialize: ${cleared}`,
         };
       }
-      const materialized = addedWorktree(repoRoot, headPath, headRef, 'head', io, isResumedRun === true);
+      const materialized = addedWorktree(repoRoot, headPath, headRef, 'head', io, isResumedRun === true, nowMs);
       if (!materialized.ok) return materialized;
     }
   } else {
-    const materialized = addedWorktree(repoRoot, headPath, headRef, 'head', io, isResumedRun === true);
+    const materialized = addedWorktree(repoRoot, headPath, headRef, 'head', io, isResumedRun === true, nowMs);
     if (!materialized.ok) return materialized;
   }
   const linked = linkedModules(repoRoot, headPath, io);
@@ -784,8 +784,8 @@ export function removeHeadWorktree(request, io = REAL_BOUNDARY_IO) {
 }
 
 export function collectSides(request, io) {
-  const { repoRoot, gateBase, basePath, isResumedRun } = request;
-  const base = addedWorktree(repoRoot, basePath, gateBase, 'base', io, isResumedRun === true);
+  const { repoRoot, gateBase, basePath, isResumedRun, nowMs } = request;
+  const base = addedWorktree(repoRoot, basePath, gateBase, 'base', io, isResumedRun === true, nowMs);
   if (!base.ok) return Object.freeze({ ...base, leaked: null });
   let gathered;
   try {
