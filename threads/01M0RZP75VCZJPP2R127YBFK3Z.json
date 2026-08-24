@@ -15,6 +15,13 @@
       "struck_by": null
     },
     {
+      "id": "c7",
+      "text": "Every unit brief carries a closed per-claim verdict on whether its named checks can fail when their claims are false. All 22 audited; all 22 fail.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c1",
       "text": "The repository exists, the import landed by git archive with no untracked file carried, and continuous integration runs on every pull request.",
       "done": false,
@@ -250,5 +257,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T17:04:25.956Z"
+  "updated_at": "2026-08-24T17:04:29.160Z"
 }
