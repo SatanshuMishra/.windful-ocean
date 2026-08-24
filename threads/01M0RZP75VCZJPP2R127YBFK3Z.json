@@ -276,6 +276,11 @@
         "ref": "0712-plan-verification-layer-is-systemically-unfalsifiable",
         "title": "The migration plan is not implementable as written: every unit brief carries a check that cannot fail",
         "scope": "c1"
+      },
+      {
+        "ref": "0713-repair-brief-verification-layer-in-place",
+        "title": "The unit briefs are repaired in place rather than re-derived, and the unrunnable suite becomes its own unit",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -285,5 +290,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T17:05:06.292Z"
+  "updated_at": "2026-08-24T17:18:08.941Z"
 }
