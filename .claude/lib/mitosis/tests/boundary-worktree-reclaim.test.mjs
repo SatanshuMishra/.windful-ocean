@@ -189,6 +189,19 @@ test('an initializing lock is refused when this run carries no confirmed-dead pr
   });
 });
 
+test('a caller that omits priorAttemptDead entirely is refused an initializing lock exactly as a caller that passes false would be', () => {
+  withScratch((scratch, repo) => {
+    const leaked = worktreeHolding(repo, boundaryPathOf(repo, UNIT));
+    gitIn(repo.root, ['worktree', 'lock', '--reason', GIT_INITIALIZING_LOCK_REASON, '--', leaked]);
+
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO, undefined, Date.now());
+
+    assert.equal(standing(leaked), true, `omitting priorAttemptDead reclaimed a lock with no confirmed-dead predecessor and tore down the worktree a live add could still hold at ${leaked}`);
+    assert.equal(materialized.ok, false, "omitting priorAttemptDead was treated as a confirmed-dead predecessor, so the parameter's default is not false");
+    assert.match(materialized.error, new RegExp(`is locked \\(${GIT_INITIALIZING_LOCK_REASON}\\)`), `the refusal never names the lock reason: ${materialized.error}`);
+  });
+});
+
 test('a leaf swapped to a symlink after the candidate was resolved is refused and the checkout it points at survives', () => {
   withScratch((scratch, repo) => {
     const victim = worktreeHolding(repo, pathJoin(scratch, 'victim-checkout'));
