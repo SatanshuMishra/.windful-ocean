@@ -138,3 +138,36 @@ test('a stale head worktree is torn down and its replacement is reclaimed only o
     );
   });
 });
+
+test('a base worktree that never existed and whose own materialize attempt is abandoned mid-add is reclaimed only once this run is resumed', () => {
+  withRepoTwoCommits((repo) => {
+    const basePathTrue = pathJoin(repo.root, '.mitosis', 'boundary', 'run1', 'base-true');
+    const headPathTrue = pathJoin(repo.root, '.mitosis', 'boundary', 'run1', 'head-true');
+    const resumedResult = collectSides(
+      { repoRoot: repo.root, gateBase: repo.first, basePath: basePathTrue, headPath: headPathTrue, headRef: repo.first, isResumedRun: true, nowMs: Date.now() },
+      abandonedMidAddOnce(basePathTrue),
+    );
+    assert.equal(
+      resumedResult.ok,
+      true,
+      `a resumed run refused to reclaim its own mid-add-abandoned base worktree, which a confirmed-dead predecessor should never leave standing: ${resumedResult.error}`,
+    );
+
+    const basePathFresh = pathJoin(repo.root, '.mitosis', 'boundary', 'run1', 'base-fresh');
+    const headPathFresh = pathJoin(repo.root, '.mitosis', 'boundary', 'run1', 'head-fresh');
+    const freshResult = collectSides(
+      { repoRoot: repo.root, gateBase: repo.first, basePath: basePathFresh, headPath: headPathFresh, headRef: repo.first, isResumedRun: false, nowMs: Date.now() },
+      abandonedMidAddOnce(basePathFresh),
+    );
+    assert.equal(
+      freshResult.ok,
+      false,
+      'a run carrying no confirmed-dead predecessor reclaimed a base worktree an initializing lock a live worktree add could still hold',
+    );
+    assert.match(
+      freshResult.error,
+      /is locked \(initializing\)/,
+      `the refusal never names the initializing lock it declined to reclaim: ${freshResult.error}`,
+    );
+  });
+});
