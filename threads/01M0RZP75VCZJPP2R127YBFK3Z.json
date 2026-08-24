@@ -364,6 +364,11 @@
         "ref": "0724-count-check-needs-a-tracked-file-denominator",
         "title": "The acceptance parser cannot catch the defect it was written for, and moves to the vacuity unit",
         "scope": "c1"
+      },
+      {
+        "ref": "0725-u2-3-splits-because-its-green-lane-criterion-is-falsified",
+        "title": "U2.3 splits into a receipts half that ships now and a CI-lane half that waits for a green suite",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -373,5 +378,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T23:05:59.847Z"
+  "updated_at": "2026-08-24T23:40:16.334Z"
 }
