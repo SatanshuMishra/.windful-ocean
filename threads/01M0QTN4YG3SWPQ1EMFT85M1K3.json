@@ -38,7 +38,7 @@
     {
       "id": "c8",
       "text": "The extraction SPEC has a non-ambiguous plan: every file has one owning unit, the order comes from real dependencies, and every verification command runs as written.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -71,8 +71,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Extract mitosis into its own public repository as an installable plugin, with a test architecture in which a green suite predicts live behaviour.",
-    "next_step": "START HERE. The extraction SPEC is approved. Plan the implementation of its sixteen units non-ambiguously: read the SPEC in full first, especially section 9 and U12's scope, then produce an execution plan with ordering, per-unit dispatch briefs, and the publication gate as a hard precondition. Open a child thread to carry the implementation; this thread does not. Do NOT execute units and do NOT run the engine - the migration is hand-executed by delegated agents per 0693.",
-    "last_session": "2026-08-23: traced why a failed review parks, inverted the fanout premise, named the recurrence mechanism, audited the testing SPEC at 49 of 75 obligations met, and produced an approved 1,603-line extraction SPEC. No code changed and no billed run spent.",
+    "next_step": "START HERE ON THE CHILD THREAD mitosis-extraction-implementation, not this one. Settle one open choice first: publish at layer 5 (recommended - the publication gate governs safety, not suite greenness) or last. Then read PLAN.md sections 5, 6 and 11 and ship U2: create SatanshuMishra/mitosis PRIVATE and land the git-archive import as one root commit. Delegated agents only; the engine never runs this migration per 0693.",
+    "last_session": "2026-08-23: read the 1,603-line extraction SPEC in full, produced a 1,400-line implementation plan closing 22 gaps, re-architected authentication onto the subscription after the API-key path was ruled out, and derived parallelizability. No code changed.",
     "open_risks": [
       {
         "text": "Instrument the failing repository read before diagnosing another lane failure — an absent repository and one the token cannot see return the same empty result today",
@@ -339,9 +339,9 @@
     ],
     "out_of_scope": [
       "Merging pull request 289, which is human-gated and never done from a session",
-      "Executing any of the sixteen extraction units; the successor session plans them and does not run them"
+      "Executing the extraction units, which belongs to the child thread mitosis-extraction-implementation"
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-24T04:14:39.874Z"
+  "updated_at": "2026-08-24T04:15:16.016Z"
 }
