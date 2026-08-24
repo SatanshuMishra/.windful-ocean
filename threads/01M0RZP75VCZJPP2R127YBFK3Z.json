@@ -24,7 +24,7 @@
     {
       "id": "c8",
       "text": "Every unit brief names checks that can fail when their claims are false, proven by a lint over all briefs reporting zero failures with every exemption carrying a written reason.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -70,9 +70,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Migrate the mitosis engine into its own public repository as an installable plugin across twenty-two units, entirely on the Claude Code subscription, then remove it cleanly from the host.",
-    "next_step": "START FRESH AND IMPLEMENT NOTHING. In 1-2 sentences, identify the next steps and explain them to the user, then WAIT for specific instructions. Per 0712 the plan is not implementable as written: all twenty-two briefs ship an incorrect unit while passing every check they name. The repair is the user's call - do not propose editing the frozen SPEC or PLAN unbidden, do not add a unit, and do not start one. Read 0712 first, then the session log of 2026-08-24.",
-    "last_session": "2026-08-24: shipped the import unit (root commit ffb63cac, acceptance met from a foreign path) after fixing the closure scan to see a fourth module-loading form, then audited all 21 remaining briefs. Every one fails. 0709 through 0712 recorded.",
+    "active_goal": "Migrate the mitosis engine into its own public repository as an installable plugin across twenty-four units, entirely on the Claude Code subscription, then remove it cleanly from the host.",
+    "next_step": "Implement U2.1: carry the six agent-generate modules the import closure missed, and ship the path-literal census as a re-runnable check. Cut the branch from a freshly fetched trunk. Its brief in PLAN.md is repaired and carries its acceptance criterion plus three mutations, including the fifth-form one that proves the instrument rather than the fix. Run brief-lint.mjs before and after any further brief edit; it must stay at zero failures.",
+    "last_session": "2026-08-24: repaired the whole plan. Added three units ahead of the plugin unit, renumbered so ship order and name order agree, and repaired every brief's verification layer behind a lint now reporting zero failures across all 24. 0713-0717 recorded. No code written in the extraction repo.",
     "open_risks": [
       {
         "text": "Ship the vacuity guard only after the hermetic and census units — its criterion is that a mutation makes the lane exit non-zero, and against a red baseline that proves nothing because the lane already failed",
@@ -152,49 +152,34 @@
         ]
       },
       {
-        "text": "Start no unit until the user directs the repair — every brief passes its own checks while shipping an incorrect unit, so following one exactly produces a false green rather than working code",
+        "text": "The extraction repository is untouched — only the plan was repaired, so the suite still runs zero tests and 69 of 127 test files still fail to load",
         "scope": "c1",
         "refs": [
-          "0712"
+          "ffb63ca",
+          "package.json scripts.test"
         ]
       },
       {
-        "text": "Treat the publication unit as the one defect that cannot be repaired afterwards — its three checks were demonstrated passing against a licence naming the wrong repository with the machine-training reservation gutted, and it alone carries no inertness mutation",
+        "text": "112 unresolvable specifiers sit under the test tree and none under the engine source — 102 of them point at a file that exists at exactly one other tracked path, with zero ambiguous",
         "scope": "c1",
         "refs": [
-          "PLAN.md U16",
-          "SPEC section 6"
+          "ffb63ca",
+          "PLAN.md U2.2"
         ]
       },
       {
-        "text": "Never accept a count-identity comparison as evidence the suite is trustworthy — the pattern both census units extract counts with matches nothing on this Node version, so the comparison returned success against a deliberately fabricated summary",
+        "text": "The publication unit is the one unit that cannot be repaired after the fact — all four of its mutations run before visibility changes, never after",
         "scope": "c1",
         "refs": [
-          "PLAN.md U3",
-          "PLAN.md U4"
+          "PLAN.md U16"
         ]
       },
       {
-        "text": "The shipped test command runs zero tests — Node 26 does not enumerate a bare directory path, so the manifest's test script reports one synthetic failure and no suite ever executes",
+        "text": "The plugin unit now costs two sessions per run and its second one must FAIL — an empty plugin directory that still asserts green means the pass came from ambient configuration",
         "scope": "c1",
         "refs": [
-          "package.json scripts.test",
-          "PLAN.md G5"
-        ]
-      },
-      {
-        "text": "The landed import carries 141 unresolvable specifiers and 69 of 127 test files cannot load — the acceptance criterion loads only the engine entry point, so the unit passed without ever touching a test",
-        "scope": "c1",
-        "refs": [
-          "ffb63cac"
-        ]
-      },
-      {
-        "text": "Searching for the engine's host path finds nothing because the code uses the relative form — one host-lane acceptance criterion is therefore satisfied by changing no file at all",
-        "scope": "c1",
-        "refs": [
-          "PLAN.md U14.2",
-          ".claude/lib/git/pr.mjs"
+          "PLAN.md U13",
+          "0717"
         ]
       }
     ],
@@ -317,5 +302,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T18:59:46.378Z"
+  "updated_at": "2026-08-24T19:00:26.160Z"
 }
