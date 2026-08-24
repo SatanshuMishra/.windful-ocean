@@ -152,6 +152,11 @@
         "ref": "0704-a-blocking-enforcer-gate-is-not-above-the-ceiling",
         "title": "A blocking enforcer gate on a change's own lines is in scope, not a filed item",
         "scope": "c1"
+      },
+      {
+        "ref": "0705-the-import-base-must-be-proven-green",
+        "title": "The import base must be proven green before the tree is copied",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -160,5 +165,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T05:30:51.883Z"
+  "updated_at": "2026-08-24T05:39:53.288Z"
 }
