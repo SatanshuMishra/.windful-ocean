@@ -147,6 +147,11 @@
         "ref": "0703-green-the-trunk-before-cutting-the-import",
         "title": "The trunk is greened before the import is cut, not after",
         "scope": "c1"
+      },
+      {
+        "ref": "0704-a-blocking-enforcer-gate-is-not-above-the-ceiling",
+        "title": "A blocking enforcer gate on a change's own lines is in scope, not a filed item",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -155,5 +160,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T04:47:24.670Z"
+  "updated_at": "2026-08-24T05:30:51.883Z"
 }
