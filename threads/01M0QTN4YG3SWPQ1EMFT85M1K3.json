@@ -308,6 +308,11 @@
         "ref": "0697-substrate-seed-bundles-do-not-travel-into-the-public-repository",
         "title": "The substrate seed bundles stay out of the extracted repository",
         "scope": "thread"
+      },
+      {
+        "ref": "0698-security-review-is-scoped-to-the-six-units-with-a-security-surface",
+        "title": "Security review runs on six of twenty-two units, not on all of them",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -316,5 +321,5 @@
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-24T03:44:17.992Z"
+  "updated_at": "2026-08-24T03:44:25.839Z"
 }
