@@ -57,8 +57,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Migrate the mitosis engine into its own public repository as an installable plugin across twenty-two units, entirely on the Claude Code subscription, then remove it cleanly from the host.",
-    "next_step": "START HERE. (1) Settle the publish-early choice: U16 at layer 5 (recommended - the gate governs safety, suite greenness does not) or last. (2) Read PLAN.md sections 5, 6 and 11. (3) Ship U2: create the repository PRIVATE, fetch origin and record origin/main, recompute the import closure and diff it against the SPEC's 73, extract by git archive into three staging directories, arrange per section 2.1, rewrite imports, remove staging, one root commit to main. (4) Then U2b.",
-    "last_session": "2026-08-23: thread opened from the planning session that produced PLAN.md. No implementation started, no repository created.",
+    "next_step": "RE-RUN THE P9 CENSUS FIRST, at ea5cd118eb4b8e7948b1122cd59085e0c5d39188 - main moved twice this session so the earlier pass names a stale subject. Scan all four archive paths and read the unconfigured gitleaks count as the authoritative one. Then ship U2, REUSING the existing empty private SatanshuMishra/mitosis rather than creating it. Then U2b. The required-check command sits with the user and does not block U2.",
+    "last_session": "2026-08-24: greened the host trunk rather than shipping a unit. Two pull requests merged, a banned wall-clock read and a secret-scan false positive. Four decisions, four plan amendments. Making the test check required proved agent-unreachable and is with the user.",
     "open_risks": [
       {
         "text": "Ship the vacuity guard only after the hermetic and census units — its criterion is that a mutation makes the lane exit non-zero, and against a red baseline that proves nothing because the lane already failed",
@@ -111,6 +111,45 @@
         "scope": "thread",
         "refs": [
           "PLAN.md section 6b"
+        ]
+      },
+      {
+        "text": "Decide publication safety on the unconfigured secret scan — a path-scoped allowlist makes the scanner skip a matching file's content before its regex ever runs, so the configured count silently omits twelve files",
+        "scope": "thread",
+        "refs": [
+          ".gitleaks.toml",
+          "PLAN.md P9 item 3"
+        ]
+      },
+      {
+        "text": "Hand the required-status-check write to the human rather than dispatching it — the permission classifier blocks it and the platform agent refuses it on charter, so a re-route is laundering rather than routing",
+        "scope": "thread",
+        "refs": [
+          "0706",
+          "ruleset 19939922"
+        ]
+      },
+      {
+        "text": "Never count commits to decide whether work landed — identical content can arrive under a different commit, and a squash of work already present merges as an empty commit that scans nothing",
+        "scope": "thread",
+        "refs": [
+          "PR 288",
+          "PR 290"
+        ]
+      },
+      {
+        "text": "Re-measure the import base at the exact commit the unit will archive — the trunk moved twice in one session, so a carried-over pass names a stale tree",
+        "scope": "c6",
+        "refs": [
+          "PLAN.md P9",
+          "0705"
+        ]
+      },
+      {
+        "text": "Reuse the empty private mitosis repository rather than creating it — U2's first step already ran before its dispatch was stopped, so the repository exists with no commits, and a delete-and-recreate is an avoidable irreversible action",
+        "scope": "c1",
+        "refs": [
+          "SatanshuMishra/mitosis"
         ]
       }
     ],
@@ -173,9 +212,10 @@
     ],
     "out_of_scope": [
       "Disposing of the stale branch and worktree field in the host repository",
-      "Maintaining the host suite after the engine is removed; it is asserted green at removal time only"
+      "Maintaining the host suite after the engine is removed; it is asserted green at removal time only",
+      "Resolving the host's remaining secret-scan findings, including the second occurrence of the flagged literal; the publication unit runs the census and resolves whatever it reports"
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T06:31:40.555Z"
+  "updated_at": "2026-08-24T06:32:27.408Z"
 }
