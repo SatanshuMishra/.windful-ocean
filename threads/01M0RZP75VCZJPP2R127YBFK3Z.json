@@ -70,9 +70,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Migrate the mitosis engine into its own public repository as an installable plugin across twenty-four units, entirely on the Claude Code subscription, then remove it cleanly from the host.",
-    "next_step": "Implement U2.2 in a fresh session: make the suite executable. Replace the test script with an enumerating form, rewrite every unresolvable specifier by resolution and halt on zero or ambiguous matches, include the spawned-driver path, add the load census, and carry the roster data file plus delete its now-idle allowlist entry - steps 6 and 7 added this session. Cut from a freshly fetched trunk. Run the brief lint before and after any brief edit; it must stay at zero.",
-    "last_session": "Shipped U2.1: pull request 1 merged, ancestry confirmed, branch deleted. Twenty files byte-identical; the census took four rounds to become able to fail, and review caught a live gap it was passing. Plan edits made, brief lint still zero.",
+    "active_goal": "Migrate the mitosis engine into its own public repository as an installable plugin across twenty-four units on the Claude Code subscription, then remove it cleanly from the host.",
+    "next_step": "Implement and ship U2.3, bootstrap CI and receipts wiring, in a fresh session. It is the first unit whose lane will report on a pull request, so it also closes the gap that nothing currently runs either census. Cut from a freshly fetched trunk at 9392037. Dispatch every child agent with background off and never end a turn waiting for one. Run the brief lint before and after any brief edit; it must stay at zero.",
+    "last_session": "Shipped U2.2: pull request 2 merged and ancestry confirmed. 128 specifiers rewritten across 80 files, load census added, three idle allowlist entries retired. Suite at 41 failures of 2299, from 113 of 1030. Nine items filed with owners; decisions 0723 and 0724 recorded.",
     "open_risks": [
       {
         "text": "Ship the vacuity guard only after the hermetic and census units — its criterion is that a mutation makes the lane exit non-zero, and against a red baseline that proves nothing because the lane already failed",
@@ -152,18 +152,33 @@
         ]
       },
       {
-        "text": "Rewrite the test tree's stale specifiers by resolving each one, never by pattern — 102 of the 112 name a file that exists at exactly one other tracked path, with none ambiguous, so resolution is decidable where a pattern rewrite is not",
+        "text": "Never read a green path-literal census as proof a carried file resolves — the carried retired-roster file satisfies the census while nothing reads it at run time, because the reader resolves through the canonical configuration directory rather than its own",
         "scope": "c1",
         "refs": [
-          "PLAN.md U2.2 step 2"
+          "0723",
+          "PLAN.md U2.2 filed item 2"
         ]
       },
       {
-        "text": "Carry a data file whenever a carried module reads one at run time — the import closure enumerated modules only, so a non-module dependency was invisible to it whatever the loading form, and two were missed that way",
+        "text": "Never accept a bare greater-than-zero total as a count check — under the enumeration mutation the runner reported one test for 128 tracked files and that parser passed; a real count check needs the tracked-file denominator on the other side",
         "scope": "c1",
         "refs": [
-          "PLAN.md U2.2 step 6",
-          "0720"
+          "0724",
+          "PLAN.md U2.2 filed item 1"
+        ]
+      },
+      {
+        "text": "Carry a data file whenever a carried module reads one at run time — the import closure enumerated modules only, so a non-module dependency was invisible to it whatever the loading form, and the prompt-snapshots fixture is still uncarried",
+        "scope": "c1",
+        "refs": [
+          "PLAN.md U2.2 filed item 3"
+        ]
+      },
+      {
+        "text": "Delete an allowlist entry the moment its site goes away or it stops doing work — the census fails on an idle entry by design, and weakening the census is never the remedy; three were retired this unit where the brief named one",
+        "scope": "c1",
+        "refs": [
+          "tests/lib/guard/path-literal-allowlist.json"
         ]
       },
       {
@@ -175,32 +190,17 @@
         ]
       },
       {
-        "text": "Delete the allowlist entry when the census goes red at a later unit — an entry whose site is gone, or that has stopped doing work, fails by design, and weakening the check is never the remedy",
+        "text": "Read 41 failures out of 2299 test cases as the current baseline, not a regression — making the suite green belongs to a later unit, and this failure set was never diffed against the parent's",
         "scope": "c1",
         "refs": [
-          "tests/lib/guard/path-literal-allowlist.json"
+          "PR 2"
         ]
       },
       {
-        "text": "Add a main guard before any check imports every module — one carried module runs its command-line program at import time, so that clause of this unit's criterion shipped openly unmet",
+        "text": "Nothing in the repository runs either census, and an empty glob makes the suite report zero tests and exit zero — both are vacuous-pass surfaces until the lane and the vacuity guard exist",
         "scope": "c1",
         "refs": [
-          "src/agent-generate.mjs",
-          "0719"
-        ]
-      },
-      {
-        "text": "Read 113 failures out of 1030 test cases as this unit's output, not a regression — carrying the modules made previously unloadable test files load and then fail, up from 95 out of 966",
-        "scope": "c1",
-        "refs": [
-          "PR 1"
-        ]
-      },
-      {
-        "text": "Run every mutation of the publication unit before visibility changes — it is the one unit that cannot be repaired after the fact",
-        "scope": "c1",
-        "refs": [
-          "PLAN.md U16"
+          "PLAN.md U2.2 filed item 5"
         ]
       },
       {
@@ -209,6 +209,13 @@
         "refs": [
           "PLAN.md U13",
           "0717"
+        ]
+      },
+      {
+        "text": "Run every mutation of the publication unit before visibility changes — it is the one unit that cannot be repaired after the fact",
+        "scope": "c1",
+        "refs": [
+          "PLAN.md U16"
         ]
       }
     ],
@@ -366,5 +373,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T23:04:35.951Z"
+  "updated_at": "2026-08-24T23:05:59.847Z"
 }
