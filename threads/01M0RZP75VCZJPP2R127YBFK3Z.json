@@ -298,6 +298,11 @@
         "ref": "0718-path-literal-census-classifies-by-rule-not-by-allowlist-entry",
         "title": "The path-literal census classifies by rule; the allowlist holds only the residue",
         "scope": "c1"
+      },
+      {
+        "ref": "0719-agent-generate-cannot-be-imported-so-u2-1-ships-that-clause-unmet",
+        "title": "agent-generate self-executes at import, so U2.1 ships one acceptance clause unmet",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -307,5 +312,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T20:01:11.393Z"
+  "updated_at": "2026-08-24T20:01:25.790Z"
 }
