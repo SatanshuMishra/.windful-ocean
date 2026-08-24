@@ -291,6 +291,11 @@
         "ref": "0715-brief-repair-lands-behind-a-lint-that-had-its-own-defect",
         "title": "The brief repair is gated by a code-block lint that first carried the defect it checked for",
         "scope": "c1"
+      },
+      {
+        "ref": "0716-substantive-audit-of-the-remaining-twelve-briefs",
+        "title": "The twelve remaining briefs shared one defect: a captured exit code with no stated disposition",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -300,5 +305,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T18:32:33.764Z"
+  "updated_at": "2026-08-24T18:39:33.795Z"
 }
