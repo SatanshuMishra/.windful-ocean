@@ -374,6 +374,11 @@
         "ref": "0726-u3-ceiling-widens-to-assert-the-suite-exits-zero",
         "title": "U3's ceiling widens to assert the suite exits zero, because no unit could fail for leaving it red",
         "scope": "c1"
+      },
+      {
+        "ref": "0727-suite-command-is-omitted-so-g9-cannot-block-the-greening-units",
+        "title": "receipts.config.json omits verify.suite_command, so gate G9 cannot block the units that green the suite",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -383,5 +388,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T23:40:31.824Z"
+  "updated_at": "2026-08-24T23:40:40.426Z"
 }
