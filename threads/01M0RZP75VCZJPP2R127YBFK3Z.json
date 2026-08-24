@@ -236,6 +236,11 @@
         "ref": "0711-security-block-retired-source-repository-is-public",
         "title": "The pre-publication security block is retired: the source repository was already public",
         "scope": "c1"
+      },
+      {
+        "ref": "0712-plan-verification-layer-is-systemically-unfalsifiable",
+        "title": "The migration plan is not implementable as written: every unit brief carries a check that cannot fail",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -245,5 +250,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T08:17:26.901Z"
+  "updated_at": "2026-08-24T17:04:25.956Z"
 }
