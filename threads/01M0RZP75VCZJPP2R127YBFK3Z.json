@@ -352,6 +352,11 @@
         "ref": "0723-retired-roster-carry-is-census-only",
         "title": "The retired-roster carry satisfies the census but not run-time resolution",
         "scope": "c1"
+      },
+      {
+        "ref": "0724-count-check-needs-a-tracked-file-denominator",
+        "title": "The acceptance parser cannot catch the defect it was written for, and moves to the vacuity unit",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -361,5 +366,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T23:04:25.663Z"
+  "updated_at": "2026-08-24T23:04:35.951Z"
 }
