@@ -31,7 +31,7 @@
     {
       "id": "c7",
       "text": "The repeated live-run failure has a named root cause with evidence, and an approved non-ambiguous SPEC exists to extract mitosis into its own public repository as an installable plugin.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -63,65 +63,10 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Make the ship phase observable and get a live run to open a pull request; the blocker is now that a failed review parks the unit instead of looping a fix.",
-    "next_step": "START BY EXPLAINING, THEN STOP. First, concisely break down for a reader with no domain knowledge why the billed run opened no pull request: the review lens correctly failed the implementation, so the unit parked for a human. Keep it short. Then recommend next steps, worst first, led by tracing why a failed review parks instead of using the remediation modules that already exist. Then WAIT for specific instructions - do not dispatch, do not start work, do not spend.",
-    "last_session": "2026-08-23: fixed the boundary reclaim defect across three rounds and opened pull request 289; the billed run then parked because the review lens correctly failed the implementation, so no pull request opened and the crash fix went unexercised.",
+    "active_goal": "Extract mitosis into its own public repository as an installable plugin, with a test architecture in which a green suite predicts live behaviour.",
+    "next_step": "START HERE. The extraction SPEC is approved. Plan the implementation of its sixteen units non-ambiguously: read the SPEC in full first, especially section 9 and U12's scope, then produce an execution plan with ordering, per-unit dispatch briefs, and the publication gate as a hard precondition. Open a child thread to carry the implementation; this thread does not. Do NOT execute units and do NOT run the engine - the migration is hand-executed by delegated agents per 0693.",
+    "last_session": "2026-08-23: traced why a failed review parks, inverted the fanout premise, named the recurrence mechanism, audited the testing SPEC at 49 of 75 obligations met, and produced an approved 1,603-line extraction SPEC. No code changed and no billed run spent.",
     "open_risks": [
-      {
-        "text": "Budget one defect per billed run — each failure is terminal at about five dollars and seventeen minutes, so an unobservable phase is what makes a run expensive",
-        "scope": "thread",
-        "refs": [
-          "0663"
-        ]
-      },
-      {
-        "text": "Read this suite's verdict from CI rather than any local run — the primary checkout is the only honest local reader, a fresh clone adds fourteen false failures, and a linked worktree censuses an empty set",
-        "scope": "thread",
-        "refs": [
-          "canonical-config-dir.mjs",
-          "0669"
-        ]
-      },
-      {
-        "text": "Treat a receipts check that clears in seconds as a downgrade or a skip — the word reverted matches a ladder tag and short-circuits all eight re-run gates, and a tests-only diff skips them by design",
-        "scope": "thread",
-        "refs": [
-          "0688"
-        ]
-      },
-      {
-        "text": "Expect a red pull request to merge on one click — this repository has no required status checks, which is how the stale assertion reached the trunk",
-        "scope": "thread",
-        "refs": [
-          "branch protection returns 404",
-          "0686"
-        ]
-      },
-      {
-        "text": "Take a suite verdict from the fail count rather than the names in the failed log — todo-marked tests print there without counting, and reading them as failures produced a fix brief for a defect that did not exist",
-        "scope": "thread",
-        "refs": [
-          "wave-planner.test.mjs:137",
-          "CI run 32657068524"
-        ]
-      },
-      {
-        "text": "Check whether an existing test already asserts the defect before calling a fix complete — three tests across two sessions expected the broken behaviour outright, and a green suite over them hid every one",
-        "scope": "thread",
-        "refs": [
-          "boundary-gate.test.mjs",
-          "resume-state-carry.test.mjs",
-          "unit-verdict-sha.test.mjs"
-        ]
-      },
-      {
-        "text": "Declare work-type chore at creation on a config-only pull request — a toml file counts as source to the enforcer, and an inert work-type value is worse than none because it disables the config-only escape",
-        "scope": "thread",
-        "refs": [
-          "verify.js:56",
-          "verify.js:466"
-        ]
-      },
       {
         "text": "Instrument the failing repository read before diagnosing another lane failure — an absent repository and one the token cannot see return the same empty result today",
         "scope": "c1",
@@ -209,6 +154,78 @@
           "cassette.mjs:21-34",
           "cassette.mjs:95-100"
         ]
+      },
+      {
+        "text": "Run the publication gate before the repository is ever public — a confidential codename appears 1,589 times in a gitignored template file, and a public push of it cannot be undone",
+        "scope": "thread",
+        "refs": [
+          "skills/mitosis/templates/graphify-out/manifest.json",
+          "SPEC section 9"
+        ]
+      },
+      {
+        "text": "Follow the SPEC's removal ordering exactly — a SessionStart hook hard-exits when the engine is absent, so a wrong order breaks every session on this machine",
+        "scope": "thread",
+        "refs": [
+          "superpowers-drift-check.sh:13",
+          "SPEC section 7"
+        ]
+      },
+      {
+        "text": "Treat the engine as untrusted for its own migration even after U12 lands — a fixed failed-review park is not a proven one, and the SPEC states this so it is not relitigated",
+        "scope": "thread",
+        "refs": [
+          "0693",
+          "SPEC section 8 preamble"
+        ]
+      },
+      {
+        "text": "Read this suite's verdict from CI rather than any local run — the primary checkout is the only honest local reader, a fresh clone adds fourteen false failures, and a linked worktree censuses an empty set",
+        "scope": "thread",
+        "refs": [
+          "canonical-config-dir.mjs",
+          "0669"
+        ]
+      },
+      {
+        "text": "Treat a receipts check that clears in seconds as a downgrade or a skip — the word reverted matches a ladder tag and short-circuits all eight re-run gates, and a tests-only diff skips them by design",
+        "scope": "thread",
+        "refs": [
+          "0688"
+        ]
+      },
+      {
+        "text": "Expect a red pull request to merge on one click — this repository has no required status checks, which is how a stale assertion reached the trunk",
+        "scope": "thread",
+        "refs": [
+          "branch protection returns 404",
+          "0686"
+        ]
+      },
+      {
+        "text": "Take a suite verdict from the fail count rather than the names in the failed log — todo-marked tests print there without counting, and reading them as failures produced a fix brief for a defect that did not exist",
+        "scope": "thread",
+        "refs": [
+          "wave-planner.test.mjs:137",
+          "CI run 32657068524"
+        ]
+      },
+      {
+        "text": "Check whether an existing test already asserts the defect before calling a fix complete — three tests across two sessions expected the broken behaviour outright, and a green suite over them hid every one",
+        "scope": "thread",
+        "refs": [
+          "boundary-gate.test.mjs",
+          "resume-state-carry.test.mjs",
+          "unit-verdict-sha.test.mjs"
+        ]
+      },
+      {
+        "text": "Declare work-type chore at creation on a config-only pull request — a toml file counts as source to the enforcer, and an inert work-type value is worse than none because it disables the config-only escape",
+        "scope": "thread",
+        "refs": [
+          "verify.js:56",
+          "verify.js:466"
+        ]
       }
     ],
     "key_decisions": [
@@ -279,10 +296,10 @@
       }
     ],
     "out_of_scope": [
-      "Making the test and receipts jobs required status checks, which is the predecessor thread's own remaining criterion",
-      "Merging pull request 289, which is human-gated and never done from a session"
+      "Merging pull request 289, which is human-gated and never done from a session",
+      "Executing any of the sixteen extraction units; the successor session plans them and does not run them"
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-24T00:58:02.353Z"
+  "updated_at": "2026-08-24T00:58:55.497Z"
 }
