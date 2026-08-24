@@ -22,6 +22,13 @@
       "struck_by": null
     },
     {
+      "id": "c8",
+      "text": "Every unit brief names checks that can fail when their claims are false, proven by a lint over all briefs reporting zero failures with every exemption carrying a written reason.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c1",
       "text": "The repository exists, the import landed by git archive with no untracked file carried, and continuous integration runs on every pull request.",
       "done": false,
@@ -310,5 +317,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T18:54:24.606Z"
+  "updated_at": "2026-08-24T18:59:46.378Z"
 }
