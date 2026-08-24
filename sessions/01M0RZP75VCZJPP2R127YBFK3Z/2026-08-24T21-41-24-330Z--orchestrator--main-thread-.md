@@ -1,0 +1,13 @@
+Shipped U2.1. Pull request 1 is merged into main, the merged head is confirmed an ancestor of origin/main, the branch is deleted and only main remains. Content verified present on the trunk: the six agent-generate modules, the fourteen-file spec store, the census with its host manifest and allowlist, its test file, and the check:paths script.
+
+The carry itself was right the first time and never reopened: twenty files byte-identical to the import SHA by blob hash, re-proved after every subsequent round. What took four rounds was the census — the re-runnable check the unit exists to leave behind. Each round found the same defect and never a broken feature: the check could not fail.
+
+Round 1 reached the acceptance criterion by exempting 2612 of 3640 literals behind a 1440-entry allowlist, of which 3 did real work. The predicate was the orchestrator's, not the implementer's. Round 2 replaced entry-by-entry exemption with eight stated rules and took the allowlist to 7. Code review then BLOCKED it with four verified escapes, one of them live in the tree: a directory reference has no extension, so the shipped-extension gate discarded it before resolution, and a real uncarried spec store was passing in the exact spawned-driver form the unit exists to catch. Round 3 rebuilt classification so nothing passes on syntax alone, made the host comparison the detector rather than a label, fixed template-literal extraction that had never extracted anything, and added 40 tests. Round 4 widened the host oracle from 309 paths to 380 after the orchestrator measured it against what the import actually archived and found the entire skills tree missing.
+
+Two findings generalise past this unit. The import closure enumerated modules, so data files that carried modules read at run time were invisible to it whatever the loading form — the spec store and one roster file were both missed that way. And one carried module cannot be imported at all, because it runs its command-line program at import with no main guard; that clause of the acceptance criterion shipped openly unmet rather than forced green.
+
+Also done this session: the plan gained the roster-file carry and its allowlist removal as steps in U2.2, and U2.1's brief gained the census's filename-comparison limit as a filed item. The brief lint was run before and after and stayed at zero failures, 24 briefs, 28 code blocks, 4 exemptions.
+
+Not done, deliberately: no U2.2 work was started, per instruction that it begins in a fresh session.
+
+Cost: roughly 2.2 million subagent tokens across four implementation rounds, one review and the pull request. The review was worth its share on its own — it found the live gap.
