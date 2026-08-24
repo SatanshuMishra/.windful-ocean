@@ -318,6 +318,11 @@
         "ref": "0699-the-extraction-runs-entirely-on-the-subscription-and-declares-reproducibility-instead-of-assuming-it",
         "title": "Everything runs on the Claude Code subscription; hermeticity is replaced by a recorded environment fingerprint",
         "scope": "thread"
+      },
+      {
+        "ref": "0700-the-contract-lane-never-runs-on-a-hosted-runner-and-ci-holds-no-credential",
+        "title": "The contract lane runs locally on the subscription and CI verifies only freshness and the committed diff",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -326,5 +331,5 @@
     ]
   },
   "created_at": "2026-08-23T17:28:23.248Z",
-  "updated_at": "2026-08-24T04:02:47.123Z"
+  "updated_at": "2026-08-24T04:02:59.480Z"
 }
