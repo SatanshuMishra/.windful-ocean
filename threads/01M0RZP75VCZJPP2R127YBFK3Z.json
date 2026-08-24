@@ -71,8 +71,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Migrate the mitosis engine into its own public repository as an installable plugin across twenty-four units, entirely on the Claude Code subscription, then remove it cleanly from the host.",
-    "next_step": "Implement U2.1: carry the six agent-generate modules the import closure missed, and ship the path-literal census as a re-runnable check. Cut the branch from a freshly fetched trunk. Its brief in PLAN.md is repaired and carries its acceptance criterion plus three mutations, including the fifth-form one that proves the instrument rather than the fix. Run brief-lint.mjs before and after any further brief edit; it must stay at zero failures.",
-    "last_session": "2026-08-24: repaired the whole plan. Added three units ahead of the plugin unit, renumbered so ship order and name order agree, and repaired every brief's verification layer behind a lint now reporting zero failures across all 24. 0713-0717 recorded. No code written in the extraction repo.",
+    "next_step": "Implement U2.2 in a fresh session: make the suite executable. Replace the test script with an enumerating form, rewrite every unresolvable specifier by resolution and halt on zero or ambiguous matches, include the spawned-driver path, add the load census, and carry the roster data file plus delete its now-idle allowlist entry - steps 6 and 7 added this session. Cut from a freshly fetched trunk. Run the brief lint before and after any brief edit; it must stay at zero.",
+    "last_session": "Shipped U2.1: pull request 1 merged, ancestry confirmed, branch deleted. Twenty files byte-identical; the census took four rounds to become able to fail, and review caught a live gap it was passing. Plan edits made, brief lint still zero.",
     "open_risks": [
       {
         "text": "Ship the vacuity guard only after the hermetic and census units — its criterion is that a mutation makes the lane exit non-zero, and against a red baseline that proves nothing because the lane already failed",
@@ -152,30 +152,59 @@
         ]
       },
       {
-        "text": "The extraction repository is untouched — only the plan was repaired, so the suite still runs zero tests and 69 of 127 test files still fail to load",
+        "text": "Rewrite the test tree's stale specifiers by resolving each one, never by pattern — 102 of the 112 name a file that exists at exactly one other tracked path, with none ambiguous, so resolution is decidable where a pattern rewrite is not",
         "scope": "c1",
         "refs": [
-          "ffb63ca",
-          "package.json scripts.test"
+          "PLAN.md U2.2 step 2"
         ]
       },
       {
-        "text": "112 unresolvable specifiers sit under the test tree and none under the engine source — 102 of them point at a file that exists at exactly one other tracked path, with zero ambiguous",
+        "text": "Carry a data file whenever a carried module reads one at run time — the import closure enumerated modules only, so a non-module dependency was invisible to it whatever the loading form, and two were missed that way",
         "scope": "c1",
         "refs": [
-          "ffb63ca",
-          "PLAN.md U2.2"
+          "PLAN.md U2.2 step 6",
+          "0720"
         ]
       },
       {
-        "text": "The publication unit is the one unit that cannot be repaired after the fact — all four of its mutations run before visibility changes, never after",
+        "text": "Treat the census's filename-based host comparison as a filed limit, not something to fix by adding rules — every terminal-pass rule in it turned out to be an escape route, and review demonstrated four",
+        "scope": "c1",
+        "refs": [
+          "PLAN.md U2.1 filed section",
+          "0722"
+        ]
+      },
+      {
+        "text": "Delete the allowlist entry when the census goes red at a later unit — an entry whose site is gone, or that has stopped doing work, fails by design, and weakening the check is never the remedy",
+        "scope": "c1",
+        "refs": [
+          "tests/lib/guard/path-literal-allowlist.json"
+        ]
+      },
+      {
+        "text": "Add a main guard before any check imports every module — one carried module runs its command-line program at import time, so that clause of this unit's criterion shipped openly unmet",
+        "scope": "c1",
+        "refs": [
+          "src/agent-generate.mjs",
+          "0719"
+        ]
+      },
+      {
+        "text": "Read 113 failures out of 1030 test cases as this unit's output, not a regression — carrying the modules made previously unloadable test files load and then fail, up from 95 out of 966",
+        "scope": "c1",
+        "refs": [
+          "PR 1"
+        ]
+      },
+      {
+        "text": "Run every mutation of the publication unit before visibility changes — it is the one unit that cannot be repaired after the fact",
         "scope": "c1",
         "refs": [
           "PLAN.md U16"
         ]
       },
       {
-        "text": "The plugin unit now costs two sessions per run and its second one must FAIL — an empty plugin directory that still asserts green means the pass came from ambient configuration",
+        "text": "Expect the plugin unit's second session to FAIL — an empty plugin directory that still asserts green means the pass came from ambient configuration",
         "scope": "c1",
         "refs": [
           "PLAN.md U13",
@@ -327,5 +356,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T21:41:49.377Z"
+  "updated_at": "2026-08-24T21:42:35.308Z"
 }
