@@ -231,6 +231,11 @@
         "ref": "0710-corrected-import-lands-by-amending-the-root-commit",
         "title": "The corrected import tree lands by amending the root commit, authorized by the user",
         "scope": "c1"
+      },
+      {
+        "ref": "0711-security-block-retired-source-repository-is-public",
+        "title": "The pre-publication security block is retired: the source repository was already public",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -240,5 +245,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T07:53:48.406Z"
+  "updated_at": "2026-08-24T08:17:26.901Z"
 }
