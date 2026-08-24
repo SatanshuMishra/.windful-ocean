@@ -142,6 +142,11 @@
         "ref": "0702-publish-the-repository-at-layer-five-not-last",
         "title": "The repository is published at layer 5, not after the suite is green",
         "scope": "c1"
+      },
+      {
+        "ref": "0703-green-the-trunk-before-cutting-the-import",
+        "title": "The trunk is greened before the import is cut, not after",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -150,5 +155,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T04:28:26.848Z"
+  "updated_at": "2026-08-24T04:47:24.670Z"
 }
