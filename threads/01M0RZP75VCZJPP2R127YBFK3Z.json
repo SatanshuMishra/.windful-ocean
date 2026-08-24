@@ -213,6 +213,11 @@
         "ref": "0707-p9-passes-tree-findings-deferred",
         "title": "P9 passes at the import base and its tree-scan findings defer to the publication unit",
         "scope": "c6"
+      },
+      {
+        "ref": "0708-u2-reuses-existing-empty-repository",
+        "title": "U2 reuses the existing empty private repository instead of creating one",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -222,5 +227,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T07:07:43.220Z"
+  "updated_at": "2026-08-24T07:07:51.200Z"
 }
