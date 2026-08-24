@@ -49,13 +49,101 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
-    "key_decisions": [],
-    "out_of_scope": []
+    "active_goal": "Migrate the mitosis engine into its own public repository as an installable plugin across twenty-two units, entirely on the Claude Code subscription, then remove it cleanly from the host.",
+    "next_step": "START HERE. (1) Settle the publish-early choice: U16 at layer 5 (recommended - the gate governs safety, suite greenness does not) or last. (2) Read PLAN.md sections 5, 6 and 11. (3) Ship U2: create the repository PRIVATE, fetch origin and record origin/main, recompute the import closure and diff it against the SPEC's 73, extract by git archive into three staging directories, arrange per section 2.1, rewrite imports, remove staging, one root commit to main. (4) Then U2b.",
+    "last_session": "2026-08-23: thread opened from the planning session that produced PLAN.md. No implementation started, no repository created.",
+    "open_risks": [
+      {
+        "text": "Ship the vacuity guard only after the hermetic and census units — its criterion is that a mutation makes the lane exit non-zero, and against a red baseline that proves nothing because the lane already failed",
+        "scope": "thread",
+        "refs": [
+          "PLAN.md section 11.2",
+          "U5a"
+        ]
+      },
+      {
+        "text": "Never let two in-flight branches touch the package manifest or the lane runner — seven units edit the manifest and four edit the runner, so serialise those units rather than resolve a conflict",
+        "scope": "thread",
+        "refs": [
+          "PLAN.md section 11.3"
+        ]
+      },
+      {
+        "text": "Cut every branch from a freshly fetched trunk — the enforcer diffs the base tip, so a branch cut before the base advanced reads the base's new files as its own deletions and fails a gate falsely",
+        "scope": "thread",
+        "refs": [
+          "PLAN.md section 5 step 2"
+        ]
+      },
+      {
+        "text": "Recompute the import closure rather than trusting the SPEC's list — the SPEC states the recomputation wins, and a discrepancy is recorded in the pull request body rather than absorbed silently",
+        "scope": "thread",
+        "refs": [
+          "SPEC section 4.1",
+          "PLAN.md U2 step 3"
+        ]
+      },
+      {
+        "text": "Run the publication gate before visibility ever changes — a confidential codename sits in a gitignored file that git archive cannot carry, and a public push cannot be undone",
+        "scope": "thread",
+        "refs": [
+          "SPEC section 9",
+          "PLAN.md U1"
+        ]
+      },
+      {
+        "text": "Record every cost figure as a notional estimate — a subscription run reports a cost priced at API rates, so it is never a spend claim and no unit is sized by dollars",
+        "scope": "thread",
+        "refs": [
+          "0699",
+          "PLAN.md section 10.4"
+        ]
+      },
+      {
+        "text": "Verify a host rule is in force by reading the live file — the configuration directories symlink into the primary checkout, so a merged label does not mean the checkout pulled",
+        "scope": "thread",
+        "refs": [
+          "PLAN.md section 6b"
+        ]
+      }
+    ],
+    "key_decisions": [
+      {
+        "ref": "0693-mitosis-extracts-to-its-own-public-repository",
+        "title": "Mitosis extracts to its own public repository as an installable plugin, migrated by hand",
+        "scope": "thread"
+      },
+      {
+        "ref": "0701-the-sixteen-spec-units-ship-as-twenty-two-msps-in-a-corrected-order",
+        "title": "The extraction ships as twenty-two units in a corrected order, not the sixteen the spec listed",
+        "scope": "thread"
+      },
+      {
+        "ref": "0699-the-extraction-runs-entirely-on-the-subscription-and-declares-reproducibility-instead-of-assuming-it",
+        "title": "Everything runs on the Claude Code subscription; hermeticity is replaced by a recorded environment fingerprint",
+        "scope": "thread"
+      },
+      {
+        "ref": "0700-the-contract-lane-never-runs-on-a-hosted-runner-and-ci-holds-no-credential",
+        "title": "The contract lane runs locally on the subscription and CI verifies only freshness and the committed diff",
+        "scope": "thread"
+      },
+      {
+        "ref": "0697-substrate-seed-bundles-do-not-travel-into-the-public-repository",
+        "title": "The substrate seed bundles stay out of the extracted repository",
+        "scope": "thread"
+      },
+      {
+        "ref": "0698-security-review-is-scoped-to-the-six-units-with-a-security-surface",
+        "title": "Security review runs on six of twenty-two units, not on all of them",
+        "scope": "thread"
+      }
+    ],
+    "out_of_scope": [
+      "Disposing of the stale branch and worktree field in the host repository",
+      "Maintaining the host suite after the engine is removed; it is asserted green at removal time only"
+    ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T04:15:35.611Z"
+  "updated_at": "2026-08-24T04:16:16.919Z"
 }
