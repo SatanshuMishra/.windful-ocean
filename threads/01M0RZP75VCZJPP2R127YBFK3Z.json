@@ -157,6 +157,11 @@
         "ref": "0705-the-import-base-must-be-proven-green",
         "title": "The import base must be proven green before the tree is copied",
         "scope": "c1"
+      },
+      {
+        "ref": "0706-the-required-check-carries-no-bypass-actor",
+        "title": "The required status check carries no bypass actor",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -165,5 +170,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T05:39:53.288Z"
+  "updated_at": "2026-08-24T06:31:33.924Z"
 }
