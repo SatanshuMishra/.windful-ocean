@@ -150,7 +150,7 @@ test('a resumed run reclaims the base worktree its killed invocation leaked insi
   const repo = disposableRepo();
   try {
     const leaked = killedRunLeftAt(repo, boundaryPathOf(repo, UNIT));
-    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO);
+    const materialized = addedWorktree(repo.root, leaked, repo.head, 'base', REAL_BOUNDARY_IO, false, Date.now());
     assert.equal(materialized.ok, true, `the resumed run could not reclaim the base worktree its killed invocation left at ${leaked}, so a built unit parks forever and ships nothing: ${materialized.error}`);
     assert.equal(gitIn(leaked, ['rev-parse', 'HEAD']), repo.head, 'the reclaimed path is not a worktree checked out at the revision the gate asked for');
     assert.equal(registeredPaths(repo).length, 2, `the reclaimed path is not registered exactly once alongside the main worktree: ${registeredPaths(repo).join(', ')}`);
@@ -163,7 +163,7 @@ test('a leaked worktree outside the run boundary namespace is still refused and 
   const repo = disposableRepo();
   try {
     const foreign = foreignWorktree(repo, pathJoin(repo.root, 'vendor', 'someone-elses-checkout'));
-    const materialized = addedWorktree(repo.root, foreign, repo.head, 'base', REAL_BOUNDARY_IO);
+    const materialized = addedWorktree(repo.root, foreign, repo.head, 'base', REAL_BOUNDARY_IO, false, Date.now());
     assertLeftStanding(repo, foreign, materialized, 'a worktree outside the run boundary namespace');
     assert.match(materialized.error, /already exists/, 'the refusal no longer carries what git itself reported, so the diagnosis a parked unit hands back is no longer truthful');
   } finally {
@@ -177,7 +177,7 @@ test('a unit id that climbs out of the run boundary namespace cannot reach a wor
     const victim = foreignWorktree(repo, pathJoin(repo.root, 'victim-checkout'));
     mkdirSync(boundaryPathOf(repo, UNIT), { recursive: true });
     const traversed = `${boundaryPathOf(repo, UNIT)}/../../../../victim-checkout`;
-    const materialized = addedWorktree(repo.root, traversed, repo.head, 'base', REAL_BOUNDARY_IO);
+    const materialized = addedWorktree(repo.root, traversed, repo.head, 'base', REAL_BOUNDARY_IO, false, Date.now());
     assertLeftStanding(repo, victim, materialized, 'a worktree a traversing unit id points at');
   } finally {
     rmSync(repo.root, { recursive: true, force: true });

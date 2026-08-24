@@ -104,6 +104,7 @@ function requireConfig(config) {
     baseBranch: safeGateBase(config.manifest.baseBranch),
     isolationById: config.isolationById instanceof Map ? config.isolationById : new Map(),
     isResumedRun: config.isResumedRun === true,
+    nowMs: config.nowMs,
   });
 }
 
@@ -169,6 +170,7 @@ function gateRequest(entry, gateBase, settings) {
     headRef: checkpointRefOf(entry),
     headPath: boundaryPathOf(settings, entry.unitId, BOUNDARY_HEAD_SUFFIX),
     isResumedRun: settings.isResumedRun,
+    nowMs: settings.nowMs,
   });
 }
 
