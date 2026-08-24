@@ -308,6 +308,11 @@
         "ref": "0720-the-import-closure-missed-non-module-data-dependencies",
         "title": "The import closure missed non-module data dependencies, not only a fifth loading form",
         "scope": "c1"
+      },
+      {
+        "ref": "0721-census-stays-in-u2-1-and-the-data-file-carry-folds-into-u2-2",
+        "title": "The census stays inside its unit and the data-file carry folds into the next one",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -317,5 +322,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T21:09:27.231Z"
+  "updated_at": "2026-08-24T21:41:37.604Z"
 }
