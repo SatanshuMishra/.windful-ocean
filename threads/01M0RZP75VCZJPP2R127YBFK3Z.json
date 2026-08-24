@@ -221,6 +221,11 @@
         "ref": "0708-u2-reuses-existing-empty-repository",
         "title": "U2 reuses the existing empty private repository instead of creating one",
         "scope": "c1"
+      },
+      {
+        "ref": "0709-closure-scan-gains-a-fourth-module-loading-pattern",
+        "title": "The import closure is recomputed under a fourth module-loading pattern, superseding two SPEC classifications",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -230,5 +235,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T07:08:26.228Z"
+  "updated_at": "2026-08-24T07:53:39.297Z"
 }
