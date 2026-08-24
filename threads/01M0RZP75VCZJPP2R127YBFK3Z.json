@@ -10,7 +10,7 @@
     {
       "id": "c6",
       "text": "The host trunk is green at the exact commit the import will archive: every push-triggered workflow ran and passed there, and the secret scan's green is proven to have examined a non-zero byte count.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -57,8 +57,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Migrate the mitosis engine into its own public repository as an installable plugin across twenty-two units, entirely on the Claude Code subscription, then remove it cleanly from the host.",
-    "next_step": "RE-RUN THE P9 CENSUS FIRST, at ea5cd118eb4b8e7948b1122cd59085e0c5d39188 - main moved twice this session so the earlier pass names a stale subject. Scan all four archive paths and read the unconfigured gitleaks count as the authoritative one. Then ship U2, REUSING the existing empty private SatanshuMishra/mitosis rather than creating it. Then U2b. The required-check command sits with the user and does not block U2.",
-    "last_session": "2026-08-24: greened the host trunk rather than shipping a unit. Two pull requests merged, a banned wall-clock read and a secret-scan false positive. Four decisions, four plan amendments. Making the test check required proved agent-unreachable and is with the user.",
+    "next_step": "FIRST, before any work: in 1-2 sentences break the twenty-two MSPs into shipping order, grouped by which ship in PARALLEL and which must serialise, then recommend the start point - U2 alone or U2 paired. Read PLAN.md section 4 (wave order) and section 11 (parallelizability, derived). SPEC and PLAN are FROZEN: do not edit either; this is a question ABOUT the plan as it stands. Never group as parallel two units the plan serialises. Then ship U2, reusing the existing empty private repo per 0708.",
+    "last_session": "2026-08-24: re-ran the P9 census at ea5cd118. It PASSES - three of three push-triggered workflows green, secret scan proven non-vacuous at 78 bytes. Three tree-scan findings, all test fixtures, deferred to the publication unit. Nothing shipped; c6 closed, 0707 and 0708 recorded.",
     "open_risks": [
       {
         "text": "Ship the vacuity guard only after the hermetic and census units — its criterion is that a mutation makes the lane exit non-zero, and against a red baseline that proves nothing because the lane already failed",
@@ -138,18 +138,21 @@
         ]
       },
       {
-        "text": "Re-measure the import base at the exact commit the unit will archive — the trunk moved twice in one session, so a carried-over pass names a stale tree",
-        "scope": "c6",
+        "text": "Re-measure the import base at the exact commit the unit will archive — a pass carried over from an earlier session names a stale tree once the trunk moves",
+        "scope": "c1",
         "refs": [
           "PLAN.md P9",
-          "0705"
+          "0705",
+          "0707"
         ]
       },
       {
-        "text": "Reuse the empty private mitosis repository rather than creating it — U2's first step already ran before its dispatch was stopped, so the repository exists with no commits, and a delete-and-recreate is an avoidable irreversible action",
+        "text": "Skip the repository-create step and reuse the existing empty private repository — the name is no longer free, so running create fails and the precondition asserting it is superseded",
         "scope": "c1",
         "refs": [
-          "SatanshuMishra/mitosis"
+          "PLAN.md P6",
+          "PLAN.md U2 step 1",
+          "0708"
         ]
       }
     ],
@@ -227,5 +230,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T07:07:51.200Z"
+  "updated_at": "2026-08-24T07:08:26.228Z"
 }
