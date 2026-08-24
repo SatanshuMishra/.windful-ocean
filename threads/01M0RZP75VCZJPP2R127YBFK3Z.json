@@ -347,6 +347,11 @@
         "ref": "0722-census-keeps-per-site-entries-rather-than-growing-suppression-rules",
         "title": "The census keeps per-site allowlist entries rather than growing more suppression rules",
         "scope": "c1"
+      },
+      {
+        "ref": "0723-retired-roster-carry-is-census-only",
+        "title": "The retired-roster carry satisfies the census but not run-time resolution",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -356,5 +361,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-24T21:42:35.308Z"
+  "updated_at": "2026-08-24T23:04:25.663Z"
 }
