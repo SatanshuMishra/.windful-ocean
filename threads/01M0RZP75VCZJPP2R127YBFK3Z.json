@@ -394,6 +394,11 @@
         "ref": "0727-suite-command-is-omitted-so-g9-cannot-block-the-greening-units",
         "title": "receipts.config.json omits verify.suite_command, so gate G9 cannot block the units that green the suite",
         "scope": "c1"
+      },
+      {
+        "ref": "0728-two-filed-items-fold-back-into-u13-against-the-ceiling",
+        "title": "Two filed items fold back into U13 by user ruling, against the acceptance ceiling",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -403,5 +408,5 @@
     ]
   },
   "created_at": "2026-08-24T04:15:35.611Z",
-  "updated_at": "2026-08-25T00:45:11.187Z"
+  "updated_at": "2026-08-25T06:29:39.821Z"
 }
