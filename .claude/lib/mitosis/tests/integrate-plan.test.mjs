@@ -1,7 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { gateBaseChain, integrateBuilt, integrateSummary, topologicalOrder } from '../integrate-plan.mjs';
+import { REFUSAL_CLASSIFIER } from '../boundary-gate.mjs';
+import { driverPorts } from '../cli.mjs';
+import { openRun } from '../run-store.mjs';
 import { pack } from './file-scope-fixtures.mjs';
+import { cleanupScratch, openArgs } from './run-store-fixtures.mjs';
 
 function msp(id, fileScope, dependsOn = []) {
   return { id, dependsOn, fileScope };
@@ -163,4 +169,73 @@ test('integrate walks the same waiting unit the moment the run reaches quiescenc
 
   assert.deepEqual(plan.outcomes.map((entry) => [entry.unitId, entry.state]), [['add-truncate-to-strings', 'parked']]);
   assert.match(plan.parked[0].diagnosis, /carries no checkpoint ref/);
+});
+
+test('a unit whose boundary gate refuses to collect is parked without dispatching a boundary-fix child into a worktree the gate never built', async () => {
+  const dispatches = [];
+  const detail = 'the base worktree could not be created at .mitosis/boundary/run1/add-truncate-to-strings because no worktree was ever registered for it';
+  const plan = await integrateBuilt(integrateConfig({
+    quiescent: true,
+    built: [built('add-truncate-to-strings', 'refs/mitosis/run1/add-truncate-to-strings')],
+  }), {
+    boundaryGate: async () => ({
+      pass: false,
+      output: detail,
+      blocking: [{ classifier: REFUSAL_CLASSIFIER, detail }],
+      baseCensus: null,
+    }),
+    dispatchPrompt: async (dispatched) => {
+      dispatches.push(dispatched);
+      return { ok: true };
+    },
+    teardownHeadWorktree: async () => {},
+  });
+
+  const outcome = plan.outcomes.find((entry) => entry.unitId === 'add-truncate-to-strings');
+
+  assert.equal(dispatches.length, 0, 'a boundary-fix child was dispatched for a unit whose gate never built a tree for it to work in');
+  assert.equal(outcome.state, 'parked');
+  assert.equal(outcome.boundaryFixes, 0);
+  assert.equal(typeof outcome.diagnosis, 'string');
+  assert.ok(outcome.diagnosis.includes(detail), `the parked diagnosis did not carry the gate's refusal text: ${outcome.diagnosis}`);
+});
+
+test('a boundary-fix dispatch for a unit whose gate found a fixable divergence is recorded under its own kind, carrying the unit id', async (t) => {
+  t.after(cleanupScratch);
+  const handle = openRun(openArgs({ unitIds: ['add-truncate-to-strings'] }));
+  const ports = driverPorts(
+    { log: () => {}, err: () => {}, readSpec: () => ({}) },
+    () => ({}),
+    { dispatch: async () => ({ ok: true, outcome: 'success', structured: null }) },
+    '/tmp/does-not-matter',
+  );
+  ports.makeObserver({ handle, at: '2026-08-23T00:00:00Z' });
+  let gateCalls = 0;
+
+  const plan = await integrateBuilt(integrateConfig({
+    quiescent: true,
+    built: [built('add-truncate-to-strings', 'refs/mitosis/run1/add-truncate-to-strings')],
+  }), {
+    boundaryGate: async () => {
+      gateCalls += 1;
+      if (gateCalls === 1) return { pass: false, output: 'a new finding since base', blocking: [], baseCensus: { fake: true } };
+      return { pass: true, output: 'no new finding', blocking: [], baseCensus: null };
+    },
+    dispatchPrompt: ports.dispatchPrompt,
+    teardownHeadWorktree: async () => {},
+  });
+
+  handle.release();
+
+  const outcome = plan.outcomes.find((entry) => entry.unitId === 'add-truncate-to-strings');
+  assert.equal(outcome.state, 'integrated');
+  assert.equal(outcome.boundaryFixes, 1);
+
+  const dispatchesPath = join(handle.dir, 'dispatches.jsonl');
+  const lines = existsSync(dispatchesPath)
+    ? readFileSync(dispatchesPath, 'utf8').trim().split('\n').filter((line) => line.length > 0).map((line) => JSON.parse(line))
+    : [];
+  assert.equal(lines.length, 1, `expected exactly one recorded dispatch for the one boundary-fix attempt, recorded ${lines.length}`);
+  assert.equal(lines[0].unitId, 'add-truncate-to-strings', 'the recorded dispatch did not carry the unit id the boundary-fix child ran for');
+  assert.equal(lines[0].kind, 'boundary-fix', `the boundary-fix dispatch was recorded under kind ${JSON.stringify(lines[0].kind)} instead of its own kind`);
 });

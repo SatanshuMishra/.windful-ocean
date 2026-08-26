@@ -263,6 +263,8 @@ test('a unit built during this invocation is gated against the base the run decl
     basePath: '/repo/.mitosis/boundary/r1/alpha',
     headRef: 'refs/mitosis/0a1b2c3d/alpha',
     headPath: '/repo/.mitosis/boundary/r1/alpha.head',
+    isResumedRun: false,
+    nowMs: 1786795200000,
   }]);
   assert.deepEqual(stub.refs.map((write) => write.ref), ['refs/mitosis/0a1b2c3d/alpha']);
   assert.deepEqual(
@@ -420,6 +422,8 @@ test('a built unit is gated once against the declared base branch, and integrate
     basePath: '/repo/.mitosis/boundary/r1/alpha',
     headRef: 'refs/mitosis/9e8d7c6b/alpha',
     headPath: '/repo/.mitosis/boundary/r1/alpha.head',
+    isResumedRun: false,
+    nowMs: 1786795200000,
   }]);
   assert.deepEqual(stub.dispatched, [], 'a clean gate composes no boundary-fix prompt');
   assert.deepEqual(driven.phases.Integrate.outcomes, [{
@@ -430,6 +434,33 @@ test('a built unit is gated once against the declared base branch, and integrate
     stage: null,
     resumePoint: { branch: null, ref: 'refs/mitosis/9e8d7c6b/alpha', stage: 'ship' },
   }]);
+});
+
+test('a run whose handle carries attempt 2 marks the gate request as a resumed run', async () => {
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', progress: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
+  const stub = stubbedPorts({
+    readJournal: () => journal,
+    openRun: () => Object.freeze({ runKey: 'aaaaaaaaaaaaaaaa', attempt: 2 }),
+  });
+  await runPhases(runRequest(), stub.ports);
+  assert.equal(stub.gated.length, 1, 'the gate must have run exactly once for the one built unit, or the isResumedRun assertion below checks nothing');
+  assert.equal(
+    stub.gated[0].isResumedRun,
+    true,
+    'a run whose own handle proves it is attempt 2 must mark its gate request as a resumed run, or a reclaim downstream can never tell a confirmed-dead predecessor apart from a merely young lock',
+  );
+});
+
+test('a run whose handle carries attempt 1 marks the gate request as not resumed', async () => {
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', progress: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
+  const stub = stubbedPorts({ readJournal: () => journal });
+  await runPhases(runRequest(), stub.ports);
+  assert.equal(stub.gated.length, 1, 'the gate must have run exactly once for the one built unit, or the isResumedRun assertion below checks nothing');
+  assert.equal(
+    stub.gated[0].isResumedRun,
+    false,
+    'a run whose own handle is attempt 1 must never mark its gate request as a resumed run',
+  );
 });
 
 test('a not-comparable boundary verdict parks with its own diagnosis and dispatches no fix child', async () => {
@@ -524,6 +555,8 @@ test('a run, a unit and a base branch a digit opens are keyed into the gate exac
     basePath: '/repo/.mitosis/boundary/9f0/9delta',
     headRef: 'refs/mitosis/9e8d7c6b/9delta',
     headPath: '/repo/.mitosis/boundary/9f0/9delta.head',
+    isResumedRun: false,
+    nowMs: 1786795200000,
   }]);
   assert.deepEqual(driven.phases.Integrate.integrated.map((entry) => entry.unitId), ['9delta']);
   assert.deepEqual(driven.phases.Integrate.parked, []);
@@ -543,6 +576,8 @@ test('a manifest whose declared run identity is empty keys the gate path on the 
     basePath: '/repo/.mitosis/boundary/0a1b2c3d/9delta',
     headRef: 'refs/mitosis/0a1b2c3d/9delta',
     headPath: '/repo/.mitosis/boundary/0a1b2c3d/9delta.head',
+    isResumedRun: false,
+    nowMs: 1786795200000,
   }]);
   assert.deepEqual(driven.phases.Integrate.integrated.map((entry) => entry.unitId), ['9delta']);
 });

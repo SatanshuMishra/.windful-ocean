@@ -3,6 +3,8 @@ import { DATA_BLOCK_NOTICE, ENGINE_RESUMES, dataBlock, shellQuote, shellQuoteLis
 
 const SCOPE_FENCE = 'scope-fence';
 
+const NODE_MODULES_EXCLUDE_CMD = `sh -c 'EXCLUDE_FILE="$(git rev-parse --git-path info/exclude)"; grep -qxF node_modules "$EXCLUDE_FILE" || echo node_modules >> "$EXCLUDE_FILE"'`;
+
 function declaredScope(paths) {
   return paths.length > 0 ? shellQuoteList(paths) : '(none declared)';
 }
@@ -65,7 +67,7 @@ export function composeImplementPrompt(input) {
     `1. Create a dedicated worktree (observe-then-converge; idempotent under replay). FIRST check whether it already exists: \`git -C ${shellQuote(repoRoot)} worktree list --porcelain\` and \`git -C ${shellQuote(repoRoot)} rev-parse --verify --quiet ${shellQuote(branch)}\`. If a worktree at ${worktree} is already checked out on ${branch}, REUSE it (skip the add). If ${branch} exists but no worktree is attached, attach without -b: \`git -C ${shellQuote(repoRoot)} worktree add ${shellQuote(worktree)} ${shellQuote(branch)}\`. Otherwise create it fresh (retry once if git reports a lock):\n` +
     `   \`git -C ${shellQuote(repoRoot)} worktree add -b ${shellQuote(branch)} ${shellQuote(worktree)} ${shellQuote(baseBranch)}\`\n` +
     `2. \`cd ${shellQuote(worktree)}\` and do ALL work there. Follow TDD as the instructions above require.\n` +
-    `3. Bootstrap dependencies before any check (idempotent): \`ln -sfn ${shellQuote(`${repoRoot}/node_modules`)} node_modules\`\n` +
+    `3. Bootstrap dependencies before any check (idempotent). The tracked .gitignore only ignores node_modules as a directory, so first make this worktree's private exclude list ignore the literal name; that file lives inside .git and is never a committable artifact: \`${NODE_MODULES_EXCLUDE_CMD}\`. Then create the symlink: \`ln -sfn ${shellQuote(`${repoRoot}/node_modules`)} node_modules\`\n` +
     `4. For verification run ONLY the scoped check, never a full build/suite: \`${shellQuoteList(scopedCheckCmd)}\`\n` +
     `5. Commit your work to \`${shellQuote(branch)}\` (one or more commits). Do NOT remove the worktree.\n\n` +
     `Task: ${taskTitle}\n\n${taskBlock(taskFullText)}\n\n` +

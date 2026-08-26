@@ -582,7 +582,19 @@ test('a cached census whose NOT-EXPECTED disagrees with the trees is refused and
   );
 });
 
-test('a worktree remove that exits non-zero falls back to removing the base path', () => {
+test('a worktree remove that exits non-zero falls back to removing the base path when the base path sits inside the repository root', () => {
+  const nestedBase = `${ROOT}/.mitosis/boundary/base-wt`;
+  const io = fixtureIo({
+    readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
+    run: (binary, argv) => (argv.includes('remove')
+      ? { outcome: 'completed', status: 1, stdout: '', stderr: 'fatal: is not a working tree' }
+      : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
+  });
+  evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: nestedBase, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
+  assert.ok(io.removed.includes(nestedBase), `a failed worktree remove never reached the fallback removal: ${JSON.stringify(io.removed)}`);
+});
+
+test('a worktree remove that exits non-zero is refused rather than falling back to removing a base path outside the repository root', () => {
   const io = fixtureIo({
     readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
     run: (binary, argv) => (argv.includes('remove')
@@ -590,7 +602,7 @@ test('a worktree remove that exits non-zero falls back to removing the base path
       : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
   });
   evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
-  assert.ok(io.removed.includes(BASE), `a failed worktree remove never reached the fallback removal: ${JSON.stringify(io.removed)}`);
+  assert.equal(io.removed.includes(BASE), false, `a failed worktree remove reached the fallback removal for a base path outside the repository root: ${JSON.stringify(io.removed)}`);
 });
 
 test('a base worktree that could not be removed at all names the leaked path in the verdict', () => {

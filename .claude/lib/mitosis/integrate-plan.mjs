@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { NOT_COMPARABLE_CLASSIFIER } from './boundary-gate.mjs';
+import { NOT_COMPARABLE_CLASSIFIER, REFUSAL_CLASSIFIER } from './boundary-gate.mjs';
 import { divergedParents } from './divergence.mjs';
 import { LEGAL_STAGES, transitiveDependents } from './parking.mjs';
 import { deriveOverlapEdges, withOverlapDependsOn } from './overlap-order.mjs';
@@ -14,6 +14,7 @@ export const INTEGRATE_STATES = Object.freeze([INTEGRATED, PARKED, DIVERGED]);
 export const INTEGRATE_PARK_STAGE = 'execute';
 export const BOUNDARY_BASE_SEGMENTS = Object.freeze(['.mitosis', 'boundary']);
 export const BOUNDARY_HEAD_SUFFIX = '.head';
+export const BOUNDARY_FIX_KIND = 'boundary-fix';
 
 const REQUIRED_PORTS = Object.freeze(['boundaryGate', 'dispatchPrompt', 'teardownHeadWorktree']);
 const WORKTREE_ISOLATION = 'worktree';
@@ -102,6 +103,8 @@ function requireConfig(config) {
     mergedShas: isRecord(config.mergedShas) ? config.mergedShas : Object.freeze({}),
     baseBranch: safeGateBase(config.manifest.baseBranch),
     isolationById: config.isolationById instanceof Map ? config.isolationById : new Map(),
+    isResumedRun: config.isResumedRun === true,
+    nowMs: config.nowMs,
   });
 }
 
@@ -166,6 +169,8 @@ function gateRequest(entry, gateBase, settings) {
     basePath: boundaryPathOf(settings, entry.unitId, ''),
     headRef: checkpointRefOf(entry),
     headPath: boundaryPathOf(settings, entry.unitId, BOUNDARY_HEAD_SUFFIX),
+    isResumedRun: settings.isResumedRun,
+    nowMs: settings.nowMs,
   });
 }
 
@@ -190,11 +195,19 @@ function notComparableRefusal(verdict) {
   return found === undefined ? null : (nonEmptyText(found.detail) ?? verdict.output);
 }
 
+function collectionRefusal(verdict) {
+  if (!Array.isArray(verdict.blocking)) return null;
+  const found = verdict.blocking.find((item) => isRecord(item) && item.classifier === REFUSAL_CLASSIFIER);
+  return found === undefined ? null : (nonEmptyText(found.detail) ?? verdict.output);
+}
+
 async function attemptFix(entry, settings, ports, gateOutput) {
   const headPath = boundaryPathOf(settings, entry.unitId, BOUNDARY_HEAD_SUFFIX);
   const dispatched = await ports.dispatchPrompt({
-    prompt: composePrompt('boundary-fix', boundaryFixInput(entry, settings, gateOutput, headPath)),
+    prompt: composePrompt(BOUNDARY_FIX_KIND, boundaryFixInput(entry, settings, gateOutput, headPath)),
     cwd: headPath,
+    unitId: entry.unitId,
+    kind: BOUNDARY_FIX_KIND,
   });
   return Object.freeze({
     dispatches: 1,
@@ -209,6 +222,10 @@ async function gatedOutcome(entry, request, settings, ports) {
   const structural = notComparableRefusal(first);
   if (structural !== null) {
     return outcome(entry, PARKED, 0, `the gate could not compare this unit against a base distinct from its own tree, and no fix a child could make would change that: ${structural}`);
+  }
+  const refused = collectionRefusal(first);
+  if (refused !== null) {
+    return outcome(entry, PARKED, 0, `the gate could not collect the sides it needed to compare, so no worktree exists for a boundary-fix child to work in: ${refused}`);
   }
   const attempt = await attemptFix(entry, settings, ports, first.output);
   if (!attempt.ran) {
