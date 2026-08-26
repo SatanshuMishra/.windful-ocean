@@ -1,67 +1,212 @@
-# Continuity Ledger
+# Logbook continuity (standing rule)
 
-Per-project continuity: each session teaches the next the cumulative project state. The live implementation is the `logbook` plugin. Write side: the `logbook:debrief` skill. Read side: the `logbook:preflight` skill. Both skills only orchestrate the plugin's `ledger` MCP tools — the server owns the load-bearing rules (lifecycle, Definition-of-Done, caps, validation) and refuses an illegal write rather than trusting the caller.
+Logbook is a Claude Code plugin that records what happened across coding sessions in a project, so a
+later session can pick up context instead of re-deriving it. It stores that record in the project's
+own git repository. This file states what the shipped software actually does. Where this file and the
+code disagree, the code wins and this file is wrong.
 
-## Location and layout
+The plugin exposes tools over the Model Context Protocol under the server key `ledger`. It also ships
+two skills: `logbook:preflight`, which picks up an existing thread of work, and `logbook:debrief`,
+which ends this session's work on one. Both skills do nothing but call the tools below.
 
-- The ledger is written by the plugin's MCP server, never by hand. It lives under the plugin's per-project data directory, which the server resolves from `CLAUDE_PLUGIN_DATA` plus a key derived from the project path — NOT in the repository working tree. Writes into that store through Write/Edit/MultiEdit/NotebookEdit are denied by the plugin's PreToolUse guard.
-- Git projects: a `ledger-worktree/` checkout of a dedicated git ref (default backend `orphan-branch`, default branch `_ledger`, both overridable through the plugin's user config), pushed to `origin`. Non-git projects: a plain `ledger/` directory in the same per-project data directory.
-- Inside either: `threads/<ULID>.json` (the thread record, spine included), `decisions/<NNNN>-<slug>.md`, `sessions/<ULID>/<timestamp>--<label>.md`, `bindings/<ULID>.json`. `index/` is derived, gitignored, and rebuilt by `rebuild_index`.
-- The plugin data root carries one directory per install source, so a stale sibling store can answer with a plausible near-complete ledger instead of an obvious nothing. Resolve the store from the running server, and prefer `get_resume_brief` / `read_decision` over reading files.
+## The twelve tools
 
-## Thread lifecycle (5 states)
+These are all of them. There are no others.
 
-A thread is in exactly one state. `active` means "being worked in THIS session" and nothing more. Hand-off auto-transitions the worked thread `active -> paused`. Therefore any `active` thread found at session start is an anomaly (a crashed or abandoned session), which makes zombie detection trivial.
+`open_thread`, `update_thread`, `close_thread`, `amend_criteria`, `bind_branch`, `resume_thread`,
+`park_thread`, `record_decision`, `log_session_event`, `sync_ledger`, `resolve_conflict`,
+`list_threads`.
 
-States: `active`, `paused`, `blocked`, `done`, `abandoned`. `done` and `abandoned` are terminal; reopening creates a NEW thread that references the old.
+Over the wire each is named `mcp__ledger__<tool>`.
 
-Allowed transitions:
-- (new) -> active: thread created with non-empty `completion_criteria`.
-- active -> paused: session end (automatic, at hand-off).
-- active -> blocked: explicit; `blocked_by` filled.
-- active -> done: DoD gate passes.
-- active -> abandoned: explicit; `abandoned_reason` filled.
-- paused -> active: only via the Resumption Brief (never silent).
-- paused -> done | abandoned: DoD gate / explicit reason.
-- blocked -> active: via the Resumption Brief, when the blocker is now being addressed (never silent).
-- blocked -> paused: dependency cleared or timed out.
+## Where the record lives
 
-## Definition-of-Done gate (structural)
+Everything sits under one per-project directory. The plugin resolves it from the environment value
+`CLAUDE_PLUGIN_DATA` plus a key derived from the project's canonicalised absolute path. It is not in
+the project's working tree, and it is never edited by hand.
 
-`done` requires: at least one un-struck entry in `completion_criteria`, EVERY un-struck entry marked done, plus a non-empty closure statement. Criteria are set at thread creation (`open_thread` requires at least one) and afterwards change only through `amend_criteria`, which needs a resolving decision reference to insert, rewrite or strike one; a struck criterion is retained, never deleted. The server evaluates this gate inside `transition_thread` and REFUSES the move when it fails — the thread never leaves its current state, and the refusal is surfaced to the user rather than worked around.
+Two directories sit under that root.
 
-## Finish before you start (WIP)
+- `records/` is the readable copy: `threads/<ULID>.json`, `decisions/<ULID>.json`,
+  `sessions/<thread ULID>/<entry ULID>.json`, and `bindings/<ULID>.json`. Every record is JSON and
+  every identifier is a ULID, a 26-character sortable identifier such as
+  `01M0NDPM0ACCR9CD68PMHYWGGD`.
+- `state/` holds small bookkeeping files, including `origin.json`, which records the real project
+  path, and `active-thread.json`, described under "Being worked now" below.
 
-If a non-terminal thread (`active`/`paused`/`blocked`) exists and the user starts unrelated new work, prompt to dispose of the existing thread (resume / pause / done / abandon) before opening a new one. Stop starting; start finishing.
+The durable copy is git-native. Every write also lands as a commit on a dedicated ref,
+`refs/logbook/ledger`, inside the host project's own repository. That ref is **not a branch** and
+never appears in a branch listing. Nothing is ever checked out for it; the readable copy in
+`records/` is written out from the ref's tree by hand, which the code calls materialising. A stamp
+file named `last-materialised` records the last successful materialisation, and is written only when
+materialisation fully succeeded.
 
-## Staleness (prompt, never auto-close)
+`sync_ledger` reconciles this machine's copy with the shared copy on the remote `origin`, and pushes.
+Its result names `sync_ledger.local_sha`, the commit this machine holds, and
+`sync_ledger.remote_sha`, the commit the shared copy holds, read back from the remote after the push.
+Equality of the two is the receipt that the push arrived. Where that read-back cannot be performed
+both fields are null and the result does not claim `pushed`.
 
-Nothing in the plugin measures thread age: the SessionStart roster carries status, slug, progress, title, next step and id, and no scan flags a stale thread. These thresholds are therefore a duty on the agent, which reads the ages itself and surfaces threads for disposition. Nothing here EVER auto-closes:
-- `active` (any age): an anomaly under the this-session-only semantic; prompt to dispose. Hard prompt once idle past 7 days.
-- `paused` idle > 30 days: soft prompt to confirm it is still wanted.
-- `blocked` idle > 90 days: confirm the blocker still holds.
-The clock only raises the question; the human decides.
+Two consequences of the layout are worth knowing before relying on it.
 
-## Resume = present then STOP
+- `state/` is per-install. If the plugin is installed from more than one source, the active-thread
+  pointer and the stop-gate file do **not** follow you between them.
+- When the record count on disk disagrees with the count in the ref's tree, opening the store reports
+  a named anomaly rather than staying silent about it.
 
-On resume, never auto-select a thread by recency, by last-modified time, or by branch. Present the menu of resumable threads (the `active`, `paused` and `blocked` ones), or honor an explicit `/logbook:preflight <slug>`; then load only the chosen thread, present the Resumption Brief, and STOP. The brief is the synthesis-by-receiver step; auto-proceeding into the work is forbidden.
+## Writes into the store are guarded, and the guard is not a security boundary
 
-## Decision-time capture (the core duty)
+A hook runs before certain tool calls. `Write`, `Edit`, `MultiEdit` and `NotebookEdit` aimed inside
+the store are denied. A `Bash` command whose text names the store, the ref, or the environment key
+produces a confirmation prompt — `ask`, not `deny`. The guard says of itself that it prompts for
+confirmation and is not a security boundary. Treat it as a guard rail, never as protection.
 
-When a decision is locked mid-session — an approval, a chosen approach, a rejected alternative that carries signal — call `record_decision` IMMEDIATELY. The server allocates the next four-digit number, writes `decisions/<NNNN>-<slug>.md` as a MADR record carrying `Status: accepted` and a `Thread-Id`, and links it into the thread spine's `key_decisions` under a scope defaulting to the current criterion. Never reconstruct decisions at wrap-up; wrap-up catches stragglers only.
+A tool name matching the ledger pattern is auto-approved when it names a tool the plugin actually
+registers. That check narrows the auto-approve surface; it does not close it. The event the guard
+receives carries no server identity, so a different server registered under the key `ledger` that
+exposed a tool named `open_thread` would be auto-approved exactly as this plugin's own is.
 
-Decision records are write-once, and structurally so: no tool amends a recorded decision, and direct edits into the ledger store are denied. A reversal is a NEW record whose text supersedes the old; the superseded record's file and number remain. The number sequence is project-wide, not per-thread, so gaps in what one thread references are normal — cite records by bare number.
+## A thread has three states
 
-## Progressive-summary spine
+`open`, `done`, `abandoned`. `open` is the only non-terminal one, and it is the state every new
+thread starts in.
 
-Each thread record carries a fixed-field running summary (the spine), and the schema requires all six: `active_goal`, `next_step`, `last_session`, `open_risks`, `key_decisions` (links only), `out_of_scope`. `status` is a sibling field on the thread, not part of the spine. At session close, merge the old spine with the latest session log into a refreshed spine through `update_thread`. This keeps the resume budget viable whether a thread spans 2 sessions or 20, and it is what populates the roster's next step and the resume brief.
+- A thread is created by `open_thread` and requires at least one entry in
+  `open_thread.completion_criteria`; without one it could never be closed.
+- `close_thread` moves an open thread to `done` or to `abandoned`, and nothing else writes the state.
+  Closing as abandoned requires a reason, which is written to the session log rather than onto the
+  thread.
+- `done` and `abandoned` are terminal and cannot be undone through any tool. Reopening means creating
+  a new thread that names the old one through `open_thread.predecessor_id`, and the briefing renders
+  that link under `Related:`.
 
-Decisions are NEVER compressed: they live in append-only `decisions/*.md` sidecars, referenced by their four-digit number and read on demand through `read_decision`. A decision from session 3 is never summarized away by session 20.
+There is no `paused` state and no `blocked` state, and no state named `active`. Parking a thread does
+not change its state.
 
-Hierarchy (two-level epic/branch) is deferred until a project crosses ~15 threads; until then a flat thread list plus the spine is correct. Adopt hierarchy only with a deterministic active-leaf pointer, never fuzzy retrieval.
+## Being worked now is a pointer, not a state
 
-## Discipline
+What the previous implementation expressed as an `active` state is a file, `active-thread.json`,
+under `state/`. It carries `pointer.thread_id`, `pointer.written_at` and `pointer.session_id`.
 
-- Pointers, not payloads: ledger files carry paths, never file contents.
-- Ledger claims are hints; verify against code and git before acting. On conflict, code wins — then fix the ledger.
-- Spine caps are enforced at every write by REFUSAL, not truncation: the server rejects the whole call with the offending field, its limit and a remedy, and nothing is written. Shorten the value and re-send, or move the detail into the session log and keep a pointer. Nothing is silently dropped.
+- `resume_thread` writes the pointer and returns `resume_thread.briefing`.
+- `park_thread` releases it. The thread stays `open`; parking is not closing, and a parked thread
+  appears in the next roster.
+- At session start, a pointer left behind by a different session is reported as a crash report,
+  because its `pointer.session_id` does not match this session's. That comparison is on session
+  identity, never on elapsed time.
+
+Nothing in the plugin measures a thread's age, and nothing ever closes a thread on its own. Any
+staleness judgement is yours to make, from `list_threads`, which reports each thread's
+`thread.updated_at`.
+
+## Finishing a thread
+
+Closing as `done` passes a structural gate, evaluated inside `close_thread`:
+
+- at least one criterion that has not been struck, and
+- every un-struck criterion marked done, and
+- a non-empty closing statement.
+
+When the gate fails the call is refused and the thread does not move. Criteria are set when the thread
+is opened. The set of criteria afterwards changes only through `amend_criteria`, which requires
+`amend_criteria.decision_id` naming a decision that actually resolves; it inserts, rewrites or
+strikes. A struck criterion is retained forever, never deleted. Marking a criterion done is a
+different operation and belongs to `update_thread`.
+
+## Decisions
+
+Call `record_decision` when a decision is locked, not at wrap-up.
+
+- It mints a ULID and writes `decisions/<ULID>.json`. There is no four-digit number and no Markdown
+  document.
+- It writes the link into the thread's running summary itself, in the same commit as the decision.
+  There is no second call.
+- `record_decision.scope` is optional. Supplied, it is used verbatim. Omitted, it is derived as the
+  lowest-numbered criterion that is neither done nor struck, rendered as `criterion N`.
+- If the thread record would exceed its byte cap the decision is still written and only the link is
+  skipped. The result reports `record_decision.linked` and `record_decision.link_skipped_reason`, and
+  the call still succeeds.
+- Reversing a decision means recording a new one that names the old in `record_decision.supersedes`.
+  The old record stays readable.
+
+Read a decision through the resource `logbook://decision/{id}`, or through the briefing, which
+resolves the decisions linked on the thread. **There is no tool for reading a decision.**
+
+One honest limit: `resolve_conflict` can replace a decision record's contents when the same
+identifier exists on both sides of a sync with differing content. Decisions are append-only in
+ordinary use, but that repair path is a real exception.
+
+## Citing a decision from before the cutover
+
+The previous implementation numbered decisions `0001` through `0180` and stored them as Markdown.
+Those numbers resolve to nothing in the current store, which holds ULIDs only. The two shapes cannot
+be confused: a four-digit number is a predecessor record, a 26-character ULID is a current one.
+
+A predecessor decision is cited as `_ledger:decisions/<NNNN>-<slug>.md`.
+
+Read one in two steps. First resolve the slug from the number:
+
+    git ls-tree --name-only refs/heads/_ledger:decisions | grep '^0170'
+
+Then read the exact path it printed:
+
+    git show refs/heads/_ledger:decisions/0170-the-six-lost-items-from-0160-are-recovered-and-entered.md
+
+Never put a wildcard in that path. `git show` with a wildcard does not fail: it exits zero, writes
+nothing to standard error, and prints the current `HEAD` commit instead of the record. The exact-path
+form fails loudly on a wrong path, which is why it is the only form to use.
+
+That ref is frozen history. Read it with git; no tool reaches it.
+
+## The running summary
+
+Every thread carries a six-field running summary, and the schema requires all six:
+`spine.active_goal`, `spine.next_step`, `spine.last_session`, `spine.open_risks`,
+`spine.key_decisions` and `spine.out_of_scope`. The thread's state is a sibling field,
+`thread.status`, not part of the summary.
+
+`update_thread` records mid-session progress. `park_thread` ends this session's work: it writes the
+session log entry, refreshes the summary fields from the values you supply, and releases the pointer.
+It does not read the session log to compose the summary — the text you pass is the text that is
+stored.
+
+`park_thread.outcome` is optional. Supplied, it writes the session log and refreshes the summary, and
+a branch that cannot write it refuses rather than releasing the pointer anyway. Omitted, the call is a
+pure pointer release and existing statuses are unchanged; that is also how a pointer naming a
+quarantined record is released, reported as `quarantined-pointer-released`.
+
+The summary is what fills the roster's next step and the resumption briefing. Decisions themselves are
+never compressed into it; they live in their own records and are read on demand.
+
+## Caps refuse, they do not truncate
+
+Every size cap is enforced by refusing the whole call. Nothing is shortened and nothing is written.
+The refusal names the field, its limit, and a remedy. Shorten the value and send it again, or move the
+detail into a session log entry through `log_session_event` and keep a pointer to it.
+
+One exception, because it will confuse you otherwise: the cap on the whole serialised thread record is
+reported without naming which field overflowed and without naming the number. If a write is refused
+and the refusal names no field, that is the cap you have hit.
+
+## Resuming
+
+Never auto-select a thread — not by recency, not by file modification time, not by branch. Present the
+roster from `list_threads`, let the human choose, then call `resume_thread`.
+
+`resume_thread.thread_id` accepts a ULID and nothing else. A slug is refused. Take the identifier from
+`list_threads` or from `logbook://roster`; never compose one.
+
+Print `resume_thread.briefing` exactly as it is returned. A hook checks that the briefing was echoed
+verbatim and blocks otherwise. That hook enforces the verbatim echo only — it does not enforce
+stopping, so stopping after the briefing is your duty.
+
+`logbook://index` lists every readable address, and reads are available without a tool call.
+
+## Working rules
+
+- Ledger claims are hints. Verify against the code and against git before acting on one. On conflict
+  the code wins, and then the ledger gets fixed.
+- Store pointers, not payloads. Records carry paths and identifiers, not the contents of files.
+- A refusal from this server names the field that was wrong, what that field accepts, a valid example,
+  and whether a retry can succeed. Read it and correct the argument rather than retrying the same
+  call.
