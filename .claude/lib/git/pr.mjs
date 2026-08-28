@@ -22,12 +22,12 @@ import {
 
 export { inertValue, renderPrCreateBody, PR_TITLE_PATTERN, PR_TITLE_TYPES };
 
-export const MITOSIS_GIT_USAGE_EXIT = 2;
-export const MITOSIS_GIT_TRIPWIRE_EXIT = MERGE_DENY_EXIT;
-export const MITOSIS_GIT_OBSERVE_EXIT = 20;
-export const MITOSIS_GIT_CONVERGE_EXIT = 21;
-export const MITOSIS_GIT_GH_MISSING_EXIT = REAL_GH_MISSING_EXIT;
-export const MITOSIS_GIT_VERBS = Object.freeze(['pr-create', 'pr-close', 'compare']);
+export const PR_TOOL_USAGE_EXIT = 2;
+export const PR_TOOL_TRIPWIRE_EXIT = MERGE_DENY_EXIT;
+export const PR_TOOL_OBSERVE_EXIT = 20;
+export const PR_TOOL_CONVERGE_EXIT = 21;
+export const PR_TOOL_GH_MISSING_EXIT = REAL_GH_MISSING_EXIT;
+export const PR_TOOL_VERBS = Object.freeze(['pr-create', 'pr-close', 'compare']);
 
 const NO_INDIRECT_IO = Object.freeze({ readFile: () => null, readStdin: () => null });
 const GH_BINARY = 'gh';
@@ -65,17 +65,17 @@ function rejection(error) {
 }
 
 function valueRejection(verb, flag, cap) {
-  return `mitosis-git ${verb}: a ${flag} value is empty, over the ${cap}-character cap, or carries something a pull-request document may not carry: a leading field-indirection sigil, a non-ascii character, an html tag opener, a leading markdown block opener, or a setext underline`;
+  return `pr-tool ${verb}: a ${flag} value is empty, over the ${cap}-character cap, or carries something a pull-request document may not carry: a leading field-indirection sigil, a non-ascii character, an html tag opener, a leading markdown block opener, or a setext underline`;
 }
 
 function sentenceRejection(flag, value) {
-  return `mitosis-git pr-create: a ${flag} value must begin with an uppercase letter and end with . ? or !, so the body reads as sentences; received ${JSON.stringify(value)}`;
+  return `pr-tool pr-create: a ${flag} value must begin with an uppercase letter and end with . ? or !, so the body reads as sentences; received ${JSON.stringify(value)}`;
 }
 
 function sentenceCheck(flag, value) {
   if (flag === '--what') {
     if (carriesReceiptLineToken(value)) {
-      return "mitosis-git pr-create: a --what value may not begin with a receipts line token; a bulleted line cannot satisfy the enforcer's line-start grammar. Pass it as --why instead.";
+      return "pr-tool pr-create: a --what value may not begin with a receipts line token; a bulleted line cannot satisfy the enforcer's line-start grammar. Pass it as --why instead.";
     }
     if (!isSentenceShaped(value)) return sentenceRejection(flag, value);
     return null;
@@ -100,16 +100,16 @@ function collectFlags(verb, argv) {
   for (let i = 1; i < argv.length; i += 1) {
     const token = argv[i];
     if (typeof token !== 'string' || !token.startsWith('--') || token.length === 2 || token.includes('=')) {
-      return { error: `mitosis-git ${verb}: refusing the argument ${JSON.stringify(token === undefined ? null : token)}; only separated long-form flags from the allowlist are accepted` };
+      return { error: `pr-tool ${verb}: refusing the argument ${JSON.stringify(token === undefined ? null : token)}; only separated long-form flags from the allowlist are accepted` };
     }
     const known = spec.single.includes(token) || spec.multiple.includes(token);
     if (!known) {
-      return { error: `mitosis-git ${verb}: unknown flag ${JSON.stringify(token)}; the accepted flags are ${[...spec.single, ...spec.multiple].join(' ')}` };
+      return { error: `pr-tool ${verb}: unknown flag ${JSON.stringify(token)}; the accepted flags are ${[...spec.single, ...spec.multiple].join(' ')}` };
     }
     const value = argv[i + 1];
     const swallowedFlag = typeof value === 'string' && (spec.single.includes(value) || spec.multiple.includes(value));
     if (typeof value !== 'string' || value.length === 0 || swallowedFlag) {
-      return { error: `mitosis-git ${verb}: flag ${token} requires one inline value and received ${JSON.stringify(value === undefined ? null : value)}` };
+      return { error: `pr-tool ${verb}: flag ${token} requires one inline value and received ${JSON.stringify(value === undefined ? null : value)}` };
     }
     i += 1;
     if (spec.multiple.includes(token)) {
@@ -117,14 +117,14 @@ function collectFlags(verb, argv) {
       continue;
     }
     if (single.has(token)) {
-      return { error: `mitosis-git ${verb}: flag ${token} was supplied more than once` };
+      return { error: `pr-tool ${verb}: flag ${token} was supplied more than once` };
     }
     single.set(token, value);
   }
   for (const flag of spec.required) {
     if (single.has(flag)) continue;
     if (multiple.some((entry) => entry.flag === flag)) continue;
-    return { error: `mitosis-git ${verb}: missing required flag ${flag}` };
+    return { error: `pr-tool ${verb}: missing required flag ${flag}` };
   }
   return { single, multiple };
 }
@@ -133,10 +133,10 @@ function collectInertList(multiple, flag) {
   const raws = multiple.filter((entry) => entry.flag === flag).map((entry) => entry.value);
   const ceiling = PR_MULTI_LIMITS[flag];
   if (!Number.isInteger(ceiling)) {
-    return { error: `mitosis-git pr-create: ${flag} carries no value ceiling; refusing to compose an unbounded body` };
+    return { error: `pr-tool pr-create: ${flag} carries no value ceiling; refusing to compose an unbounded body` };
   }
   if (raws.length > ceiling) {
-    return { error: `mitosis-git pr-create: ${raws.length} ${flag} values exceed the ${ceiling}-value ceiling` };
+    return { error: `pr-tool pr-create: ${raws.length} ${flag} values exceed the ${ceiling}-value ceiling` };
   }
   const values = [];
   for (const raw of raws) {
@@ -153,15 +153,15 @@ function collectInertList(multiple, flag) {
 
 function readPrCreateTarget(single) {
   const repo = single.get('--repo');
-  if (!validateRepoIdentity(repo)) return { error: `mitosis-git pr-create: --repo ${JSON.stringify(repo)} is not an owner/repo slug` };
+  if (!validateRepoIdentity(repo)) return { error: `pr-tool pr-create: --repo ${JSON.stringify(repo)} is not an owner/repo slug` };
   const head = single.get('--head');
-  if (!validateRefToken(head)) return { error: `mitosis-git pr-create: --head ${JSON.stringify(head)} is not a conservative git ref token` };
+  if (!validateRefToken(head)) return { error: `pr-tool pr-create: --head ${JSON.stringify(head)} is not a conservative git ref token` };
   const base = single.get('--base');
-  if (!validateRefToken(base)) return { error: `mitosis-git pr-create: --base ${JSON.stringify(base)} is not a conservative git ref token` };
+  if (!validateRefToken(base)) return { error: `pr-tool pr-create: --base ${JSON.stringify(base)} is not a conservative git ref token` };
   const title = inertValue(single.get('--title'), PR_TITLE_CAP);
   if (title === null) return { error: valueRejection('pr-create', '--title', PR_TITLE_CAP) };
   if (!PR_TITLE_PATTERN.test(title)) {
-    return { error: `mitosis-git pr-create: --title ${JSON.stringify(title)} is not a conventional-commits title of the form <type>(<scope>): <lowercase imperative summary>; the types are ${PR_TITLE_TYPES.join(' ')}, the scope is at most 16 lowercase characters, and the whole title is at most ${PR_TITLE_CAP} characters with no trailing period` };
+    return { error: `pr-tool pr-create: --title ${JSON.stringify(title)} is not a conventional-commits title of the form <type>(<scope>): <lowercase imperative summary>; the types are ${PR_TITLE_TYPES.join(' ')}, the scope is at most 16 lowercase characters, and the whole title is at most ${PR_TITLE_CAP} characters with no trailing period` };
   }
   return { target: Object.freeze({ repo, head, base, title }) };
 }
@@ -174,7 +174,7 @@ function readPrCreateNarrative(multiple) {
     narrative[field] = collected.values;
   }
   if (narrative.verified.length + narrative.notVerified.length === 0) {
-    return { error: 'mitosis-git pr-create: the verification section needs at least one --verified or --not-verified value; a check that was not run is stated as --not-verified "<thing> - not run", never left out' };
+    return { error: 'pr-tool pr-create: the verification section needs at least one --verified or --not-verified value; a check that was not run is stated as --not-verified "<thing> - not run", never left out' };
   }
   return { narrative: Object.freeze(narrative) };
 }
@@ -195,7 +195,7 @@ function readPrCreateReferences(single) {
   if (single.has('--supersedes')) {
     const candidate = single.get('--supersedes');
     supersedes = canonicalPrUrl(candidate);
-    if (supersedes === null) return { error: `mitosis-git pr-create: --supersedes ${JSON.stringify(candidate)} is not a github pull-request url that composes an inert link line within the ${PR_VALUE_CAP}-character cap` };
+    if (supersedes === null) return { error: `pr-tool pr-create: --supersedes ${JSON.stringify(candidate)} is not a github pull-request url that composes an inert link line within the ${PR_VALUE_CAP}-character cap` };
   }
   return { references: Object.freeze({ supersedes }) };
 }
@@ -219,9 +219,9 @@ function parsePrCreate(single, multiple) {
 
 function parsePrClose(single) {
   const repo = single.get('--repo');
-  if (!validateRepoIdentity(repo)) return rejection(`mitosis-git pr-close: --repo ${JSON.stringify(repo)} is not an owner/repo slug`);
+  if (!validateRepoIdentity(repo)) return rejection(`pr-tool pr-close: --repo ${JSON.stringify(repo)} is not an owner/repo slug`);
   const pr = single.get('--pr');
-  if (!PR_NUMBER_PATTERN.test(pr)) return rejection(`mitosis-git pr-close: --pr ${JSON.stringify(pr)} is not a pull-request number`);
+  if (!PR_NUMBER_PATTERN.test(pr)) return rejection(`pr-tool pr-close: --pr ${JSON.stringify(pr)} is not a pull-request number`);
   let comment = null;
   if (single.has('--comment')) {
     comment = inertValue(single.get('--comment'), PR_VALUE_CAP);
@@ -232,21 +232,21 @@ function parsePrClose(single) {
 
 function parseCompare(single) {
   const repo = single.get('--repo');
-  if (!validateRepoIdentity(repo)) return rejection(`mitosis-git compare: --repo ${JSON.stringify(repo)} is not an owner/repo slug`);
+  if (!validateRepoIdentity(repo)) return rejection(`pr-tool compare: --repo ${JSON.stringify(repo)} is not an owner/repo slug`);
   const base = single.get('--base');
-  if (!validateRefToken(base)) return rejection(`mitosis-git compare: --base ${JSON.stringify(base)} is not a conservative git ref token`);
+  if (!validateRefToken(base)) return rejection(`pr-tool compare: --base ${JSON.stringify(base)} is not a conservative git ref token`);
   const head = single.get('--head');
-  if (!validateRefToken(head)) return rejection(`mitosis-git compare: --head ${JSON.stringify(head)} is not a conservative git ref token`);
+  if (!validateRefToken(head)) return rejection(`pr-tool compare: --head ${JSON.stringify(head)} is not a conservative git ref token`);
   return Object.freeze({ ok: true, error: null, verb: 'compare', opts: Object.freeze({ repo, base, head }) });
 }
 
-export function parseMitosisGitArgv(argv) {
+export function parsePrToolArgv(argv) {
   if (!Array.isArray(argv) || argv.length === 0) {
-    return rejection(`mitosis-git: expected a verb; the only verbs are ${MITOSIS_GIT_VERBS.join(', ')}`);
+    return rejection(`pr-tool: expected a verb; the only verbs are ${PR_TOOL_VERBS.join(', ')}`);
   }
   const verb = argv[0];
-  if (typeof verb !== 'string' || !MITOSIS_GIT_VERBS.includes(verb)) {
-    return rejection(`mitosis-git: unknown verb ${JSON.stringify(verb === undefined ? null : verb)}; the only verbs are ${MITOSIS_GIT_VERBS.join(', ')}`);
+  if (typeof verb !== 'string' || !PR_TOOL_VERBS.includes(verb)) {
+    return rejection(`pr-tool: unknown verb ${JSON.stringify(verb === undefined ? null : verb)}; the only verbs are ${PR_TOOL_VERBS.join(', ')}`);
   }
   const collected = collectFlags(verb, argv);
   if (collected.error) return rejection(collected.error);
@@ -275,27 +275,27 @@ export function buildGhArgv(verb, stage, opts) {
   if (verb === 'compare' && stage === 'read') {
     return ['api', `repos/${opts.repo}/compare/${opts.base}...${opts.head}`];
   }
-  throw new Error(`mitosis-git: refusing to build a gh argv for the unknown verb/stage pair ${JSON.stringify(verb)}/${JSON.stringify(stage)}`);
+  throw new Error(`pr-tool: refusing to build a gh argv for the unknown verb/stage pair ${JSON.stringify(verb)}/${JSON.stringify(stage)}`);
 }
 
 export function ghExecTripwire(argv, classify) {
   if (!Array.isArray(argv) || argv.length === 0) {
-    return Object.freeze({ allow: false, reason: 'mitosis-git tripwire: refusing to execute a gh call whose argv is not a non-empty array (fail-closed).' });
+    return Object.freeze({ allow: false, reason: 'pr-tool tripwire: refusing to execute a gh call whose argv is not a non-empty array (fail-closed).' });
   }
   let decision;
   try {
     decision = classify(argv, NO_INDIRECT_IO);
   } catch (err) {
-    return Object.freeze({ allow: false, reason: `mitosis-git tripwire: the deny classifier threw (${err && err.message}); refusing to execute (fail-closed).` });
+    return Object.freeze({ allow: false, reason: `pr-tool tripwire: the deny classifier threw (${err && err.message}); refusing to execute (fail-closed).` });
   }
   if (decision === null || typeof decision !== 'object' || Array.isArray(decision)) {
-    return Object.freeze({ allow: false, reason: 'mitosis-git tripwire: the deny classifier returned no usable decision object; refusing to execute (fail-closed).' });
+    return Object.freeze({ allow: false, reason: 'pr-tool tripwire: the deny classifier returned no usable decision object; refusing to execute (fail-closed).' });
   }
   if (decision.refuse !== false) {
     const carried = typeof decision.reason === 'string' && decision.reason.length > 0 ? decision.reason : null;
     return Object.freeze({
       allow: false,
-      reason: carried || 'mitosis-git tripwire: the deny classifier returned a decision whose refuse field is not the strict boolean false; refusing to execute (fail-closed).',
+      reason: carried || 'pr-tool tripwire: the deny classifier returned a decision whose refuse field is not the strict boolean false; refusing to execute (fail-closed).',
     });
   }
   return Object.freeze({ allow: true, reason: '' });
@@ -328,7 +328,7 @@ export function execGh(ghBin, argv) {
   }
   const result = spawnAllowed(GH_BINARY, argv, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }, ghBin);
   if (result.error) {
-    return Object.freeze({ refused: false, reason: '', status: null, stdout: '', stderr: `mitosis-git: failed to execute gh (${result.error.message})\n` });
+    return Object.freeze({ refused: false, reason: '', status: null, stdout: '', stderr: `pr-tool: failed to execute gh (${result.error.message})\n` });
   }
   return Object.freeze({
     refused: false,
@@ -342,7 +342,7 @@ export function execGh(ghBin, argv) {
 export function spawnAllowed(binary, argv, options, executable) {
   assertSpawnAllowed(binary, argv, NO_INDIRECT_IO);
   if (typeof executable !== 'string' || !isAbsolute(executable)) {
-    throw new Error(`mitosis-git: refusing to spawn ${JSON.stringify(binary)} through ${JSON.stringify(executable)}; the resolved executable must be an absolute path so that no PATH lookup decides which file runs`);
+    throw new Error(`pr-tool: refusing to spawn ${JSON.stringify(binary)} through ${JSON.stringify(executable)}; the resolved executable must be an absolute path so that no PATH lookup decides which file runs`);
   }
   return spawnSync(executable, argv, options);
 }
@@ -390,20 +390,20 @@ function runPrCreate(ghBin, opts, out) {
   const observed = observeOpenPr(ghBin, opts);
   if (observed.refused) {
     out.err(`${observed.reason}\n`);
-    return MITOSIS_GIT_TRIPWIRE_EXIT;
+    return PR_TOOL_TRIPWIRE_EXIT;
   }
   if (observed.failed) {
-    out.err(`mitosis-git pr-create: ${observed.failed}; nothing was created.\n${observed.stderr || ''}`);
-    return MITOSIS_GIT_OBSERVE_EXIT;
+    out.err(`pr-tool pr-create: ${observed.failed}; nothing was created.\n${observed.stderr || ''}`);
+    return PR_TOOL_OBSERVE_EXIT;
   }
   if (observed.list.length > 0) {
     const existing = readPrEntry(observed.list[0], opts.repo);
     if (existing === null) {
-      out.err('mitosis-git pr-create: an open pull request already exists on this head but its url could not be read; refusing to open a second one.\n');
-      return MITOSIS_GIT_OBSERVE_EXIT;
+      out.err('pr-tool pr-create: an open pull request already exists on this head but its url could not be read; refusing to open a second one.\n');
+      return PR_TOOL_OBSERVE_EXIT;
     }
     if (!existing.composedHere) {
-      out.err(`mitosis-git pr-create: the open pull request already on this head (${existing.url}) does not carry the composed section skeleton, so this tool composed neither its title nor its body; reporting it as reused-unverified rather than asserting the mandated format. A human closes it and reopens it through this tool, or confirms it as it stands.\n`);
+      out.err(`pr-tool pr-create: the open pull request already on this head (${existing.url}) does not carry the composed section skeleton, so this tool composed neither its title nor its body; reporting it as reused-unverified rather than asserting the mandated format. A human closes it and reopens it through this tool, or confirms it as it stands.\n`);
       out.log(`${JSON.stringify({ action: 'reused-unverified', url: existing.url, number: existing.number })}\n`);
       return 0;
     }
@@ -413,11 +413,11 @@ function runPrCreate(ghBin, opts, out) {
   const created = execGh(ghBin, buildGhArgv('pr-create', 'converge', opts));
   if (created.refused) {
     out.err(`${created.reason}\n`);
-    return MITOSIS_GIT_TRIPWIRE_EXIT;
+    return PR_TOOL_TRIPWIRE_EXIT;
   }
   if (created.status !== 0) {
-    out.err(created.stderr || `mitosis-git pr-create: the create call exited ${created.status}.\n`);
-    return MITOSIS_GIT_CONVERGE_EXIT;
+    out.err(created.stderr || `pr-tool pr-create: the create call exited ${created.status}.\n`);
+    return PR_TOOL_CONVERGE_EXIT;
   }
   const printed = readPrUrl(created.stdout, opts.repo);
   if (printed !== null) {
@@ -432,36 +432,36 @@ function runPrCreate(ghBin, opts, out) {
       return 0;
     }
   }
-  out.err('mitosis-git pr-create: the create call reported success but no pull-request url for this repository could be resolved from its output or from the recovery probe; a pull request MAY exist, so read the repository before retrying.\n');
-  return MITOSIS_GIT_CONVERGE_EXIT;
+  out.err('pr-tool pr-create: the create call reported success but no pull-request url for this repository could be resolved from its output or from the recovery probe; a pull request MAY exist, so read the repository before retrying.\n');
+  return PR_TOOL_CONVERGE_EXIT;
 }
 
 function runPrClose(ghBin, opts, out) {
   const viewed = execGh(ghBin, buildGhArgv('pr-close', 'observe', opts));
   if (viewed.refused) {
     out.err(`${viewed.reason}\n`);
-    return MITOSIS_GIT_TRIPWIRE_EXIT;
+    return PR_TOOL_TRIPWIRE_EXIT;
   }
   if (viewed.status !== 0) {
-    out.err(`mitosis-git pr-close: the pull-request state probe exited ${viewed.status}; nothing was closed.\n${viewed.stderr}`);
-    return MITOSIS_GIT_OBSERVE_EXIT;
+    out.err(`pr-tool pr-close: the pull-request state probe exited ${viewed.status}; nothing was closed.\n${viewed.stderr}`);
+    return PR_TOOL_OBSERVE_EXIT;
   }
   let view;
   try {
     view = JSON.parse(viewed.stdout.trim());
   } catch {
-    out.err('mitosis-git pr-close: the pull-request state probe printed unparseable JSON; nothing was closed.\n');
-    return MITOSIS_GIT_OBSERVE_EXIT;
+    out.err('pr-tool pr-close: the pull-request state probe printed unparseable JSON; nothing was closed.\n');
+    return PR_TOOL_OBSERVE_EXIT;
   }
   if (view === null || typeof view !== 'object' || Array.isArray(view)) {
-    out.err('mitosis-git pr-close: the pull-request state probe returned no object; nothing was closed.\n');
-    return MITOSIS_GIT_OBSERVE_EXIT;
+    out.err('pr-tool pr-close: the pull-request state probe returned no object; nothing was closed.\n');
+    return PR_TOOL_OBSERVE_EXIT;
   }
   const state = typeof view.state === 'string' ? view.state : null;
   const url = typeof view.url === 'string' && view.url.length > 0 ? view.url : null;
   if (state === null || url === null) {
-    out.err('mitosis-git pr-close: the pull-request state probe carried no state or url; nothing was closed.\n');
-    return MITOSIS_GIT_OBSERVE_EXIT;
+    out.err('pr-tool pr-close: the pull-request state probe carried no state or url; nothing was closed.\n');
+    return PR_TOOL_OBSERVE_EXIT;
   }
   if (state === 'MERGED') {
     out.log(`${JSON.stringify({ action: 'already-merged', state, url })}\n`);
@@ -472,17 +472,17 @@ function runPrClose(ghBin, opts, out) {
     return 0;
   }
   if (state !== 'OPEN') {
-    out.err(`mitosis-git pr-close: the pull request reported the unrecognised state ${JSON.stringify(state)}; nothing was closed.\n`);
-    return MITOSIS_GIT_OBSERVE_EXIT;
+    out.err(`pr-tool pr-close: the pull request reported the unrecognised state ${JSON.stringify(state)}; nothing was closed.\n`);
+    return PR_TOOL_OBSERVE_EXIT;
   }
   const closed = execGh(ghBin, buildGhArgv('pr-close', 'converge', opts));
   if (closed.refused) {
     out.err(`${closed.reason}\n`);
-    return MITOSIS_GIT_TRIPWIRE_EXIT;
+    return PR_TOOL_TRIPWIRE_EXIT;
   }
   if (closed.status !== 0) {
-    out.err(closed.stderr || `mitosis-git pr-close: the close call exited ${closed.status}.\n`);
-    return MITOSIS_GIT_CONVERGE_EXIT;
+    out.err(closed.stderr || `pr-tool pr-close: the close call exited ${closed.status}.\n`);
+    return PR_TOOL_CONVERGE_EXIT;
   }
   out.log(`${JSON.stringify({ action: 'closed', state: 'CLOSED', url })}\n`);
   return 0;
@@ -490,14 +490,14 @@ function runPrClose(ghBin, opts, out) {
 
 function compareReadError(out, readError) {
   out.log(`${JSON.stringify({ readError })}\n`);
-  return MITOSIS_GIT_OBSERVE_EXIT;
+  return PR_TOOL_OBSERVE_EXIT;
 }
 
 function runCompare(ghBin, opts, out) {
   const res = execGh(ghBin, buildGhArgv('compare', 'read', opts));
   if (res.refused) {
     out.err(`${res.reason}\n`);
-    return MITOSIS_GIT_TRIPWIRE_EXIT;
+    return PR_TOOL_TRIPWIRE_EXIT;
   }
   if (res.status !== 0) {
     return compareReadError(out, `the containment read exited ${res.status}: ${res.stderr.trim()}`);
@@ -521,28 +521,28 @@ function runCompare(ghBin, opts, out) {
   return 0;
 }
 
-function runMitosisGit(argv, out) {
-  const parsed = parseMitosisGitArgv(argv);
+function runPrTool(argv, out) {
+  const parsed = parsePrToolArgv(argv);
   if (!parsed.ok) {
     out.err(`${parsed.error}\n`);
-    return MITOSIS_GIT_USAGE_EXIT;
+    return PR_TOOL_USAGE_EXIT;
   }
   const ghBin = resolveGhBinary({ pathValue: process.env.PATH });
   if (!ghBin) {
-    out.err('mitosis-git: could not locate a gh binary on PATH or any pinned fallback; nothing was executed.\n');
-    return MITOSIS_GIT_GH_MISSING_EXIT;
+    out.err('pr-tool: could not locate a gh binary on PATH or any pinned fallback; nothing was executed.\n');
+    return PR_TOOL_GH_MISSING_EXIT;
   }
   if (parsed.verb === 'pr-create') return runPrCreate(ghBin, parsed.opts, out);
   if (parsed.verb === 'pr-close') return runPrClose(ghBin, parsed.opts, out);
   return runCompare(ghBin, parsed.opts, out);
 }
 
-export function mitosisGitMain() {
+export function prToolMain() {
   const out = Object.freeze({
     log: (text) => process.stdout.write(text),
     err: (text) => process.stderr.write(text),
   });
-  process.exitCode = runMitosisGit(process.argv.slice(2), out);
+  process.exitCode = runPrTool(process.argv.slice(2), out);
 }
 
 export function isDirectInvocation() {
@@ -555,5 +555,5 @@ export function isDirectInvocation() {
 }
 
 if (isDirectInvocation()) {
-  mitosisGitMain();
+  prToolMain();
 }

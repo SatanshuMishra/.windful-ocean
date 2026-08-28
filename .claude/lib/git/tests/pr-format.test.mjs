@@ -9,7 +9,7 @@ import {
   renderPrCreateBody,
   carriesComposedSkeleton,
 } from '../pr-format.mjs';
-import { parseMitosisGitArgv } from '../pr.mjs';
+import { parsePrToolArgv } from '../pr.mjs';
 
 const BACKTICK = String.fromCharCode(96);
 const FENCE = BACKTICK.repeat(3);
@@ -131,7 +131,7 @@ test('inertValue REJECTS an over-cap value rather than truncating it', () => {
 });
 
 function renderArgv(argv) {
-  const parsed = parseMitosisGitArgv(argv);
+  const parsed = parsePrToolArgv(argv);
   assert.equal(parsed.ok, true, `expected a successful parse, got: ${parsed.error}`);
   return renderPrCreateBody(parsed.opts);
 }
@@ -164,7 +164,7 @@ const WORKED_EXAMPLE_A_BODY = [
 ].join(LF);
 
 test('the rendered body for worked example A (§4.7, minimal) matches the spec byte for byte', () => {
-  const parsed = parseMitosisGitArgv([...WORKED_EXAMPLE_A_ARGV]);
+  const parsed = parsePrToolArgv([...WORKED_EXAMPLE_A_ARGV]);
   assert.equal(parsed.ok, true, `expected a successful parse, got: ${parsed.error}`);
   assert.equal(renderPrCreateBody(parsed.opts), WORKED_EXAMPLE_A_BODY);
 });
@@ -208,7 +208,7 @@ const WORKED_EXAMPLE_B_BODY = [
 ].join(LF);
 
 test('the rendered body for worked example B (§4.8, every optional section) matches the spec byte for byte', () => {
-  const parsed = parseMitosisGitArgv([...WORKED_EXAMPLE_B_ARGV]);
+  const parsed = parsePrToolArgv([...WORKED_EXAMPLE_B_ARGV]);
   assert.equal(parsed.ok, true, `expected a successful parse, got: ${parsed.error}`);
   assert.equal(renderPrCreateBody(parsed.opts), WORKED_EXAMPLE_B_BODY);
 });
@@ -259,7 +259,7 @@ const FORGERY_ATTEMPTS = Object.freeze([
 
 for (const [label, forged] of FORGERY_ATTEMPTS) {
   test(`a --why value carrying ${label} is REJECTED, so tool-owned structure cannot be forged from a bare-rendered field`, () => {
-    const parsed = parseMitosisGitArgv(baseArgv().map((token, i, argv) => (argv[i - 1] === '--why' ? forged : token)));
+    const parsed = parsePrToolArgv(baseArgv().map((token, i, argv) => (argv[i - 1] === '--why' ? forged : token)));
     assert.equal(parsed.ok, false, `expected ${JSON.stringify(forged)} to be rejected as a --why value`);
   });
 }

@@ -7,7 +7,6 @@ const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url)).replac
 
 const ROOTS = Object.freeze([
   '.claude/lib/git',
-  '.claude/lib/mitosis',
 ]);
 
 const EXTRA_FILES = Object.freeze([
@@ -27,13 +26,7 @@ const BANNED = Object.freeze([
 
 const EXCLUDED_SEGMENTS = Object.freeze(['/tests/', '/worktrees/']);
 
-const EXEMPTIONS = Object.freeze([
-  Object.freeze({
-    file: '.claude/lib/mitosis/cassette.mjs',
-    token: 'provenance',
-    reason: 'cassette record field name mandated verbatim by the frozen cassette-format SPEC ("provenance": "recorded" | "authored"); not an attribution flag',
-  }),
-]);
+const EXEMPTIONS = Object.freeze([]);
 
 function walkMjsFiles(dir, out) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
