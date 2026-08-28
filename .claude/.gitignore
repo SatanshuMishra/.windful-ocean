@@ -18,7 +18,7 @@ backups/
 security/
 graphify-out/
 **/graphify-out/
-plugins/
+/plugins/
 ide/
 chrome/
 history.jsonl
