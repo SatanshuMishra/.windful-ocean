@@ -2,10 +2,10 @@ import { spawnSync } from 'node:child_process';
 import { realpathSync, accessSync, statSync, constants } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertSpawnAllowed } from '../mitosis/exec-policy.mjs';
-import { classifyGhMerge, resolveRealGh, DEFAULT_FALLBACKS, MERGE_DENY_EXIT, REAL_GH_MISSING_EXIT } from '../mitosis/gh-merge-shim.mjs';
-import { validateRefToken } from '../mitosis/checkpoint.mjs';
-import { validateRepoIdentity, parsePrRef } from '../mitosis/merge-watch.mjs';
+import { assertSpawnAllowed } from './exec-policy.mjs';
+import { classifyGhMerge, resolveRealGh, DEFAULT_FALLBACKS, MERGE_DENY_EXIT, REAL_GH_MISSING_EXIT } from './gh-merge-shim.mjs';
+import { validateRefToken } from './ref-tokens.mjs';
+import { validateRepoIdentity, parsePrRef } from './merge-watch.mjs';
 import {
   inertValue,
   carriesComposedSkeleton,

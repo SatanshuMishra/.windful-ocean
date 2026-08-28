@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { resolvePluginInstallPath } from './superpowers-prompts.mjs';
+import { resolvePluginInstallPath } from './plugin-resolver.mjs';
 
 export const MANIFEST_RELATIVE_PATH = join('.claude', 'plugins', 'installed_plugins.json');
 export const PLUGIN_CACHE_RELATIVE_PATH = join('.claude', 'plugins', 'cache');

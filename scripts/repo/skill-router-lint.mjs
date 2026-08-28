@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-import { parseSkillReference } from '../../.claude/lib/mitosis/agent-skill-pointers.mjs';
+import { parseSkillReference } from '../../.claude/lib/plugins/agent-skill-pointers.mjs';
 
 const MAX_SKILL_BYTES = 4096;
 const SKILL_FILE = 'SKILL.md';

@@ -4,7 +4,7 @@ import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname, basename, relative } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { resolvePluginInstallPath } from '../../../lib/mitosis/superpowers-prompts.mjs';
+import { resolvePluginInstallPath } from '../../../lib/plugins/plugin-resolver.mjs';
 
 const MAX_SKILL_BYTES = 4096;
 const QUALIFIED_SHAPE = /^[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*$/;

@@ -13,7 +13,7 @@ export const DEFAULT_FALLBACKS = Object.freeze([
   '/bin/gh',
 ]);
 
-const POLICY = 'mitosis merge-deny policy — PR merges are human-gated; the mitosis workflow never merges a PR itself, a human merges after review';
+const POLICY = 'pr-tool merge-deny policy — PR merges are human-gated; pr-tool never merges a PR itself, a human merges after review';
 const MERGE_MUTATION_RE = /mergePullRequest|enablePullRequestAutoMerge|enqueuePullRequest/i;
 const MERGE_ENDPOINT_RE = /pulls\/[^/]+\/merge(?:[/?#]|$)/i;
 const GRAPHQL_ENDPOINT = 'graphql';
