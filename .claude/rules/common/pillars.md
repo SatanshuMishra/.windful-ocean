@@ -1,6 +1,6 @@
 # Three Pillars (global priority order)
 
-Every trade-off across this configuration — every project, skill, agent, and the Mitosis workflow — resolves against one strict priority order. When two goals conflict, the higher pillar wins. Never trade a higher pillar for a lower one.
+Every trade-off across this configuration — every project, skill, agent, and workflow — resolves against one strict priority order. When two goals conflict, the higher pillar wins. Never trade a higher pillar for a lower one.
 
 ## The order (high to low)
 
@@ -14,6 +14,6 @@ Quality beats Optimization beats Speed. There is no trade that sacrifices a high
 
 ## Scope
 
-Applies to everything in the global configuration, not only the Mitosis workflow.
+Applies to everything in the global configuration, not only one workflow.
 
 Worked example (D1 code-intel stack): the dependency oracle is accurate native LSP, not the token-free-but-lower-recall Graphify call graph — Quality over Optimization, even though the Graphify call is free.

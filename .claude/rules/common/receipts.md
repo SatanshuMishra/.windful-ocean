@@ -32,7 +32,7 @@ Eight gates are re-run by the enforcer at the pull request (G6, G7, G8, G9, G10,
 
 Every repository Claude opens pull requests in carries both halves:
 
-1. `.github/workflows/receipts.yml` invoking `shaheershoaib/receipts/enforcer`. Template: `.claude/skills/mitosis/templates/receipts.yml`.
+1. `.github/workflows/receipts.yml` invoking `shaheershoaib/receipts/enforcer`, as this repository's own workflow does.
 2. `receipts.config.json` at the repository root, tuned to that project.
 
 No `receipts` CLI ships with the plugin — `receipts init` and `receipts doctor` are specified in `enforcer/INIT.md` but unimplemented, so the config is authored by hand against the keys the enforcer actually reads. Detection signals per key are tabulated in that same file.

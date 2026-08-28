@@ -33,4 +33,3 @@ jobs:
           rm -f duckdb.zip
           duckdb --version
       - run: npm test
-      - run: node .claude/lib/mitosis/mitosis-gate.mjs phase-parity

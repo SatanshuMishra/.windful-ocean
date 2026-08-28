@@ -171,7 +171,7 @@ test('text with no quote, apostrophe, or backtick characters reports a zero deli
 });
 
 test('the scan-set filter mirrors g11.js: test-path files are included, snapshots and production files are not', () => {
-  assert.equal(isScannable('.claude/lib/mitosis/tests/dispatch-payload.test.mjs'), true);
+  assert.equal(isScannable('.claude/lib/git/tests/pr.test.mjs'), true);
   assert.equal(isScannable('scripts/repo/tests/gitlink-census.test.mjs'), true);
   assert.equal(isScannable('src/components/Button.jsx'), false);
   assert.equal(isScannable('src/__snapshots__/App.test.tsx.snap'), false);

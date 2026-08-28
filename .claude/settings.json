@@ -144,11 +144,6 @@
           },
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/superpowers-drift-check.sh",
-            "timeout": 10
-          },
-          {
-            "type": "command",
             "command": "$HOME/.claude/hooks/graphify-provision.sh",
             "timeout": 15
           },
@@ -214,16 +209,6 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/block-deep-research.sh",
-            "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "Workflow",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node $HOME/.claude/hooks/block-inline-engine.mjs",
             "timeout": 5
           }
         ]
