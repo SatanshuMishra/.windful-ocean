@@ -11,8 +11,6 @@ import { query, requireBinary } from '../duckdb.mjs';
 
 const LIB_DIR = fileURLToPath(new URL('..', import.meta.url));
 const FIXTURES = join(LIB_DIR, 'fixtures');
-const MITOSIS_DIR = fileURLToPath(new URL('../../mitosis/', import.meta.url));
-const MITOSIS_SIBLING_FILES = Object.freeze(['retirement-set.mjs', 'js-scan.mjs']);
 const EXPECTED_IDS = Object.freeze([
   'agent-type-census',
   'blocked',
@@ -38,11 +36,6 @@ function stageLib(label) {
   const dir = scratch(label);
   const observerAuditDir = join(dir, 'observer-audit');
   cpSync(LIB_DIR, observerAuditDir, { recursive: true });
-  const mitosisDir = join(dir, 'mitosis');
-  mkdirSync(mitosisDir, { recursive: true });
-  for (const name of MITOSIS_SIBLING_FILES) {
-    cpSync(join(MITOSIS_DIR, name), join(mitosisDir, name));
-  }
   return observerAuditDir;
 }
 

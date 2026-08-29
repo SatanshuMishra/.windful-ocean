@@ -5,17 +5,17 @@ import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, existsS
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { classifyGhMerge } from '../../mitosis/gh-merge-shim.mjs';
+import { classifyGhMerge } from '../gh-merge-shim.mjs';
 import { PR_TITLE_CAP, PR_VALUE_CAP, PR_MULTI_LIMITS } from '../pr-format.mjs';
 import {
-  MITOSIS_GIT_USAGE_EXIT,
-  MITOSIS_GIT_TRIPWIRE_EXIT,
-  MITOSIS_GIT_OBSERVE_EXIT,
-  MITOSIS_GIT_CONVERGE_EXIT,
-  MITOSIS_GIT_GH_MISSING_EXIT,
-  MITOSIS_GIT_VERBS,
+  PR_TOOL_USAGE_EXIT,
+  PR_TOOL_TRIPWIRE_EXIT,
+  PR_TOOL_OBSERVE_EXIT,
+  PR_TOOL_CONVERGE_EXIT,
+  PR_TOOL_GH_MISSING_EXIT,
+  PR_TOOL_VERBS,
   FLAG_SPEC,
-  parseMitosisGitArgv,
+  parsePrToolArgv,
   renderPrCreateBody,
   buildGhArgv,
   ghExecTripwire,
@@ -25,7 +25,7 @@ import {
 const WRAPPER = fileURLToPath(new URL('../pr.mjs', import.meta.url));
 
 const REPO = 'acme/widgets';
-const HEAD = 'mitosis/msp-1-integration';
+const HEAD = 'chore/msp-1-integration';
 const BASE = 'main';
 
 const TITLE = 'refactor(pr-tool): centralize pull-request creation';
@@ -84,13 +84,13 @@ function repeatFlag(flag, count, value) {
 }
 
 function okParse(argv) {
-  const parsed = parseMitosisGitArgv(argv);
+  const parsed = parsePrToolArgv(argv);
   assert.equal(parsed.ok, true, `expected a successful parse, got: ${parsed.error}`);
   return parsed;
 }
 
 function failParse(argv) {
-  const parsed = parseMitosisGitArgv(argv);
+  const parsed = parsePrToolArgv(argv);
   assert.equal(parsed.ok, false, `expected a rejected parse for ${JSON.stringify(argv)}`);
   assert.equal(typeof parsed.error, 'string');
   assert.ok(parsed.error.length > 0, 'a rejection must carry a reason');
@@ -98,8 +98,8 @@ function failParse(argv) {
 }
 
 test('the wrapper exposes exactly three verbs and none of them is a merge verb', () => {
-  assert.deepEqual([...MITOSIS_GIT_VERBS].sort(), ['compare', 'pr-close', 'pr-create']);
-  for (const verb of MITOSIS_GIT_VERBS) {
+  assert.deepEqual([...PR_TOOL_VERBS].sort(), ['compare', 'pr-close', 'pr-create']);
+  for (const verb of PR_TOOL_VERBS) {
     assert.ok(!/merge|approve|review/.test(verb), `verb ${verb} must not name a merge or approval action`);
   }
 });
@@ -651,7 +651,7 @@ test('e2e: pr-create CONVERGES only after an empty observe, and the create argv 
 test('e2e: pr-create FAILS CLOSED and creates nothing when the observe probe exits non-zero', () => {
   withSandbox([{ stderr: 'gh: could not reach github\n', exit: 1 }], (sandbox) => {
     const res = runWrapper(prCreateArgv(), sandbox);
-    assert.equal(res.status, MITOSIS_GIT_OBSERVE_EXIT);
+    assert.equal(res.status, PR_TOOL_OBSERVE_EXIT);
     assert.equal(recordedCalls(sandbox).length, 1, 'a failed observe must not be followed by a create');
   });
 });
@@ -659,7 +659,7 @@ test('e2e: pr-create FAILS CLOSED and creates nothing when the observe probe exi
 test('e2e: pr-create FAILS CLOSED and creates nothing when the observe output is unparseable', () => {
   withSandbox([{ stdout: 'not json at all' }], (sandbox) => {
     const res = runWrapper(prCreateArgv(), sandbox);
-    assert.equal(res.status, MITOSIS_GIT_OBSERVE_EXIT);
+    assert.equal(res.status, PR_TOOL_OBSERVE_EXIT);
     assert.equal(recordedCalls(sandbox).length, 1);
   });
 });
@@ -667,7 +667,7 @@ test('e2e: pr-create FAILS CLOSED and creates nothing when the observe output is
 test('e2e: pr-create FAILS CLOSED and creates nothing when the observe output is empty', () => {
   withSandbox([{ stdout: '' }], (sandbox) => {
     const res = runWrapper(prCreateArgv(), sandbox);
-    assert.equal(res.status, MITOSIS_GIT_OBSERVE_EXIT);
+    assert.equal(res.status, PR_TOOL_OBSERVE_EXIT);
     assert.equal(recordedCalls(sandbox).length, 1);
   });
 });
@@ -678,7 +678,7 @@ test('e2e: pr-create reports the converge failure and forwards gh stderr', () =>
     { stderr: 'gh: pull request creation failed\n', exit: 1 },
   ], (sandbox) => {
     const res = runWrapper(prCreateArgv(), sandbox);
-    assert.equal(res.status, MITOSIS_GIT_CONVERGE_EXIT);
+    assert.equal(res.status, PR_TOOL_CONVERGE_EXIT);
     assert.match(res.stderr, /pull request creation failed/);
   });
 });
@@ -690,7 +690,7 @@ test('e2e: pr-create forwards the WHOLE gh stderr on a converge failure, not jus
     { stderr: emitted, exit: 1 },
   ], (sandbox) => {
     const res = runWrapper(prCreateArgv(), sandbox);
-    assert.equal(res.status, MITOSIS_GIT_CONVERGE_EXIT);
+    assert.equal(res.status, PR_TOOL_CONVERGE_EXIT);
     assert.equal(res.stderr.length, emitted.length, 'the forwarded diagnostic must not be cut at the pipe buffer');
     assert.ok(res.stderr.endsWith('Z'), 'the tail of the gh diagnostic must survive');
   });
@@ -756,7 +756,7 @@ for (const [state, action] of NON_OPEN_STATES) {
 test('e2e: pr-close FAILS CLOSED on an unreadable state and closes nothing', () => {
   withSandbox([{ stdout: '{"state":"WHO_KNOWS","url":"https://github.com/acme/widgets/pull/412"}' }], (sandbox) => {
     const res = runWrapper(['pr-close', '--repo', REPO, '--pr', '412'], sandbox);
-    assert.equal(res.status, MITOSIS_GIT_OBSERVE_EXIT);
+    assert.equal(res.status, PR_TOOL_OBSERVE_EXIT);
     assert.equal(recordedCalls(sandbox).length, 1);
   });
 });
@@ -767,7 +767,7 @@ test('e2e: pr-close reports a failing close call', () => {
     { stderr: 'gh: close failed\n', exit: 1 },
   ], (sandbox) => {
     const res = runWrapper(['pr-close', '--repo', REPO, '--pr', '412'], sandbox);
-    assert.equal(res.status, MITOSIS_GIT_CONVERGE_EXIT);
+    assert.equal(res.status, PR_TOOL_CONVERGE_EXIT);
     assert.match(res.stderr, /close failed/);
   });
 });
@@ -792,7 +792,7 @@ for (const [label, step] of COMPARE_READ_FAILURES) {
   test(`e2e: compare returns the readError contract on ${label}`, () => {
     withSandbox([step], (sandbox) => {
       const res = runWrapper(['compare', '--repo', REPO, '--base', BASE, '--head', HEAD], sandbox);
-      assert.equal(res.status, MITOSIS_GIT_OBSERVE_EXIT);
+      assert.equal(res.status, PR_TOOL_OBSERVE_EXIT);
       const payload = JSON.parse(res.stdout);
       assert.equal(typeof payload.readError, 'string');
       assert.ok(payload.readError.length > 0);
@@ -815,14 +815,14 @@ for (const args of E2E_USAGE_REJECTIONS) {
   test(`e2e: ${JSON.stringify(args.slice(0, 3))} exits usage and executes no gh call at all`, () => {
     withSandbox([{ stdout: '[]' }], (sandbox) => {
       const res = runWrapper(args, sandbox);
-      assert.equal(res.status, MITOSIS_GIT_USAGE_EXIT, `stderr=${res.stderr}`);
+      assert.equal(res.status, PR_TOOL_USAGE_EXIT, `stderr=${res.stderr}`);
       assert.deepEqual(recordedCalls(sandbox), [], 'a rejected invocation must reach no gh call');
     });
   });
 }
 
 test('resolveGhBinary returns null when neither PATH nor the pinned fallbacks hold a gh binary', () => {
-  assert.equal(resolveGhBinary({ pathValue: '/nonexistent-mitosis-git-path', fallbacks: [] }), null);
+  assert.equal(resolveGhBinary({ pathValue: '/nonexistent-pr-tool-path', fallbacks: [] }), null);
 });
 
 test('resolveGhBinary resolves the first gh on PATH ahead of any pinned fallback', () => {
@@ -835,7 +835,7 @@ test('resolveGhBinary resolves the first gh on PATH ahead of any pinned fallback
 });
 
 test('a resolution failure maps to the shim own missing-binary exit code', () => {
-  assert.equal(MITOSIS_GIT_GH_MISSING_EXIT, 127);
+  assert.equal(PR_TOOL_GH_MISSING_EXIT, 127);
 });
 
 test('the wrapper module contains no merge or approval subcommand anywhere in its source', () => {
@@ -843,7 +843,7 @@ test('the wrapper module contains no merge or approval subcommand anywhere in it
   for (const banned of ["'merge'", "'approve'", '--squash', '--rebase', '--admin', '--auto', 'pr-merge']) {
     assert.ok(!source.includes(banned), `the wrapper source must not contain ${banned}`);
   }
-  assert.equal(MITOSIS_GIT_TRIPWIRE_EXIT, 13, 'a tripwire refusal must read identically to the shim MERGE_DENY_EXIT');
+  assert.equal(PR_TOOL_TRIPWIRE_EXIT, 13, 'a tripwire refusal must read identically to the shim MERGE_DENY_EXIT');
 });
 
 test('the wrapper reaches spawnSync through exactly one tripwire-gated choke point', () => {

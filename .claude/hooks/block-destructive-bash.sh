@@ -120,7 +120,7 @@ classify_segment() {
   if has "${ghtok}pr[[:space:]]+merge([[:space:]]|$)" \
     || { has "$ghapi" && has 'pulls/[^/[:space:]]+/merge([^[:alnum:]]|$)'; } \
     || { has "$ghapi" && has "$graphql" && has '(mergepullrequest|enablepullrequestautomerge|enqueuepullrequest)'; }; then
-    set_deny "merging a PR is human-gated: mitosis never merges PRs (gh pr merge and the gh api pulls/*/merge REST endpoint are both blocked); a human merges via the PR after review"
+    set_deny "merging a PR is human-gated: gh pr merge and the gh api pulls/*/merge REST endpoint are both blocked; a human merges via the PR after review"
     return 0
   fi
 

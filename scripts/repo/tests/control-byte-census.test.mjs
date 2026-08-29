@@ -132,7 +132,7 @@ test('a tracked path that cannot be read halts the census rather than being skip
 
 test('classification is closed: only a declared binary extension is excluded, and every other extension including an unknown one is scanned', () => {
   assert.equal(isDeclaredBinary('.claude/sounds/OptionA.mp3'), true);
-  assert.equal(isDeclaredBinary('.claude/lib/mitosis/determinism-lint.mjs'), false);
+  assert.equal(isDeclaredBinary('.claude/lib/git/pr.mjs'), false);
   assert.equal(isDeclaredBinary('vendor/blob.wasm'), false);
   assert.equal(isDeclaredBinary('.zshrc'), false);
   assert.equal(isDeclaredBinary('scripts/run'), false);

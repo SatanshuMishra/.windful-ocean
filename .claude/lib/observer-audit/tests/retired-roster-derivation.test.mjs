@@ -5,10 +5,10 @@ import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RETIRED_ROSTER_LEAD, REQUIRED_LEAD_TOOLS } from '../agent-classification.mjs';
-import { readRetiredRoster } from '../../mitosis/retirement-set.mjs';
+import { readRetiredRoster } from '../retirement-set.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
-const RETIRED_ROSTER_PATH = fileURLToPath(new URL('../../mitosis/retired-roster.json', import.meta.url));
+const RETIRED_ROSTER_PATH = fileURLToPath(new URL('../retired-roster.json', import.meta.url));
 const HASH = /^[0-9a-f]{40}$/;
 
 function git(args) {

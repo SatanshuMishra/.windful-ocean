@@ -2,7 +2,7 @@
   "name": "windful-ocean",
   "version": "0.0.0",
   "private": true,
-  "description": "Deterministic test backstop for the mitosis parallel-execution engine",
+  "description": "Personal Claude Code configuration and dotfiles repository, with a deterministic test backstop for its hooks and scripts",
   "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "test": "node --test .claude/lib/*/tests/*.test.mjs .claude/hooks/tests/*.test.mjs .claude/skills/*/tests/*.test.mjs scripts/repo/tests/*.test.mjs"

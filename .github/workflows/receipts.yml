@@ -31,27 +31,6 @@ jobs:
 
       - uses: shaheershoaib/receipts/enforcer@c6127ba55f9a5669a95614639b08f5d49c3f228b
 
-  mitosis-gate:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        verb: [exec-allowlist, determinism, dispatchable-agent-schema-capable, name-integrity, phase-parity, retirement-census]
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: '26.x'
-      - name: ${{ matrix.verb }}
-        run: |
-          [ -f .claude/lib/mitosis/mitosis-gate.mjs ] \
-            || { echo "the gate module is missing from the repository that owns it; a ${{ matrix.verb }} census that cannot find its own enforcement code fails rather than skipping"; exit 1; }
-          node .claude/lib/mitosis/mitosis-gate.mjs ${{ matrix.verb }}
-
   repo-checks:
     runs-on: ubuntu-latest
     permissions:
@@ -71,12 +50,6 @@ jobs:
             .claude/skills/agent-audit
       - name: archive manifest consistency (byte correspondence is host-only)
         run: node scripts/repo/agent-ledger-archive-verify.mjs --manifest-only
-      - name: agent body drift
-        run: node --test .claude/lib/mitosis/tests/agent-body-composition.test.mjs
-      - name: agent generator substrate
-        run: node --test .claude/lib/mitosis/tests/agent-generate.test.mjs
-      - name: generated agent bodies match the spec store
-        run: node .claude/lib/mitosis/agent-generate.mjs --check
 
   pr-title-lint:
     runs-on: ubuntu-latest

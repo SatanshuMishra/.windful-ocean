@@ -64,7 +64,7 @@ test('a config subtree writes to the depth-1 dir, never inside the subtree', (t)
 
 test('a nested config subtree also resolves to the depth-1 dir', (t) => {
   const { config, env } = configuredHome(t);
-  const nested = makeDir(config, 'skills', 'mitosis', 'templates');
+  const nested = makeDir(config, 'skills', 'example', 'templates');
   assert.equal(outFor(nested, env), join(config, 'graphify-out'));
 });
 

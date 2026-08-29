@@ -44,7 +44,7 @@ function reasonOf(result) {
 }
 
 const MERGE_DENY_REASON =
-  'merging a PR is human-gated: mitosis never merges PRs (gh pr merge and the gh api pulls/*/merge REST endpoint are both blocked); a human merges via the PR after review';
+  'merging a PR is human-gated: gh pr merge and the gh api pulls/*/merge REST endpoint are both blocked; a human merges via the PR after review';
 
 const CREATION_DENY_REASON =
   'opening a pull request is centralized: every pull request in this environment is created by one tool, in one format, and its title and body may not be rewritten afterwards. Run this, quoting every value: node "$HOME"/.claude/lib/git/pr.mjs pr-create --repo OWNER/REPO --head HEAD-BRANCH --base BASE-BRANCH --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --what THE BEHAVIOR THAT IS DIFFERENT NOW. --why THE PROBLEM THAT EXISTED BEFORE. --not-verified THING YOU DID NOT CHECK - not run. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. A --why, --what or --risk value starts with a capital letter and ends with a full stop. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: .claude/rules/common/git/pull-requests.md';
@@ -264,7 +264,7 @@ const allowCommands = [
   'git -C /repo status',
   'git -C /repo push --force-with-lease origin main',
   'git -C /repo branch -d feature',
-  'echo x > .claude/skills/mitosis/SKILL.md',
+  'echo x > .claude/skills/example/SKILL.md',
   'cat .claude/lib/git/pr.mjs',
   'ls -la',
   'npm test',
@@ -283,7 +283,7 @@ test('the wrapper loses its own exemption the moment anything is chained onto it
 });
 
 test('the superseded superpowers-parallel path carries no exemption, so exactly one path is canonical', () => {
-  const r = runHook('node /Users/satanshumishra/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create --repo o/r --head feature --base main --title "$(gh pr create --fill)" --origin human --why "w" --what "c" --not-verified "CI - not run"');
+  const r = runHook('node /Users/satanshumishra/.claude/lib/example-parallel/example-git.mjs pr-create --repo o/r --head feature --base main --title "$(gh pr create --fill)" --origin human --why "w" --what "c" --not-verified "CI - not run"');
   assert.equal(decisionOf(r), 'deny');
   assert.equal(reasonOf(r), CREATION_DENY_REASON);
 });
@@ -399,11 +399,11 @@ for (const command of supabaseLocalCommands) {
 
 const guardrailWriteCommands = [
   'echo x > .claude/lib/git/pr.mjs',
-  'sed -i "" s/a/b/ .claude/lib/mitosis/engine-args.mjs',
+  'sed -i "" s/a/b/ .claude/lib/example/engine-args.mjs',
   'cp /tmp/patched.mjs .claude/lib/git/pr.mjs',
-  'echo x > .claude/workflows/mitosis.js',
-  'mv /tmp/mitosis.js .claude/workflows/mitosis.js',
-  'rm .claude/workflows/mitosis.js',
+  'echo x > .claude/workflows/example.js',
+  'mv /tmp/example.js .claude/workflows/example.js',
+  'rm .claude/workflows/example.js',
   'echo x > .claude/hooks/protect-claude-config.sh',
   'echo x > .claude/rules/common/git/pull-requests.md',
 ];
@@ -486,13 +486,13 @@ for (const command of g4CreationVerbCommands) {
 
 const g4NonGuardrailCommands = [
   'git checkout main',
-  'mkdir -p .claude/skills/mitosis/templates',
-  'ln -s /tmp/x .claude/skills/mitosis/templates/receipts.yml',
+  'mkdir -p .claude/skills/example/templates',
+  'ln -s /tmp/x .claude/skills/example/templates/receipts.yml',
   'mkdir -p .claude/hooksfoo',
   'ln -s /tmp/x .claude/libfoo',
   'git switch -c feature',
   'git checkout -b feature',
-  'echo x > .claude/skills/mitosis/SKILL.md',
+  'echo x > .claude/skills/example/SKILL.md',
   'node --test .claude/hooks/tests/block-destructive-bash.test.mjs',
   'npm test',
   'ls .claude/',
@@ -502,7 +502,7 @@ const g4NonGuardrailCommands = [
   'echo x > .claude/hooksfoo',
   'rm -r .claude/libfoo',
   'mv .claude/rulesbook /tmp/x',
-  'echo x > .claude/workflowsfoo/mitosis.js',
+  'echo x > .claude/workflowsfoo/example.js',
 ];
 
 for (const command of g4NonGuardrailCommands) {

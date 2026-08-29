@@ -3,7 +3,7 @@ import { AuditError, EXIT, POPULATION_DISPATCH, START_EVENT, STOP_EVENT } from '
 import { classifyObserved, groupCarriesMixedTypes, UNATTRIBUTED_LABEL } from './agent-classification.mjs';
 import { query, sqlLiteral } from './duckdb.mjs';
 import { eventsCte, readRoster } from './reader.mjs';
-import { readRetiredRoster } from '../mitosis/retirement-set.mjs';
+import { readRetiredRoster } from './retirement-set.mjs';
 
 function perGroupCte(logRoot) {
   return `${eventsCte(logRoot)},
