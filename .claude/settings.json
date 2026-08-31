@@ -387,5 +387,7 @@
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754070465024
-  }
+  },
+  "skipDangerousModePermissionPrompt": true,
+  "outputStyle": "satanshu"
 }
