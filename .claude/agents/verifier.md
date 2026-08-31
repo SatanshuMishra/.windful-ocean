@@ -28,10 +28,6 @@ Deciding whether the design is right, and writing a missing test, are other role
 - Whether any test was added, removed, skipped or weakened during the run, stated either way rather than omitted.
 - Every check you could not run, with its reason, carried as a tracked status.
 
-## Procedures (read before you start)
-
-- `receipts:gates` — /Users/satanshumishra/.claude/plugins/cache/receipts/receipts/0.3.0/skills/gates/SKILL.md
-
 ## The Work Order contract (read it before your first action)
 
 - Every dispatch carries a filled form: Goal, Acceptance, Out of scope, Inputs, Reproduction, Receipt.

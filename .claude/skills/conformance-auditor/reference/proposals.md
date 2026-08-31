@@ -1,9 +1,9 @@
 # A gap the standard does not cover
 
-This is the file for the moment your audit finds something real that no gate and no rule
-names. It has exactly one permitted outcome: a proposal, filed, addressed to the owner of
-the standard. It has one forbidden outcome, and that outcome is the characteristic failure
-of this role.
+This is the file for the moment your audit finds something real that no declared check and
+no rule names. It has exactly one permitted outcome: a proposal, filed, addressed to the
+owner of the standard. It has one forbidden outcome, and that outcome is the characteristic
+failure of this role.
 
 ## The forbidden outcome
 
@@ -20,12 +20,12 @@ underneath work in progress - including by an auditor acting in good faith.
 
 The symptom, stated so you can catch yourself: **a repository accumulating its own census,
 probe, control or parity modules whose purpose is to verify other verification code.**
-Every such construct is a hand-rolled reimplementation of a gate that already exists as a
-bounded, machine-run check, and it is unbounded where the gate is capped.
+Every such construct is a hand-rolled reimplementation of a check that already exists as a
+bounded, machine-run check, and it is unbounded where that check is capped.
 
 ## The test that separates a finding from a proposal
 
-Can you cite a gate id or a rule file path whose stated mandate this observation
+Can you cite a declared check id or a rule file path whose stated mandate this observation
 contradicts?
 
 - **Yes** - it is a finding. Write it per `reference/verdict.md` with that citation.
@@ -36,26 +36,25 @@ There is no third branch. "It is obviously required even though nothing says so"
 proposal branch wearing the finding's clothes.
 
 Before concluding the standard is silent, look again. The commonest error in this role is
-proposing something the standard already covers under a name you did not search for. An
-inertness mutation is G14. A check that shields a wide diff is G13. A rule expressed twice
-that will drift is G15. A fix that removed the detector is G12. A count of sites changed
-where a residual-zero query was needed is G6. Cite the gate rather than authoring its twin.
+proposing something the standard already covers under a name you did not search for. Search
+the project's declared standard and its binding rules by what they actually say, not by
+recall, before naming a gap. Cite the existing check or rule rather than authoring its twin.
 
 ## Worked rewrites
 
 **A recurring defect shape.** You notice three defects this quarter share one shape: a check
 that could not fail.
 - Wrong: adopt a project rule that every new check ships with a proof that it can fail.
-- Right: that proof is the inertness mutation the acceptance shape already requires, and the
-  mutation referee is G14. Cite them. The defect is that the existing requirement was not
-  applied, which is a finding, not a gap.
+- Right: that proof is the inertness mutation the acceptance shape already requires. Cite
+  it. The defect is that the existing requirement was not applied, which is a finding, not
+  a gap.
 
-**Doubt about an enforcer result.** You want confidence that the enforcer's static scan
+**Doubt about an automated check's result.** You want confidence that a check's static scan
 really covered the diff.
-- Wrong: build a module that re-scans the diff and compares against the enforcer's output.
+- Wrong: build a module that re-scans the diff and compares against that check's output.
 - Right: read the verdict. A second implementation of the same check is a second error
   source, and disagreement between them will look like signal when it is noise. If the
-  enforcer's coverage is genuinely in doubt, that is a proposal against the enforcer.
+  check's own coverage is genuinely in doubt, that is a proposal against that check.
 
 **A unit that met its bar.** The unit satisfied the criterion it declared, and you can see
 three further improvements.
@@ -74,8 +73,9 @@ Five fields, and keep it to that:
 
 1. **The gap**, in one sentence, stated as what goes unnoticed today.
 2. **The scar** - a real instance you observed, with its location. Not a hypothetical. A
-   proposal with no instance behind it is speculation, and the gate set is scar tissue.
-3. **Which gate it extends**, or why it is genuinely new. Say which you searched.
+   proposal with no instance behind it is speculation, and a standard's check set is scar
+   tissue.
+3. **Which check or rule it extends**, or why it is genuinely new. Say which you searched.
 4. **The enforcement kind** it would need: executable, hybrid, or agent-judgment. A proposal
    that can only ever be agent-judgment is worth less than one a machine can re-run, and
    saying so honestly is part of the proposal.

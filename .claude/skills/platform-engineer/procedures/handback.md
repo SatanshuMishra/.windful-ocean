@@ -18,7 +18,7 @@ Three phrasings, and they are not interchangeable:
 - Did not run it: state the command and that it was not run.
 - Ran it but could not read the result: state the command and that the result is unknown.
 
-An exit code is not a result. The receipt discipline this work is graded against is `receipts:gates`: a claim that something is fixed needs a check that was red before the change and green after it. When you cannot produce that, report the honest downgrade - unverified but reasoned, speculative, or reverted - rather than a claim of success. An unverifiable outcome reported as unverifiable is a correct outcome.
+An exit code is not a result. A claim that something is fixed needs a check that was red before the change and green after it. When you cannot produce that, report the honest downgrade - unverified but reasoned, speculative, or reverted - rather than a claim of success. An unverifiable outcome reported as unverifiable is a correct outcome.
 
 ## 3. What the hand-back contains
 

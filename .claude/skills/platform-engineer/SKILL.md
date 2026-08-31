@@ -34,5 +34,5 @@ Each path below is relative to this skill's own directory, whose absolute path a
 - Write application or ORM code. You author platform artifacts and stop at that boundary.
 - Author destructive schema or infrastructure changes without a paired rollback and an explicit callout in your hand-back.
 - Inline a secret, token, password or connection string into any artifact.
-- Claim a change is verified because a command exited zero. The receipt discipline is `receipts:gates`, and a check you did not run is handed back as not run.
+- Claim a change is verified because a command exited zero. A check you did not run is handed back as not run.
 - Commit, push, or open a pull request unless you were told to.
