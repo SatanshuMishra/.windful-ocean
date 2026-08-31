@@ -6,39 +6,37 @@
   "includeCoAuthoredBy": false,
   "permissions": {
     "allow": [
-      "Bash(git status:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(git add:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git commit:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
-      "Bash(git rev-parse:*)",
-      "Bash(git branch:*)",
-      "Bash(git worktree:*)",
-      "Bash(git merge --no-ff:*)",
       "Bash(git merge --abort:*)",
-      "Bash(git checkout:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(node --test:*)",
-      "Bash(node --version)",
-      "Bash(node .claude/:*)",
-      "Bash(node ./.claude/:*)",
-      "Bash(node \"$HOME\"/.claude/:*)",
-      "Bash(node $HOME/.claude/:*)",
-      "Bash(node ~/.claude/:*)",
-      "Bash(npx tsc:*)",
+      "Bash(git merge --no-ff:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git status:*)",
+      "Bash(git worktree:*)",
+      "Bash(graphify affected:*)",
+      "Bash(graphify explain:*)",
+      "Bash(graphify path:*)",
+      "Bash(graphify query:*)",
+      "Bash(graphify update:*)",
       "Bash(jq:*)",
       "Bash(mkdir:*)",
       "Bash(mktemp:*)",
-      "Bash(graphify query:*)",
-      "Bash(graphify path:*)",
-      "Bash(graphify explain:*)",
-      "Bash(graphify affected:*)",
-      "Bash(graphify update:*)",
-      "Bash(gh pr view:*)",
-      "Bash(gh pr list:*)",
-      "Bash(gh repo view:*)",
-      "Bash(gh run view:*)",
-      "Bash(gh run list:*)",
-      "Bash",
+      "Bash(node \"$HOME\"/.claude/:*)",
+      "Bash(node $HOME/.claude/:*)",
+      "Bash(node --version)",
+      "Bash(node ./.claude/:*)",
+      "Bash(node .claude/:*)",
+      "Bash(node ~/.claude/:*)",
+      "Bash(npx tsc:*)",
       "Read",
       "Edit",
       "Write",
@@ -55,6 +53,12 @@
       "mcp__plugin_serena_serena__*",
       "mcp__plugin_context7_context7__*",
       "mcp__plugin_logbook_ledger__*",
+      "mcp__ledger__*",
+      "Skill(logbook:preflight)",
+      "Skill(logbook:preflight:*)",
+      "Skill(logbook:debrief)",
+      "Skill(logbook:debrief:*)",
+      "Skill(logbook:*)",
       "mcp__plugin_receipts_trajectory-kb__*",
       "mcp__plugin_github_github__*",
       "mcp__Claude_Browser__*",
@@ -67,6 +71,8 @@
       "mcp__scheduled-tasks__*",
       "mcp__terminal__*",
       "mcp__visualize__*",
+      "Bash(node --test:*)",
+      "Bash",
       "Bash(node:*)"
     ],
     "deny": [
@@ -100,9 +106,10 @@
       "Read(~/.cargo/credentials*)",
       "Read(~/.pypirc)",
       "Read(~/Library/Keychains/**)"
-    ]
+    ],
+    "defaultMode": "bypassPermissions"
   },
-  "model": "claude-fable-5[1m]",
+  "model": "claude-opus-5[1m]",
   "hooks": {
     "Stop": [
       {
@@ -141,6 +148,11 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/dep-audit.sh",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/superpowers-drift-check.sh",
+            "timeout": 10
           },
           {
             "type": "command",
@@ -214,6 +226,16 @@
         ]
       },
       {
+        "matcher": "Workflow",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/hooks/block-inline-engine.mjs",
+            "timeout": 5
+          }
+        ]
+      },
+      {
         "matcher": "Agent",
         "hooks": [
           {
@@ -258,7 +280,7 @@
         ]
       }
     ],
-    "SubagentStart": [
+    "SubagentStop": [
       {
         "matcher": "",
         "hooks": [
@@ -270,7 +292,7 @@
         ]
       }
     ],
-    "SubagentStop": [
+    "SubagentStart": [
       {
         "matcher": "",
         "hooks": [
@@ -291,19 +313,19 @@
   "enabledPlugins": {
     "typescript-lsp@claude-plugins-official": true,
     "rust-analyzer-lsp@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
-    "context7@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
     "commit-commands@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true,
     "serena@claude-plugins-official": true,
     "vscode-langservers@claude-code-lsps": true,
     "visual-explainer@visual-explainer-marketplace": true,
-    "receipts@receipts": true,
     "warp@claude-code-warp": true,
-    "logbook@logbook": true
+    "logbook@logbook": true,
+    "receipts@receipts": true,
+    "superpowers@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "claude-code-lsps": {
@@ -333,12 +355,50 @@
   },
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
+  "pluginConfigs": {
+    "logbook@logbook": {
+      "options": {
+        "ledger_backend": "orphan-branch",
+        "ledger_branch": "_ledger",
+        "disable_trailer": false,
+        "disable_bash_guard": true
+      }
+    }
+  },
   "tui": "default",
   "autoMemoryEnabled": true,
   "skipWorkflowUsageWarning": true,
   "theme": "auto",
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
+  "autoMode": {
+    "environment": [
+      "### Org-wide",
+      "**Organization**: None configured — personal account `SatanshuMishra` (github.com:SatanshuMishra/.windful-ocean)",
+      "**Cloud provider(s)**: None configured",
+      "**Repository visibility**: PUBLIC — `SatanshuMishra/.windful-ocean` is public per the authenticated gh check; any push there is publishing",
+      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
+      "**Secrets management**: GitHub Actions secrets only — `GITHUB_TOKEN` referenced in CI for this repo",
+      "**Default / protected branches**: default branch `main`; `main` is protected, and the active ruleset `Require PR for Merge` applies",
+      "**CI/CD deploy targets**: None configured — `.github/workflows` present but no deploy target evidenced",
+      "**Network posture**: None configured",
+      "**Source control**: GitHub over SSH for `github.com:SatanshuMishra/.windful-ocean` only (no additional orgs configured) — as scoped by the Trusted repo and Repository visibility entries above",
+      "**Trusted internal domains**: None configured",
+      "**Trusted cloud buckets**: None configured",
+      "**Key internal services**: None configured",
+      "**Internal package registry**: None configured — public npm/Homebrew/cargo/composer registries only",
+      "**Sensitive data locations & audiences**: any file or store holding personal data, confidential business data, credentials, regulated data, or similarly sensitive material; preserve exact handles when known and share only with audiences cleared at the [named+specifics] bar. In this repo specifically: the .gitignore'd secret paths and anything surfaced by `.claude/hooks/secret-scanner.sh`, plus `~/.zsh_history` and other dotfile histories under $HOME which carry inline secrets",
+      "**Data retention / declassification**: None configured",
+      "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment (hyphen/underscore/dot-delimited — e.g. matches `prod-db`, not `producer`)",
+      "**Protected deployment namespaces / environments**: None configured — fall back to the Sensitive remote targets heuristic",
+      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
+      "### User-specific",
+      "**Primary use of Claude Code**: dotfiles and personal development-environment maintenance (Neovim, Zsh, Tmux, Git config) plus general software development in this repo",
+      "**Trusted repo**: `/Users/satanshumishra/Documents/DevLabs/.windful-ocean` and its configured remote `github.com:SatanshuMishra/.windful-ocean`. This repo is PUBLIC, so only that repo's own dotfiles work is OK to commit or push there — content ported, repointed, or first read from outside this session's repo is not its own work, whoever directed the port. Visibility scopes confidential material only: secrets and sensitive data (personal & entrusted) are never cleared into any repo by its visibility (see Definitions).",
+      "**Org-specific CLIs**: None configured — observed tooling is standard (git, gh, npm/pnpm/npx, node, brew, cargo, composer, php, flutter, docker, tmux, stow, nvim)",
+      "**Routine under this repo's prefix**: local dotfile linking and shell/editor config work under the repo checkout (e.g. `stow`) is routine; anything touching $HOME history files or ignored secret paths is not"
+    ]
+  },
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754070465024
