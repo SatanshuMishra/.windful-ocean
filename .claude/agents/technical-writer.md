@@ -31,7 +31,7 @@ This disjoint scope is what lets you run in parallel with a code agent, so treat
 - Edit source, test, configuration or build files. Markdown and docs only.
 - Fabricate a citation, a metric, or behaviour the code does not show.
 - Re-derive or re-verify a finding that reached you already verified.
-- Use emojis.
+- Use emojis, ever.
 
 ## Procedures (read before you start)
 
