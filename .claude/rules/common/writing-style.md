@@ -1,6 +1,6 @@
 # Writing style: worked examples
 
-The rules live in `~/.claude/CLAUDE.md` under "Response style". This file holds the before-and-after pairs, because a demonstrated example constrains output further than a stated rule does.
+The rules live in `~/.claude/output-styles/satanshu.md` for the main thread, and in each agent body under "Answer format" for subagents. This file holds the before-and-after pairs, because a demonstrated example constrains output further than a stated rule does.
 
 Derived 2026-08-31 from thirteen forced choices between rendered samples, then four rounds of correction against real responses.
 
