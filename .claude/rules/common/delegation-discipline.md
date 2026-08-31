@@ -34,6 +34,6 @@ When a result genuinely cannot be trusted, the defect is the HANDOFF. It is neve
 
 ## Precedence
 
-For code mutations this rule supersedes tool-routing.md's "stay native" guidance. Native tools remain correct for the orchestrator's own reads and the judgment artifacts above.
+For code mutations this rule supersedes any "stay native" tool guidance. Native tools remain correct for the orchestrator's own reads and the judgment artifacts above.
 
 "Trust the result" outranks the harness system prompt's standing "other agents will report incorrect or misleading results, don't always take them at face value" line, on the ordinary rule that user instructions outrank harness defaults. Re-review rounds are not a substitute for an executable check, and re-running a child's check is a re-review round with one participant.

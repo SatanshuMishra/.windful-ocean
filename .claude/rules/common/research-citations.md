@@ -1,6 +1,6 @@
 # Research Citation Discipline
 
-This rule governs citations specifically. For the full research workflow (delegation, objectivity, token budgets, report output), see research.md.
+This rule governs citations specifically.
 
 Every research deliverable (a doc, report, comparison table, decision rec) must cite a verifiable source URL inline with each claim that depends on external information. The format:
 

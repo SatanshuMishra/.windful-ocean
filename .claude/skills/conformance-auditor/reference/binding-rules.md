@@ -41,7 +41,7 @@ wearing a census costume. The listing is the census.
 | a pull request | `common/git/pull-requests.md` | a PR opened by any path other than the centralized tool; a title outside the grammar; a Verified line for a check that was not run |
 | credentials, auth, input handling, external calls | `common/security.md` | a hardcoded secret, token or key; an error message leaking sensitive data |
 | SQL, migrations, cloud or database config | `common/no-direct-db-access.md` | any code path or command that connects to a live project database or cloud admin surface |
-| a subagent dispatch, or an agent definition | `common/delegation-discipline.md`, `common/agent-roster.md` | the main thread re-running a subagent's checks; a new narrow agent that fails the anti-sprawl test |
+| a subagent dispatch, or an agent definition | `common/delegation-discipline.md` | the main thread re-running a subagent's checks; a new narrow agent that fails the anti-sprawl test |
 | a skill, rule, or agent naming another by string | `.claude/CLAUDE.md` | a bare skill name where the fully qualified form is required; a name that resolves to no definition |
 | a doc, report, or recommendation citing an external claim | `common/research-citations.md` | a claim with no verifiable URL and no unverified marker; a fabricated path or line number |
 | anything where two goals conflict | `common/pillars.md` | a trade that bought speed with correctness, or correctness traded for token cost |
