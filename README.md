@@ -27,7 +27,7 @@ __      _(_)_ __   __| |/ _|_   _| |       ___   ___ ___  __ _ _ __
 │   ├── nvim/             Neovim editor configuration
 │   ├── tmux/             tmux configuration
 │   ├── ripgrep/          ripgrep search defaults
-│   ├── git/              git's XDG ignore file
+│   ├── git/              git's XDG global ignore file
 │   └── starship.toml     Starship prompt configuration
 ├── .githooks/        this repo's git pre-commit hook (runs the test suite before a commit)
 ├── .github/          GitHub Actions CI workflows and the PR labeler
@@ -37,7 +37,6 @@ __      _(_)_ __   __| |/ _|_   _| |       ___   ___ ___  __ _ _ __
 ├── .zshrc                Zsh shell config: prompt, plugins, aliases, CLI tool wiring
 ├── .wezterm.lua          WezTerm terminal emulator config
 ├── .gitconfig            global git config; tracked here but not linked by the installer
-├── .gitignore_global     global gitignore
 ├── .gitattributes_global global gitattributes
 ├── .stow-local-ignore    files GNU Stow skips when linking
 ├── .semgrepignore        paths Semgrep skips
