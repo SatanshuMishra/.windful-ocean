@@ -4,9 +4,8 @@
 # Modern Git configuration with delta integration and useful aliases
 
 [user]
-    # IMPORTANT: Update these with your actual details
     name = Satanshu Mishra
-    email = your-email@example.com
+    email = satanshumishra@outlook.com
     # Uncomment and set if using GPG signing
     # signingkey = YOUR_GPG_KEY_ID
 
@@ -14,7 +13,6 @@
     editor = nvim
     autocrlf = input
     safecrlf = warn
-    excludesfile = ~/.gitignore_global
     attributesfile = ~/.gitattributes_global
     # Use delta for better diffs
     pager = delta
