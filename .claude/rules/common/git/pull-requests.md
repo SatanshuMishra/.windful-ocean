@@ -33,13 +33,13 @@ node .claude/lib/git/pr.mjs pr-create \
 
 | Section | Flag(s) | Cardinality | Required |
 |---|---|---|---|
-| What changed | `--what` | 1-3 | yes |
-| Why | `--why` | 1-3 | yes |
+| What changed | `--what` | 1-8 | yes |
+| Why | `--why` | 1-8 | yes |
 | Risk | `--risk` | 0-1 | no |
 | Verification | `--verified`, `--not-verified` | 0-8 each | combined, at least 1 |
 | Links | `--link`, `--supersedes` | 0-8 / 0-1 | no |
 
-Every free-text value is capped at 200 characters (the title is capped separately at 72, since it is the squash commit subject). An absent optional section is omitted entirely, never rendered as an empty heading. The tool owns document structure — headings, ordering, the `Verified:` / `Not verified:` split; callers supply field values only, never markup.
+Every free-text value is capped at 500 characters (the title is capped separately at 72, since it is the squash commit subject). An absent optional section is omitted entirely, never rendered as an empty heading. The tool owns document structure — headings, ordering, the `Verified:` / `Not verified:` split; callers supply field values only, never markup.
 
 ### Writing the body
 

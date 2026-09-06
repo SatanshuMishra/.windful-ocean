@@ -866,6 +866,20 @@ test('parse ACCEPTS an uppercase --why value ending with a period', () => {
   assert.deepEqual(parsed.opts.why, ['Uppercase with a period.']);
 });
 
+test('parse ACCEPTS an accented capital opening a --why value, so the sentence rule is not ascii-only', () => {
+  const value = `${String.fromCharCode(201)}migr${String.fromCharCode(233)} values compose a sentence.`;
+  const parsed = okParse(prCreateArgvReplacing('--why', value));
+  assert.deepEqual(parsed.opts.why, [value]);
+});
+
+test('parse REJECTS an accented lowercase opening a --why value, so the sentence rule still demands uppercase', () => {
+  failParse(prCreateArgvReplacing('--why', `${String.fromCharCode(233)}migr${String.fromCharCode(233)} values compose a sentence.`));
+});
+
+test('parse REJECTS a digit opening a --why value, so a caseless first character never reads as uppercase', () => {
+  failParse(prCreateArgvReplacing('--why', '8 values now compose a sentence.'));
+});
+
 test('parse REJECTS an uppercase --why value with no terminal punctuation', () => {
   failParse(prCreateArgvReplacing('--why', 'Uppercase with no period'));
 });
