@@ -39,7 +39,6 @@ settings.local.json
 __pycache__/
 *.pyc
 ledger/
-ledger-archive-v1/
 notes/
 !skills/session-handoff/
 !skills/impeccable/scripts/live-browser-session.js

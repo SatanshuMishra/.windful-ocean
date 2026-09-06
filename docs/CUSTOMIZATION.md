@@ -4,22 +4,7 @@ This guide explains how to personalize and extend my dotfiles configuration.
 
 ## Configuration Structure
 
-Understanding how I've organized everything will help you make targeted changes:
-
-```
-.config/nvim/
-├── lua/
-│   ├── core/          # Core Neovim settings
-│   │   ├── options.lua    # vim.opt settings
-│   │   ├── keymaps.lua    # global keymaps
-│   │   └── autocmds.lua   # autocommands
-│   ├── plugins/       # Plugin configurations
-│   │   ├── init.lua       # plugin manager setup
-│   │   ├── mini.lua       # mini.nvim suite
-│   │   ├── lsp/          # LSP configuration
-│   │   └── ...
-│   └── themes/        # Theme configuration
-```
+This guide covers customizations that span more than one tool. For the Neovim configuration's own internal structure, plugin inventory and file layout, see [.config/nvim/README.md](../.config/nvim/README.md#file-structure) — it is the single home for everything Neovim-specific.
 
 ---
 
@@ -27,12 +12,7 @@ Understanding how I've organized everything will help you make targeted changes:
 
 ### Change Color Schemes
 
-Neovim Themes:
-Edit `.config/nvim/lua/themes/init.lua`:
-```lua
--- Available themes: catppuccin, tokyonight, rose-pine, oxocarbon
-vim.cmd.colorscheme("catppuccin-mocha")  -- Change this line
-```
+Neovim theme: see [Theme Customization](../.config/nvim/README.md#theme-customization) in the Neovim README.
 
 Terminal Themes:
 WezTerm config in `.wezterm.lua`:
@@ -79,73 +59,7 @@ config.font_size = 12.0  -- Adjust size
 
 ## Advanced Customizations
 
-### Add Your Own Neovim Plugins
-
-1. Create your own plugin file:
-```bash
-touch ~/.config/nvim/lua/plugins/my-plugins.lua
-```
-
-2. Add your plugin configuration:
-```lua
--- ~/.config/nvim/lua/plugins/my-plugins.lua
-return {
-    {
-        'your-username/your-plugin',
-        config = function()
-            require('your-plugin').setup({
-                -- your configuration
-            })
-        end,
-    },
-}
-```
-
-3. Import in my plugin loader:
-Edit my `.config/nvim/lua/plugins/init.lua`:
-```lua
-require('lazy').setup({
-    { import = "plugins.my-plugins" },  -- Add this line
-    -- ... other imports
-})
-```
-
-### Customize My LSP Servers
-
-Add your own language server:
-Edit my `.config/nvim/lua/plugins/lsp/servers.lua`:
-```lua
--- Add to the setup function
-lspconfig.your_lsp.setup({
-    capabilities = capabilities,
-    on_attach = on_attach,
-    settings = {
-        -- LSP-specific settings
-    },
-})
-```
-
-Install via Mason:
-```vim
-:MasonInstall your-language-server
-```
-
-### Add Your Own Keybindings
-
-Add global Neovim keymaps:
-Edit my `.config/nvim/lua/core/keymaps.lua`:
-```lua
--- Add your custom keymaps
-vim.keymap.set('n', '<leader>x', '<cmd>YourCommand<cr>', { desc = 'Your description' })
-```
-
-Add plugin-specific keymaps:
-Add to the relevant plugin configuration:
-```lua
-keys = {
-    { '<leader>my', '<cmd>MyCommand<cr>', desc = 'My custom command' },
-},
-```
+Adding a Neovim plugin, adding a language server, or adding a Neovim keybinding are all Neovim-specific changes — see [Customization Guide](../.config/nvim/README.md#customization-guide) in the Neovim README for all three.
 
 ### Environment-Specific Customizations
 
@@ -272,26 +186,7 @@ export FZF_CTRL_R_OPTS="
 
 ### Create Your Own Theme
 
-For Neovim (example):
-```lua
--- ~/.config/nvim/lua/themes/my-theme.lua
-local M = {}
-
-function M.setup()
-    -- Define your colors
-    local colors = {
-        bg = "#1e1e2e",
-        fg = "#cdd6f4",
-        -- ... more colors
-    }
-    
-    -- Apply highlights
-    vim.api.nvim_set_hl(0, "Normal", { bg = colors.bg, fg = colors.fg })
-    -- ... more highlights
-end
-
-return M
-```
+For Neovim, see [Theme Customization](../.config/nvim/README.md#theme-customization) in the Neovim README, which covers adding a new theme file under `lua/themes/`.
 
 For terminals: You can create custom color schemes matching your preferred palette.
 
@@ -320,27 +215,7 @@ I use these colors consistently across:
 
 ## Performance Tuning
 
-### Optimize My Neovim Setup
-
-Lazy loading:
-```lua
--- Only load plugins when needed
-{
-    'expensive-plugin',
-    lazy = true,
-    event = 'BufReadPost',
-    cmd = { 'PluginCommand' },
-    ft = { 'javascript', 'typescript' },
-}
-```
-
-Disable unused features:
-```lua
--- In core/options.lua
-vim.opt.backup = false      -- Disable backup files
-vim.opt.writebackup = false -- Disable backup during write
-vim.opt.swapfile = false    -- Disable swap files
-```
+For Neovim startup and memory tuning (lazy loading, disabling unused features), see [Performance Optimization](../.config/nvim/README.md#performance-optimization) in the Neovim README.
 
 ### Optimize My Shell
 
@@ -355,11 +230,7 @@ export CONDA_AUTO_ACTIVATE_BASE=false
 
 ### Profile Startup Performance
 
-Neovim startup time:
-```bash
-nvim --startuptime startup.log
-# Analyze startup.log for slow components
-```
+Neovim startup time: see [Slow Startup](../.config/nvim/README.md#slow-startup) in the Neovim README's troubleshooting section.
 
 Zsh startup time:
 ```bash
@@ -396,23 +267,7 @@ source_env_if_exists .env.local
 
 ### Custom LSP for Projects
 
-Project-specific LSP settings (example):
-```lua
--- .nvim.lua in project root
-vim.opt_local.shiftwidth = 2
-vim.opt_local.tabstop = 2
-
--- Project-specific LSP settings
-require('lspconfig').tsserver.setup({
-    settings = {
-        typescript = {
-            preferences = {
-                importModuleSpecifier = "relative"
-            }
-        }
-    }
-})
-```
+For per-project Neovim and LSP settings via a `.nvim.lua` file, see [Project-Specific Configuration](../.config/nvim/README.md#project-specific-configuration) in the Neovim README.
 
 ### Advanced Git Setup
 
@@ -455,7 +310,7 @@ git clone https://github.com/yourusername/dotfiles.git ~/.dotfiles
 Stay up to date with my changes:
 ```bash
 # Add upstream remote
-git remote add upstream https://github.com/satanshumishra/windful-ocean.git
+git remote add upstream https://github.com/SatanshuMishra/.windful-ocean.git
 
 # Update from upstream
 git fetch upstream

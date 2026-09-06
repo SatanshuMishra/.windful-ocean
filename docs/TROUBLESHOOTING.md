@@ -130,85 +130,7 @@ tmux -V
 
 ## Neovim Issues
 
-### My Neovim Won't Start
-Problem: Neovim crashes or shows errors on startup with my config
-
-Solutions:
-```bash
-# Check Neovim version (needs 0.8+)
-nvim --version
-
-# Start with minimal config to test
-nvim --clean
-
-# Check for syntax errors in my config
-nvim --headless -c 'luafile ~/.config/nvim/init.lua' -c 'qa'
-
-# Clear plugin cache and reinstall
-rm -rf ~/.local/share/nvim/lazy
-rm -rf ~/.local/state/nvim/lazy
-nvim  # Will reinstall plugins
-```
-
-### LSP Not Working
-Problem: Language servers not starting or providing features
-
-Solutions:
-```bash
-# Check LSP status in Neovim
-:LspInfo
-
-# Check Mason installation status
-:Mason
-
-# Manually install a language server
-:MasonInstall typescript-language-server
-
-# Check health
-:checkhealth lsp
-
-# Restart LSP for current buffer
-:LspRestart
-```
-
-### My Plugins Not Loading
-Problem: My plugins missing or not functioning
-
-Solutions:
-```bash
-# Check plugin manager status
-:Lazy
-
-# Update all plugins
-:Lazy update
-
-# Check for plugin errors
-:Lazy log
-
-# Clean and reinstall problematic plugin
-:Lazy clean
-:Lazy install
-
-# Check Neovim health
-:checkhealth
-```
-
-### Slow Startup
-Problem: Neovim takes too long to start with my config
-
-Solutions:
-```bash
-# Profile startup time
-nvim --startuptime startup.log
-# Check startup.log for slow plugins
-
-# Disable unnecessary plugins temporarily
-# Edit ~/.config/nvim/lua/plugins/init.lua
-# Add `enabled = false` to slow plugins
-
-# Check for large files in my config
-find ~/.config/nvim -name "*.lua" -exec wc -l {} +
-```
+Every Neovim-specific problem — startup failures, LSP servers not attaching, plugins not loading, slow startup — is covered in one place: [Troubleshooting](../.config/nvim/README.md#troubleshooting) in the Neovim README.
 
 ---
 
@@ -372,53 +294,31 @@ export PATH="/opt/homebrew/bin:$PATH"
 ### "Plugin manager not found"
 Problem: Neovim can't find my Lazy.nvim setup
 
-Solutions:
-```bash
-# Remove and reinstall plugin manager
-rm -rf ~/.local/share/nvim/lazy/lazy.nvim
-
-# Start Neovim (will auto-install)
-nvim
-
-# If that fails, install manually
-git clone --filter=blob:none --branch=stable \
-  https://github.com/folke/lazy.nvim.git \
-  ~/.local/share/nvim/lazy/lazy.nvim
-```
+Solution: see [Plugin Installation Fails](../.config/nvim/README.md#plugin-installation-fails) in the Neovim README.
 
 ---
 
 ## Health Checks
 
-### Check My Neovim Health
-```bash
-# Complete health check
-nvim -c 'checkhealth' -c 'qall'
-
-# Specific component checks
-:checkhealth nvim
-:checkhealth lsp
-:checkhealth treesitter
-:checkhealth telescope
-```
+Neovim-specific health checks (`:checkhealth lsp`, `:checkhealth treesitter`, and the rest) are covered under [Getting Help](../.config/nvim/README.md#getting-help) in the Neovim README.
 
 ### Check My System Health
 ```bash
 # Check essential tools
 for tool in nvim tmux git zsh stow; do
   if command -v $tool &> /dev/null; then
-    echo "✅ $tool: $(which $tool)"
+    echo "OK: $tool: $(which $tool)"
   else
-    echo "❌ $tool: not found"
+    echo "MISSING: $tool: not found"
   fi
 done
 
 # Check modern CLI tools
 for tool in eza bat fd rg zoxide; do
   if command -v $tool &> /dev/null; then
-    echo "✅ $tool: $(which $tool)"
+    echo "OK: $tool: $(which $tool)"
   else
-    echo "⚠️  $tool: not found (optional)"
+    echo "WARN: $tool: not found (optional)"
   fi
 done
 ```
@@ -462,7 +362,7 @@ mv ~/.config/nvim ~/.config/nvim.disabled
 mv ~/.zshrc ~/.zshrc.disabled
 
 # Test with fresh install of my dotfiles
-git clone https://github.com/satanshumishra/windful-ocean.git /tmp/dotfiles-test
+git clone https://github.com/SatanshuMishra/.windful-ocean.git /tmp/dotfiles-test
 cd /tmp/dotfiles-test
 ./scripts/install_config.sh
 ```

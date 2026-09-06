@@ -3,7 +3,7 @@ set -u
 
 input="$(cat)"
 
-block_message="Blocked: the bundled deep-research workflow is disabled (unbounded token cost; caused a 3M-token incident). Use the researcher agent per ~/.claude/rules/common/research.md."
+block_message="Blocked: the bundled deep-research workflow is disabled (unbounded token cost; caused a 3M-token incident). Use the researcher agent."
 
 tool_name=""
 workflow_name=""

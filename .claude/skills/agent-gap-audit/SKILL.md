@@ -5,7 +5,7 @@ description: Use when the user runs /agent-gap-audit or asks to audit the agent 
 
 # Agent Gap Audit
 
-Manual audit of the Agent Evolution Ledger (`~/.claude/agent-ledger/`). Governed by `~/.claude/rules/common/agent-roster.md`. Never auto-runs.
+Manual audit of the Agent Evolution Ledger (`~/.claude/agent-ledger/`). Never auto-runs.
 
 Set `AGENT_LEDGER_SUPPRESS=1` in the environment for every subagent this skill dispatches, so audit-time research does not pollute the gap log.
 

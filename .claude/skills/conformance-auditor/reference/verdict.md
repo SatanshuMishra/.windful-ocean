@@ -10,7 +10,7 @@ it is a proposal, and it goes to `reference/proposals.md`.
 
 | Field | Content |
 |---|---|
-| authority | the gate id (G0 through G17) or the rule file path that this violates |
+| authority | the declared check id, where the project has one, or the rule file path that this violates |
 | observed | what is actually there, quoted or shown |
 | location | path and line, confirmed at the time you write it |
 | why | the sentence of the cited mandate that the observation contradicts |
@@ -22,13 +22,13 @@ the location field and mark the confidence accordingly.
 
 ## Three dispositions, and only three
 
-**blocking** - the change breaks a gate the enforcer runs and the enforcer blocked on it.
-That verdict already exists; your finding explains it, it does not create it.
+**blocking** - the change breaks an automated check the project runs, and that check already
+blocked on it. That verdict already exists; your finding explains it, it does not create it.
 
-**filed** - the change breaks a named gate or rule that no enforcer check covers, or breaks
+**filed** - the change breaks a named check or rule that no automated check covers, or breaks
 nothing and is a genuine concern. It is recorded as an item and the work ships. A finding
-that breaks no gate is advisory by construction: the enforcer is the gate, and a re-review
-round is not a substitute for an executable check.
+that breaks no automated check is advisory by construction: checks that already ran are
+authoritative, and a re-review round is not a substitute for an executable check.
 
 **above-ceiling** - the observation is real and is outside the acceptance criterion the unit
 declared before it started. It is filed as a NEW item. It never fails the unit, it never
@@ -50,7 +50,7 @@ Each audited item gets exactly one status, and the vocabulary is closed:
 | speculative | no confirmed root cause; never silent, and never without explicit human sign-off on money, auth, contracts or destructive migrations |
 | reverted | the change was backed out |
 
-This applies to your own claims too. Where you could not clear a gate in the audit - no
+This applies to your own claims too. Where you could not clear a check in the audit - no
 access to the deployed build, no way to drive the reporter's screen, a coverage command that
 does not exist - the outcome is `unverified-reasoned` with the reason named. It is never a
 silent pass, and it is never another review round.
@@ -68,15 +68,15 @@ Where one reason recurs past the configured threshold, name the missing capabili
 run summary. Surface it; do not stall on it. Blocking an honest downgrade only converts it
 into a claim of `fixed`, which is the failure the ladder exists to prevent.
 
-Escalate to the human for the aggregate capability gap, not for individual gate failures.
+Escalate to the human for the aggregate capability gap, not for individual check failures.
 
 ## Two things the verdict never contains
 
 **A new mandate.** Not a check to add, not a census to build, not a rule the project should
 adopt, not a lesson promoted to policy. Those are proposals and they have their own file.
 
-**Another round.** An unclearable gate produces a status from the ladder above. A finding
-that breaks no gate produces a filed item. Neither produces a request to review again.
+**Another round.** An unclearable check produces a status from the ladder above. A finding
+that breaks no check produces a filed item. Neither produces a request to review again.
 
 ## Shape
 
