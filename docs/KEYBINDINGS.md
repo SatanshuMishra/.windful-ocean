@@ -66,42 +66,97 @@ Prefix Key: `Ctrl-Space` (I changed it from the default `Ctrl-b`)
 
 Leader Key: `Space` (my choice for easy access)
 
+### Core Editing
+| Key | Mode | Action |
+|-----|------|--------|
+| `j` / `k` | Normal | Move by visual line when wrapped |
+| `J` | Normal | Join lines without moving cursor |
+| `K` | Visual | Move selection up |
+| `J` | Visual | Move selection down |
+| `<leader>d` | Normal/Visual | Delete without copying to clipboard |
+| `<leader>v` | Normal | Paste from system clipboard |
+
 ### File Operations
 | Key | Action |
 |-----|--------|
-| `<leader>ff` | Find files (Telescope) |
-| `<leader>fg` | Live grep (Telescope) |
-| `<leader>fb` | Find buffers (Telescope) |
-| `<leader>fh` | Find help tags (Telescope) |
-| `<leader>fr` | Find recent files (Telescope) |
-| `<leader>fw` | Find word under cursor (Telescope) |
+| `<leader>sf` | Search files (Telescope) |
+| `<leader>sg` | Live grep (Telescope) |
+| `<leader>sw` | Search word under cursor (Telescope) |
+| `<leader>sh` | Search help tags (Telescope) |
+| `<leader>gf` | Search git files (Telescope) |
+| `<leader>?` | Recently opened files (Telescope) |
+| `<leader><space>` | Find buffers (Telescope) |
+| `<leader>/` | Fuzzy search in current buffer (Telescope) |
+| `<leader>fs` | Open netrw file system |
+
+### Harpoon Quick Access
+| Key | Action |
+|-----|--------|
+| `<leader>fa` | Add file to harpoon |
+| `<leader>fl` | Toggle harpoon list |
+| `<C-e>` | Toggle harpoon menu |
+| `<C-1>` to `<C-4>` | Navigate to harpoon file 1-4 |
+| `<leader>p1` to `<leader>p4` | Open harpoon file 1-4 |
 
 ### LSP Operations
 | Key | Action |
 |-----|--------|
-| `gd` | Go to definition (Glance) |
-| `gr` | Go to references (Glance) |
+| `gd` | Go to definition (Telescope; buffer-local, takes priority over Glance) |
+| `gr` | Go to references (Telescope; buffer-local, takes priority over Glance) |
+| `gI` | Go to implementation (Telescope) |
 | `gi` | Go to implementation (Glance) |
 | `gy` | Go to type definition (Glance) |
+| `<leader>D` | Type definition (Telescope) |
 | `K` | Hover documentation |
-| `<leader>rn` | Rename symbol (with live preview) |
+| `<C-k>` | Signature help |
+| `<leader>rn` | Rename symbol |
 | `<leader>ca` | Code actions |
 | `<leader>cf` | Format buffer |
+| `gl` | Show line diagnostics (Lspsaga) |
+| `gp` | Peek definition (Lspsaga) |
 | `]d` | Next diagnostic |
 | `[d` | Previous diagnostic |
-| `<leader>e` | Show line diagnostics |
+| `<leader>e` | Open diagnostic float |
+| `<leader>q` | Open diagnostics list |
+
+A language server's buffer-local mapping always wins over a plugin's global mapping for the same key — "the local buffer mappings are used before the global ones," per [`:map-local`](https://vimhelp.org/map.txt.html#%3Amap-local) — so `gd`/`gr` resolve to Telescope, not Glance, whenever a server is attached.
 
 ### Git Operations
 | Key | Action |
 |-----|--------|
-| `<leader>gs` | Git status (LazyGit) |
 | `<leader>gg` | Open LazyGit |
-| `]h` | Next git hunk |
-| `[h` | Previous git hunk |
+| `]c` | Next git hunk |
+| `[c` | Previous git hunk |
 | `<leader>hp` | Preview git hunk |
 | `<leader>hs` | Stage git hunk |
 | `<leader>hr` | Reset git hunk |
 | `<leader>hb` | Blame current line |
+| `<leader>hd` | Diff this |
+
+### Debugging (DAP)
+| Key | Action |
+|-----|--------|
+| `<leader>xb` | Toggle breakpoint |
+| `<leader>xc` | Continue/start debugging |
+| `<leader>xt` | Terminate debugging |
+| `<leader>xo` | Step over |
+| `<leader>xi` | Step into |
+| `<leader>xO` | Step out |
+| `<leader>xr` | Open REPL |
+| `<leader>xu` | Toggle DAP UI |
+
+### Code Screenshots (Silicon)
+| Key | Mode | Action |
+|-----|------|--------|
+| `<leader>cs` | Visual | Screenshot code selection |
+
+### Completion and Snippets
+| Key | Mode | Action |
+|-----|------|--------|
+| `<Tab>` | Insert | Accept completion |
+| `<C-n>` | Insert | Next completion item |
+| `<C-p>` | Insert | Previous completion item |
+| `<C-G>` | Insert | Accept Copilot suggestion |
 
 ### Session Management
 | Key | Action |
@@ -146,26 +201,17 @@ Leader Key: `Space` (my choice for easy access)
 |-----|--------|
 | `gcc` | Toggle line comment |
 | `gc` | Toggle comment (visual/motion) |
-| `gcA` | Comment end of line |
 
 ### File Management (Oil.nvim - my file explorer)
 | Key | Action |
 |-----|--------|
-| `-` | Open file explorer |
+| `-` | Open file explorer / go up a directory |
 | `<CR>` | Open file/directory |
-| `<C-h>` | Go up directory |
-| `<C-l>` | Open file/directory |
+| `<C-s>` | Open in vertical split |
+| `<C-h>` | Open in horizontal split |
+| `<C-t>` | Open in new tab |
+| `<C-l>` | Refresh |
 | `<C-p>` | Preview file |
-
-### Debugging (DAP - my debug setup)
-| Key | Action |
-|-----|--------|
-| `<leader>db` | Toggle breakpoint |
-| `<leader>dc` | Continue |
-| `<leader>dso` | Step over |
-| `<leader>dsi` | Step into |
-| `<leader>dsO` | Step out |
-| `<leader>dr` | Open REPL |
 
 ### Trouble (My diagnostics panel)
 | Key | Action |
