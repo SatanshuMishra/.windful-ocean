@@ -3,7 +3,7 @@
   "id": "01M1TFJFBD7VJGXJ68GXRT9P58",
   "slug": "relicense-windful-ocean-to-apache-2-0",
   "title": "Relicense .windful-ocean to Apache 2.0",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": "01KZRYT30X21WNDZ8ZPBM5FDGH",
   "completion_criteria": [
@@ -95,5 +95,5 @@
     ]
   },
   "created_at": "2026-09-06T04:28:06.381Z",
-  "updated_at": "2026-09-06T04:30:54.308Z"
+  "updated_at": "2026-09-06T04:30:59.093Z"
 }
