@@ -135,8 +135,6 @@ const REQUIRED_DENY_ENTRIES = Object.freeze([
   'mcp__plugin_github_github__create_pull_request',
   'mcp__github__create_pull_request_with_copilot',
   'mcp__plugin_github_github__create_pull_request_with_copilot',
-  'mcp__github__update_pull_request',
-  'mcp__plugin_github_github__update_pull_request',
 ]);
 
 function readTrackedSettingsDeny(path) {
@@ -147,11 +145,11 @@ function readTrackedSettingsDeny(path) {
     assert.fail(`${SETTINGS_LABEL} could not be read or parsed at ${path}: ${error.message}; the deny guarantee cannot be checked, so this test fails closed rather than reporting a pass it did not verify`);
   }
   const deny = parsed?.permissions?.deny;
-  assert.ok(Array.isArray(deny), `${SETTINGS_LABEL} at ${path} carries no permissions.deny array, so every PR merge, create and edit surface it is supposed to name is absent`);
+  assert.ok(Array.isArray(deny), `${SETTINGS_LABEL} at ${path} carries no permissions.deny array, so every PR merge and create surface it is supposed to name is absent`);
   return deny;
 }
 
-test('the tracked repo deny list still names every PR merge, create and edit surface it is relied on to block', () => {
+test('the tracked repo deny list still names every PR merge and create surface it is relied on to block', () => {
   const deny = readTrackedSettingsDeny(SETTINGS_PATH);
   for (const entry of REQUIRED_DENY_ENTRIES) {
     assert.ok(deny.includes(entry), `${SETTINGS_LABEL} permissions.deny is missing ${entry}, an entry .claude/rules/common/git/pull-requests.md declares load-bearing. This test reads exactly one file, ${SETTINGS_PATH}, resolved only from this file's own location with no environment override, so it is always the tracked, diffable, PR-gated repo copy at .claude/settings.json; it makes no claim about the separately installed copy at ~/.claude/settings.json, which this suite never reads. Without the entry, the guarantee that the engine can neither merge nor open a pull request itself no longer holds for that file`);

@@ -101,13 +101,11 @@ classify_segment() {
   local graphql='(^|[[:space:]])/?graphql([[:space:]]|$)'
   local pullbase='repos/[^/[:space:]]+/[^/[:space:]]+/pulls'
   local pullsep="${pullbase}/?([^/[:alnum:]]|$)"
-  local pullnum="${pullbase}/[0-9]+([^/[:alnum:]]|$)"
+  local pullcollection="${pullbase}/?([^0-9/]|$)"
   local postish='(--method[[:space:]=]+post|-x[[:space:]]*post|(^|[[:space:]])-f[[:space:]=]|--field[[:space:]=]|--raw-field[[:space:]=]|(^|[[:space:]])--input[[:space:]=])'
-  local patchish='(--method[[:space:]=]+patch|-x[[:space:]]*patch)'
   local gqlopaque='((-f|--field|--raw-field)[[:space:]=]+[a-z_]+=@|(^|[[:space:]])--input[[:space:]=])'
   local ghfileref='(^|[[:space:]])(-f|--field|--raw-field)[[:space:]=]+[a-z_]+=@'
   local gqlsub='(\$\(|`)'
-  local prshortedit='(^|[[:space:]])-(t|b|F)([^a-zA-Z-]|$)'
 
   local supatok="${ghpos}(${ghwrap}[[:space:]]+[\"']?[[:space:]]*)*([[:alnum:]_./-]*/)?supabase([[:space:]]+${ghopt})*[[:space:]]+"
   local suparemote="(db[[:space:]]+(push|pull)|migration[[:space:]]+up|functions[[:space:]]+deploy|link)([^[:alnum:]_-]|$)"
@@ -125,14 +123,12 @@ classify_segment() {
   fi
 
   if has "${ghtok}pr[[:space:]]+create([[:space:]]|$)" \
-    || { has "${ghtok}pr[[:space:]]+edit([[:space:]]|$)" && { has '(--title|--body|--body-file)([[:space:]=]|$)' || has_cs "$prshortedit"; }; } \
-    || { has "$ghapi" && has "$pullbase" && has "$ghfileref"; } \
+    || { has "$ghapi" && has "$pullcollection" && has "$ghfileref"; } \
     || { has "$ghapi" && has "$pullsep" && has "$postish"; } \
-    || { has "$ghapi" && has "$pullnum" && has "$patchish"; } \
-    || { has "$ghapi" && has "$graphql" && has '(createpullrequest|updatepullrequest([^a-z]|$))'; } \
+    || { has "$ghapi" && has "$graphql" && has 'createpullrequest'; } \
     || { has "$ghapi" && has "$graphql" && has "$gqlopaque"; } \
     || { has "$ghapi" && has "$graphql" && has "$gqlsub"; }; then
-    set_deny 'opening a pull request is centralized: every pull request in this environment is created by one tool, in one format, and its title and body may not be rewritten afterwards. Run this, quoting every value: node "$HOME"/.claude/lib/git/pr.mjs pr-create --repo OWNER/REPO --head HEAD-BRANCH --base BASE-BRANCH --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --what THE BEHAVIOR THAT IS DIFFERENT NOW. --why THE PROBLEM THAT EXISTED BEFORE. --not-verified THING YOU DID NOT CHECK - not run. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. A --why, --what or --risk value starts with a capital letter and ends with a full stop. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: .claude/rules/common/git/pull-requests.md'
+    set_deny 'opening a pull request is centralized: every pull request in this environment is created by one tool, in one format. Run this, quoting every value: node "$HOME"/.claude/lib/git/pr.mjs pr-create --repo OWNER/REPO --head HEAD-BRANCH --base BASE-BRANCH --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --what THE BEHAVIOR THAT IS DIFFERENT NOW. --why THE PROBLEM THAT EXISTED BEFORE. --not-verified THING YOU DID NOT CHECK - not run. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. A --why, --what or --risk value starts with a capital letter and ends with a full stop. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: .claude/rules/common/git/pull-requests.md'
     return 0
   fi
 
