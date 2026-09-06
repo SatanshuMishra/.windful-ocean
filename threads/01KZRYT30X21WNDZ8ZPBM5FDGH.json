@@ -3,7 +3,7 @@
   "id": "01KZRYT30X21WNDZ8ZPBM5FDGH",
   "slug": "activate-the-eu-tdm-reservation-by-mirroring-to-an-owned-domain",
   "title": "Activate the EU TDM reservation by mirroring to an owned domain",
-  "status": "paused",
+  "status": "abandoned",
   "parent_id": null,
   "predecessor_id": "01KZQRFXW2YE3JXDBEWQ84CTVQ",
   "completion_criteria": [
@@ -46,7 +46,7 @@
   "vcs_ref": null,
   "external_refs": [],
   "blocked_by": null,
-  "abandoned_reason": null,
+  "abandoned_reason": "Abandoned 2026-09-05: the repository is relicensing from PolyForm Noncommercial 1.0.0 to Apache License 2.0, matching SatanshuMishra/logbook. An Apache 2.0 grant gives everyone the right to reproduce and prepare derivative works, which contradicts a text-and-data-mining reservation, so ai.txt, robots.txt and .well-known/tdmrep.json are being deleted rather than mirrored. The thread's subject no longer exists. Reopen only if the licence is reverted to a noncommercial or source-available form.",
   "closure_statement": null,
   "spine": {
     "active_goal": "Make the AI-training reservation actually operative, rather than merely committed to the repo, by serving it from a domain we control - or establish on evidence that this is not worth doing.",
@@ -77,5 +77,5 @@
     ]
   },
   "created_at": "2026-08-11T17:44:32.029Z",
-  "updated_at": "2026-08-11T17:44:48.699Z"
+  "updated_at": "2026-09-06T04:26:50.398Z"
 }
