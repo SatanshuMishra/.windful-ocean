@@ -15,6 +15,14 @@ const BACKTICK = String.fromCharCode(96);
 const FENCE = BACKTICK.repeat(3);
 const E_ACUTE = String.fromCharCode(233);
 const RIGHT_TO_LEFT_OVERRIDE = String.fromCharCode(8238);
+const ZERO_WIDTH_SPACE = String.fromCharCode(8203);
+const LEFT_TO_RIGHT_ISOLATE = String.fromCharCode(8294);
+const WORD_JOINER = String.fromCharCode(8288);
+const BYTE_ORDER_MARK = String.fromCharCode(65279);
+const LINE_SEPARATOR = String.fromCharCode(8232);
+const C1_CONTROL = String.fromCharCode(155);
+const EM_DASH = String.fromCharCode(8212);
+const E_ACUTE_CAPITAL = String.fromCharCode(201);
 const NUL = String.fromCharCode(0);
 const BEL = String.fromCharCode(7);
 const LF = String.fromCharCode(10);
@@ -82,8 +90,13 @@ const REJECTED_VALUES = Object.freeze([
   ['a value that is empty once control characters are stripped', `${NUL}${LF}`],
   ['a leading field-indirection sigil', '@/etc/passwd'],
   ['a bare field-indirection sigil', '@-'],
-  ['a non-ascii character', `caf${E_ACUTE} review`],
   ['a bidirectional override', `pending${RIGHT_TO_LEFT_OVERRIDE}review`],
+  ['a bidirectional isolate', `pending${LEFT_TO_RIGHT_ISOLATE}review`],
+  ['a zero-width space', `pending${ZERO_WIDTH_SPACE}review`],
+  ['a word joiner', `pending${WORD_JOINER}review`],
+  ['a byte order mark', `pending${BYTE_ORDER_MARK}review`],
+  ['a unicode line separator', `pending${LINE_SEPARATOR}review`],
+  ['a c1 control the ascii strip does not reach', `pending${C1_CONTROL}review`],
   ['an html comment opener', 'a note <!-- hidden'],
   ['a details tag opener', 'expand this <details>'],
   ['a closing tag', 'the end </details>'],
@@ -114,6 +127,9 @@ const ACCEPTED_VALUES = Object.freeze([
   ['a pipe inside prose', 'piped through grep | wc -l'],
   ['a trailing tag closer', 'the end of the sentence -->'],
   ['a bare url', 'https://github.com/acme/widgets/pull/41'],
+  ['an em dash', `the parser now reads eight values ${EM_DASH} not three ${EM_DASH} per flag`],
+  ['an accented name', `reviewed by Andr${E_ACUTE} before the merge`],
+  ['an accented capital opening the value', `${E_ACUTE_CAPITAL}migr${E_ACUTE} values now compose.`],
   ['ordinary punctuation', "the caller's own check: 41 pass, 0 fail (100%)"],
   ['prose that merely mentions verification', 'Verification of the parser is covered by the unit suite'],
   ['prose that merely mentions superseding', 'supersedes the legacy adapter in the same commit'],

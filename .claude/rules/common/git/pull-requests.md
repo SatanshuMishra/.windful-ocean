@@ -1,6 +1,6 @@
 # Pull Requests
 
-Every pull request in this environment, from any origin (agent or human, CLI or MCP), is opened by one tool in one mandatory format. Ad-hoc `gh pr create`, `gh api` POSTs to the pulls endpoint, and the GitHub MCP `create_pull_request` tool are denied at `.claude/hooks/block-destructive-bash.sh` and in `.claude/settings.json`'s `permissions.deny`. Post-creation title/body edits (`gh pr edit --title/--body`, the matching `gh api --method PATCH .../pulls/N`, GraphQL, MCP `update_pull_request`) are denied the same way — a PR's title and body are fixed at creation and never rewritten afterwards through Bash or the GitHub MCP tool.
+Every pull request in this environment, from any origin (agent or human, CLI or MCP), is opened by one tool in one mandatory format. Ad-hoc `gh pr create`, `gh api` POSTs to the pulls endpoint, and the GitHub MCP `create_pull_request` tool are denied at `.claude/hooks/block-destructive-bash.sh` and in `.claude/settings.json`'s `permissions.deny`.
 
 No draft-by-default: machine-opened PRs are opened exactly like human-opened ones. Merge stays separately human-gated (`gh pr merge`, both `mergePullRequest` and `enablePullRequestAutomerge` GraphQL mutations, and MCP `merge_pull_request` are all denied) — a draft status would add a click on top of that, not a control.
 
@@ -33,13 +33,13 @@ node .claude/lib/git/pr.mjs pr-create \
 
 | Section | Flag(s) | Cardinality | Required |
 |---|---|---|---|
-| What changed | `--what` | 1-3 | yes |
-| Why | `--why` | 1-3 | yes |
+| What changed | `--what` | 1-8 | yes |
+| Why | `--why` | 1-8 | yes |
 | Risk | `--risk` | 0-1 | no |
 | Verification | `--verified`, `--not-verified` | 0-8 each | combined, at least 1 |
 | Links | `--link`, `--supersedes` | 0-8 / 0-1 | no |
 
-Every free-text value is capped at 200 characters (the title is capped separately at 72, since it is the squash commit subject). An absent optional section is omitted entirely, never rendered as an empty heading. The tool owns document structure — headings, ordering, the `Verified:` / `Not verified:` split; callers supply field values only, never markup.
+Every free-text value is capped at 500 characters (the title is capped separately at 72, since it is the squash commit subject). An absent optional section is omitted entirely, never rendered as an empty heading. The tool owns document structure — headings, ordering, the `Verified:` / `Not verified:` split; callers supply field values only, never markup.
 
 ### Writing the body
 

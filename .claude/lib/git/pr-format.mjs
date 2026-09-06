@@ -1,17 +1,17 @@
 export const PR_TITLE_TYPES = Object.freeze(['feat', 'fix', 'refactor', 'docs', 'test', 'chore', 'perf', 'ci']);
 export const PR_TITLE_PATTERN = /^(?=.{1,72}$)(feat|fix|refactor|docs|test|chore|perf|ci)(\([a-z0-9][a-z0-9-]{0,15}\))?: [a-z][\x20-\x7E]*[\x21-\x2D\x2F-\x7E]$/;
 export const PR_TITLE_CAP = 72;
-export const PR_VALUE_CAP = 200;
+export const PR_VALUE_CAP = 500;
 export const PR_MULTI_LIMITS = Object.freeze({
-  '--why': 3,
-  '--what': 3,
+  '--why': 8,
+  '--what': 8,
   '--verified': 8,
   '--not-verified': 8,
   '--link': 8,
 });
 
 const CONTROL_CHARS = /[\x00-\x1F\x7F]/g;
-const OUTSIDE_PRINTABLE_ASCII = /[^\x20-\x7E]/;
+const INVISIBLE_OR_BIDIRECTIONAL = /[\u0080-\u009F\u00AD\u061C\u180E\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF\uFFF9-\uFFFB]/;
 const TAG_OPENER = /<[!\/A-Za-z]/;
 const BLOCK_OPENER = /^[`~#>|]/;
 const SETEXT_UNDERLINE = /^[=-]+$/;
@@ -53,9 +53,10 @@ const SENTENCE_TERMINATORS = '.?!';
 
 export function isSentenceShaped(value) {
   if (typeof value !== 'string' || value.length === 0) return false;
-  const first = value.charAt(0);
-  if (first < 'A' || first > 'Z') return false;
-  return SENTENCE_TERMINATORS.includes(value.charAt(value.length - 1));
+  const characters = [...value];
+  const first = characters[0];
+  if (first === first.toLowerCase() || first !== first.toUpperCase()) return false;
+  return SENTENCE_TERMINATORS.includes(characters[characters.length - 1]);
 }
 
 export function carriesReceiptLineToken(value) {
@@ -70,7 +71,7 @@ export function inertValue(value, cap) {
   if (stripped.length === 0) return null;
   if (stripped.length > cap) return null;
   if (stripped.startsWith(FIELD_INDIRECTION_SIGIL)) return null;
-  if (OUTSIDE_PRINTABLE_ASCII.test(stripped)) return null;
+  if (INVISIBLE_OR_BIDIRECTIONAL.test(stripped)) return null;
   if (TAG_OPENER.test(stripped)) return null;
   if (BLOCK_OPENER.test(stripped)) return null;
   if (SETEXT_UNDERLINE.test(stripped)) return null;

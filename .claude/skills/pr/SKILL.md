@@ -1,6 +1,6 @@
 ---
 name: pr
-description: Use when opening or creating a pull request in any repository, or immediately after pushing a branch that needs one. Every pull request is composed and opened by one centralized pr-create tool - ad-hoc gh pr create, gh api POSTs to the pulls endpoint, and the GitHub MCP create tool are all denied at the gate. Also covers the required title grammar and body fields, and the rule that a title or body is never rewritten after creation.
+description: Use when opening or creating a pull request in any repository, or immediately after pushing a branch that needs one. Every pull request is composed and opened by one centralized pr-create tool - ad-hoc gh pr create, gh api POSTs to the pulls endpoint, and the GitHub MCP create tool are all denied at the gate. Also covers the required title grammar and body fields.
 ---
 
 # PR
