@@ -10,28 +10,28 @@
     {
       "id": "c1",
       "text": "LICENSE is the stock Apache 2.0 byte-matching logbook's (sha256 c71d239d...), with NOTICE and package.json carrying the same licence",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c2",
       "text": "The AI-training reservation apparatus is removed - ai.txt, robots.txt, .well-known/tdmrep.json deleted and no tracked file still asserts a TDM reservation",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c3",
       "text": "README badge, Scope paragraph, map and License section all state Apache 2.0, and the fork-instead-of-PR stance is replaced by open to contributions",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c4",
       "text": "The kickstart.nvim MIT carve-out survives the relicense, with .config/nvim/LICENSE.md retained and the NOTICE third-party section intact",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -49,10 +49,39 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
+    "active_goal": "Land the Apache 2.0 relicense as its own reviewable commit, separated from the unrelated docs refactor and config edits that share the working tree.",
+    "next_step": "Split the working tree before committing. README.md carries both the relicense edits and the earlier docs refactor, so split by hunk, not by filename. Suggest: cut docs/readme-refactor first with the four docs files, scripts/README.md, .config/nvim/README.md and all of README.md; then chore/relicense-apache-2-0 stacked on it with LICENSE, NOTICE, package.json and the three deletions. Leave .claude/settings.json, .zshrc and no-direct-db-access.md out of both.",
+    "last_session": "Relicensed the tree to Apache 2.0 matching logbook: LICENSE verified byte-identical by sha256, NOTICE rewritten keeping the kickstart MIT carve-out, package.json set to Apache-2.0, README updated, and ai.txt, robots.txt and tdmrep.json deleted. Nothing committed.",
+    "open_risks": [
+      {
+        "text": "Do not commit the working tree as one change — README.md holds two unrelated lines of work at once, so a single commit makes the relicense impossible to review against the licence files it changes",
+        "scope": "thread",
+        "refs": [
+          "README.md",
+          "LICENSE",
+          "NOTICE"
+        ]
+      },
+      {
+        "text": "Do not merge the relicense branch until the docs branch it stacks on has been deleted — GitHub retargets a stacked child only on base deletion, so it would otherwise merge into a dead branch and never reach main",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "The Apache grant on any published version is permanent — later commits can carry a different licence, but anyone who fetched the Apache version keeps those rights, so a revert changes the terms only going forward",
+        "scope": "thread",
+        "refs": [
+          "LICENSE"
+        ]
+      },
+      {
+        "text": "Do not stage .superpowers/ — it is untracked in the working tree and a blanket git add would sweep it into whichever commit runs first",
+        "scope": "thread",
+        "refs": [
+          ".superpowers/"
+        ]
+      }
+    ],
     "key_decisions": [
       {
         "ref": "0729-relicense-to-apache-2-0-superseding-0332",
@@ -60,8 +89,11 @@
         "scope": "thread"
       }
     ],
-    "out_of_scope": []
+    "out_of_scope": [
+      "The docs refactor and the config edits sharing this working tree — they predate this thread and belong to their own commits, not to the relicense.",
+      "Legal advice on the licence change — this thread implements the owner's choice and states its consequences; it is not a legal opinion."
+    ]
   },
   "created_at": "2026-09-06T04:28:06.381Z",
-  "updated_at": "2026-09-06T04:28:21.795Z"
+  "updated_at": "2026-09-06T04:30:54.308Z"
 }
