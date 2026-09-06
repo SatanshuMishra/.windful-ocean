@@ -51,9 +51,9 @@ These do NOT touch project databases and are NOT covered by this rule:
 
 ## Test-Only Local Disposable Container Exception (ratified 2026-07-06)
 
-Exception for LOCAL, disposable Supabase CLI containers used ONLY for tests: the agent may run `supabase start`, `supabase db reset`, and pgTAP against a throwaway local container seeded with synthetic data. The hosted/staging/production project remains human-applied and is never agent-connected. The container holds no real data, is not an audit surface, and is destroyed after the run.
+Exception for LOCAL, disposable containers used ONLY for tests: the agent may run a throwaway local container seeded with synthetic data and run SQL behavior tests such as pgTAP against it. The Supabase CLI stack (`supabase start`, `supabase db reset`) is one such container; starting the same Postgres image directly, for example `docker run supabase/postgres:...` bound to loopback, is another. The mechanism is not what makes it permitted. The hosted/staging/production project remains human-applied and is never agent-connected. The container holds no real data, is not an audit surface, and is destroyed after the run.
 
-Scope guard: this permits ONLY local ephemeral containers (the Supabase CLI Docker stack on localhost). It grants NO reach to any hosted, staging, or production project, nor any remote DSN. `supabase db push`, `supabase migration up`, `supabase db pull`, `supabase functions deploy`, and every other command that targets a remote project remain prohibited. Ratified for an automated-testing-architecture initiative; applies wherever a local disposable test container is used.
+Scope guard: this permits ONLY local ephemeral containers, for example the Supabase CLI Docker stack on localhost. That example is illustrative, not definitional, ruled 2026-09-02: what makes a container permitted is that it is local, disposable, holds only synthetic data, and is destroyed after the run. It grants NO reach to any hosted, staging, or production project, nor any remote DSN. `supabase db push`, `supabase migration up`, `supabase db pull`, `supabase functions deploy`, and every other command that targets a remote project remain prohibited. Ratified for an automated-testing-architecture initiative; applies wherever a local disposable test container is used.
 
 ## Why
 

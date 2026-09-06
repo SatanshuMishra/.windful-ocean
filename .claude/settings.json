@@ -306,11 +306,11 @@
     "vscode-langservers@claude-code-lsps": true,
     "visual-explainer@visual-explainer-marketplace": true,
     "warp@claude-code-warp": true,
-    "logbook@logbook": true,
     "receipts@receipts": true,
     "superpowers@claude-plugins-official": true,
     "context7@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true
+    "claude-code-setup@claude-plugins-official": true,
+    "logbook@logbook": true
   },
   "extraKnownMarketplaces": {
     "claude-code-lsps": {
@@ -338,8 +338,14 @@
       }
     }
   },
+  "outputStyle": "satanshu",
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
+  "modelSettings": {
+    "claude-opus-5": {
+      "effortLevel": "xhigh"
+    }
+  },
   "pluginConfigs": {
     "logbook@logbook": {
       "options": {
@@ -352,6 +358,7 @@
   },
   "tui": "default",
   "autoMemoryEnabled": true,
+  "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
   "theme": "auto",
   "agentPushNotifEnabled": true,
@@ -387,7 +394,5 @@
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754070465024
-  },
-  "skipDangerousModePermissionPrompt": true,
-  "outputStyle": "satanshu"
+  }
 }
