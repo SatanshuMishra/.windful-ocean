@@ -23,6 +23,7 @@ session-env/
 /graphify-out/
 /.playwright-mcp/
 /docs/superpowers/
+/.superpowers/
 
 # Runtime state and credentials from stowed config
 /.config/com.corsair/
