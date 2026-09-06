@@ -1,0 +1,11 @@
+Relicensed .windful-ocean from PolyForm Noncommercial 1.0.0 to Apache License 2.0, matching SatanshuMishra/logbook.
+
+Shipped, uncommitted in the working tree. LICENSE replaced with the stock Apache 2.0, verified byte-identical to logbook's at sha256 c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4, 201 lines, appendix left as the [yyyy] [name] template. NOTICE rewritten to logbook's shape, personalised to .windful-ocean with the 2023-2026 copyright range preserved rather than reset, retaining the kickstart.nvim MIT carve-out and the lazy-lock.json note. package.json licence set to the SPDX identifier Apache-2.0. README badge, Scope paragraph, map and License section updated; the AI-training badge removed and the fork-instead-of-PR stance replaced by open to contributions. ai.txt, robots.txt and .well-known/tdmrep.json deleted via git rm, with .well-known/ removed as empty. Two independent sweeps over tracked files found no surviving reference to PolyForm, the reservation, or the deleted paths.
+
+Two consequences were put to the owner before executing, because both are hard to reverse: an Apache grant cannot be revoked on already-published versions, and it contradicts a text-and-data-mining reservation because it grants reproduction to everyone. The owner chose full logbook parity and open to contributions. Recorded as decision 0729.
+
+Thread 01KZRYT30X21WNDZ8ZPBM5FDGH, activate-the-eu-tdm-reservation-by-mirroring-to-an-owned-domain, was closed as abandoned. Its own risk register had already recorded that a GitHub-hosted repository never serves its own robots.txt to crawlers, so the three deleted files were inert as published rather than protection being given up.
+
+Not done. Nothing is committed. The working tree still mixes this relicense with an earlier docs refactor and unrelated config edits, and README.md belongs to two of those at once, so the split is by hunk rather than by filename. That is criterion c5 and is the whole of the next session's work.
+
+Tooling note for a future session: the shipped record_decision has no supersedes field despite the continuity-ledger rules file describing one, so the supersession of 0332 is stated in the decision body prose instead.
