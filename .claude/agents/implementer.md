@@ -1,7 +1,7 @@
 ---
 name: implementer
 description: Primary code worker. Use when a scoped feature, change, or fix must be implemented in code, when a fully-specified mechanical edit must be applied across every site, when a diagnosed root cause needs its minimal fix, or when a profiled hot path needs its measured change. Writes and edits code; runs the narrowest checks to prove the change before returning.
-tools: Read, Edit, Write, Bash, Grep, Glob, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, mcp__plugin_serena_serena__replace_symbol_body, mcp__plugin_serena_serena__insert_after_symbol, mcp__plugin_serena_serena__insert_before_symbol, StructuredOutput
+tools: Read, Edit, Write, Bash, Grep, Glob, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, mcp__plugin_serena_serena__replace_symbol_body, mcp__plugin_serena_serena__insert_after_symbol, mcp__plugin_serena_serena__insert_before_symbol, mcp__plugin_logbook_ledger__record_decision, mcp__plugin_logbook_ledger__log_session_event, StructuredOutput
 model: sonnet
 color: blue
 skills:

@@ -1,7 +1,7 @@
 ---
 name: delivery-lead
 description: Lead that owns one unit of work end to end. Use when a scoped change must be routed to executing agents, driven to green, and handed back with the receipt that proves it. Dispatches the makers, the reviewers and the verifier; it does not write the code itself. Do not use it for a single-step change that one executing agent can complete directly; dispatch that agent instead of routing through a Lead.
-tools: Read, Grep, Glob, Bash, Agent, Skill, StructuredOutput
+tools: Read, Grep, Glob, Bash, Agent, Skill, mcp__plugin_logbook_ledger__record_decision, mcp__plugin_logbook_ledger__log_session_event, StructuredOutput
 model: opus
 color: blue
 skills:

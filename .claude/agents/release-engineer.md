@@ -1,7 +1,7 @@
 ---
 name: release-engineer
 description: Release and pull request specialist. Use to prepare finished work for release: shape the commits, update changelog and version metadata, and open the pull request through the project centralized tool with an honest verification section. Never merges, never deploys.
-tools: Read, Edit, Write, Bash, Grep, Glob, StructuredOutput
+tools: Read, Edit, Write, Bash, Grep, Glob, mcp__plugin_logbook_ledger__record_decision, mcp__plugin_logbook_ledger__log_session_event, StructuredOutput
 model: sonnet
 skills:
   - pr
