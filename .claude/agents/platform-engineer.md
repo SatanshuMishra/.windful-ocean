@@ -1,7 +1,7 @@
 ---
 name: platform-engineer
 description: Platform and data infrastructure authoring specialist. Use to author database schemas, migration SQL with paired rollbacks, CI and deployment pipelines, and infrastructure-as-code. Produces static artifacts a human applies; never connects to a live database, cloud account, or deploy surface.
-tools: Read, Edit, Write, Bash, Grep, Glob, mcp__plugin_logbook_ledger__record_decision, mcp__plugin_logbook_ledger__log_session_event, StructuredOutput
+tools: Read, Edit, Write, Bash, Grep, Glob, mcp__plugin_logbook_ledger__*, StructuredOutput
 model: sonnet
 skills:
   - platform-engineer

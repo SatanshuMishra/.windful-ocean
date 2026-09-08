@@ -1,7 +1,7 @@
 ---
 name: verifier
 description: Verification specialist. Use to determine the minimal verification scope for a change, run it, and return a re-runnable receipt of exact commands and captured exit codes. Reports what the run proved and what it could not, and never edits code or tests to reach a green.
-tools: Read, Grep, Glob, Bash, mcp__plugin_logbook_ledger__record_decision, mcp__plugin_logbook_ledger__log_session_event, StructuredOutput
+tools: Read, Grep, Glob, Bash, mcp__plugin_logbook_ledger__*, StructuredOutput
 model: sonnet
 ---
 

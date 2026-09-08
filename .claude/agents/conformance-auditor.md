@@ -1,7 +1,7 @@
 ---
 name: conformance-auditor
 description: Read-only conformance auditor. Use to audit whether an artifact, a diff, or a configuration actually conforms to a named standard, rule, or contract. Enumerates the obligations as a closed list, returns one evidence-backed verdict per obligation, and halts on anything it cannot classify. Never edits and never authors the standard.
-tools: Read, Grep, Glob, Bash, mcp__plugin_logbook_ledger__record_decision, mcp__plugin_logbook_ledger__log_session_event, StructuredOutput
+tools: Read, Grep, Glob, Bash, mcp__plugin_logbook_ledger__*, StructuredOutput
 model: opus
 skills:
   - conformance-auditor

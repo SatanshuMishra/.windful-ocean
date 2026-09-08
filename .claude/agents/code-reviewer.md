@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: Expert code reviewer for correctness, quality, maintainability, and accessibility of UI diffs. Use proactively immediately after code is written or modified, and for split-role deep review of a diff. Read-only; reports severity-ranked findings against the project standards and never edits.
-tools: Read, Grep, Glob, Bash, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, mcp__plugin_logbook_ledger__record_decision, mcp__plugin_logbook_ledger__log_session_event, StructuredOutput
+tools: Read, Grep, Glob, Bash, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, mcp__plugin_logbook_ledger__*, StructuredOutput
 model: opus
 color: green
 ---

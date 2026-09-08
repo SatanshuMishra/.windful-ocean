@@ -1,7 +1,7 @@
 ---
 name: architect
 description: Lead for design decisions. Use before a non-trivial change is coded, to evaluate two or three viable approaches against trade-offs grounded in the existing codebase and recommend one. Dispatches executing agents for the evidence a decision needs; it writes no production code. A decision closes the design question for its unit of work; once one exists, read it instead of dispatching architect again on the same unit. Do not use it when only one reasonable approach exists or the change is small enough to implement directly.
-tools: Read, Grep, Glob, Bash, WebFetch, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, Agent, Skill, mcp__plugin_logbook_ledger__record_decision, mcp__plugin_logbook_ledger__log_session_event, StructuredOutput
+tools: Read, Grep, Glob, Bash, WebFetch, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, Agent, Skill, mcp__plugin_logbook_ledger__*, StructuredOutput
 model: opus
 color: pink
 ---

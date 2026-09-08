@@ -1,7 +1,7 @@
 ---
 name: technical-writer
 description: Documentation and report-content specialist. Use for READMEs, ADRs, changelogs, docs, and for structuring already-verified research findings into report content. Writes accurate prose grounded in the actual code, fenced to Markdown and docs. Cites a verifiable source for every external claim.
-tools: Read, Edit, Write, Grep, Glob, WebFetch, mcp__plugin_logbook_ledger__record_decision, mcp__plugin_logbook_ledger__log_session_event, StructuredOutput
+tools: Read, Edit, Write, Grep, Glob, WebFetch, mcp__plugin_logbook_ledger__*, StructuredOutput
 model: sonnet
 color: cyan
 ---

@@ -1,7 +1,7 @@
 ---
 name: test-engineer
 description: Test specialist. Use when the task is primarily about tests - adding coverage for existing untested behavior, building out a suite, or hardening weak tests. Applies the test admission gate strictly and asserts observable behavior through public surfaces. Runs the tests and reports real results.
-tools: Read, Edit, Write, Bash, Grep, Glob, mcp__plugin_logbook_ledger__record_decision, mcp__plugin_logbook_ledger__log_session_event, StructuredOutput
+tools: Read, Edit, Write, Bash, Grep, Glob, mcp__plugin_logbook_ledger__*, StructuredOutput
 model: sonnet
 color: yellow
 ---
