@@ -55,4 +55,6 @@ absolute base path the preload supplies, canonically `.claude/skills/conformance
 
 Where the project declares its own external verification standard, read that standard's own
 spec file at audit time rather than auditing from recall, and cite it by its own name and
-version. Where no such standard is declared, audit only against the binding rules.
+version. Where no such standard is declared, audit only against the binding rules. Where that
+standard is `receipts/gates`, its fix-time half is available as the `receipts:gates` skill;
+this audit never requires it.
