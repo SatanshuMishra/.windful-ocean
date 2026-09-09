@@ -177,7 +177,7 @@ function lintAll(roots) {
 test('the shipped conformance-auditor skill passes the same lint as platform-engineer', () => {
   const result = lint(SHIPPED_AUDITOR);
   assert.equal(result.status, 0, `the shipped conformance-auditor failed the lint: ${result.stderr}`);
-  assert.match(result.stdout, /4 routed side files present/);
+  assert.match(result.stdout, /3 routed side files present/);
 });
 
 test('both shipped router skills are covered by one invocation, and the count is reported', () => {
