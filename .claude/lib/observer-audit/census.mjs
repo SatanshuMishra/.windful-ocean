@@ -28,7 +28,7 @@ export function runKeyCensus(binary, logRoot) {
       .join('; ');
     throw new AuditError(
       EXIT.CENSUS_HALT,
-      `the key census halts on an event shape it cannot classify against the two declared shapes: ${named}`,
+      `the key census halts on an event shape it cannot classify against the ${DECLARED_SHAPES.length} declared shapes: ${named}`,
     );
   }
   const totalRows = classified.reduce((sum, entry) => sum + entry.rows, 0);

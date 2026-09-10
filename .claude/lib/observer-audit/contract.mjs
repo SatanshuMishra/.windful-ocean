@@ -12,6 +12,8 @@ export const DECLARED_COLUMNS = Object.freeze([
   Object.freeze(['needed', 'VARCHAR']),
   Object.freeze(['task', 'VARCHAR']),
   Object.freeze(['detected_from', 'VARCHAR']),
+  Object.freeze(['went_back_kind', 'VARCHAR']),
+  Object.freeze(['went_back_signature', 'VARCHAR']),
 ]);
 
 export const SHARED_KEYS = Object.freeze([
@@ -31,14 +33,28 @@ export const CAPABILITY_EXTRA_KEYS = Object.freeze(['needed', 'task', 'detected_
 
 export const CAPABILITY_KEYS = Object.freeze([...SHARED_KEYS, ...CAPABILITY_EXTRA_KEYS]);
 
+export const WENT_BACK_KEYS = Object.freeze([
+  'ts',
+  'subject',
+  'event',
+  'session_id',
+  'cwd',
+  'went_back_kind',
+  'went_back_signature',
+]);
+
 export const DECLARED_SHAPES = Object.freeze([
   Object.freeze({ name: 'shared-ten', keys: Object.freeze([...SHARED_KEYS].sort()) }),
   Object.freeze({ name: 'capability-thirteen', keys: Object.freeze([...CAPABILITY_KEYS].sort()) }),
+  Object.freeze({ name: 'went-back-seven', keys: Object.freeze([...WENT_BACK_KEYS].sort()) }),
 ]);
 
 export const START_EVENT = 'SubagentStart';
 export const STOP_EVENT = 'SubagentStop';
 export const CAPABILITY_EVENT = 'capability_blocked';
+export const AGENT_SUBJECT = 'agent';
+export const SESSION_SUBJECT = 'session';
+export const WENT_BACK_EVENT = 'went_back';
 
 export const FALLBACK_AGENT_TYPES = Object.freeze(['claude', 'general-purpose']);
 
