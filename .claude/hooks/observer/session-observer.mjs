@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import fs from "node:fs";
-import { appendRows, nowIso } from "./_observer.mjs";
+import { appendRows, nowIso, root } from "./_observer.mjs";
 import { buildWentBackRow, wentBackOccurrences } from "./went-back.mjs";
+import { pruneCorpus } from "./retention.mjs";
 
 function readStdin() {
   try {
@@ -12,6 +13,11 @@ function readStdin() {
 }
 
 function main() {
+  try {
+    pruneCorpus(root());
+  } catch (error) {
+    process.stderr.write(`observer: the corpus retention pass failed: ${error.message}\n`);
+  }
   let payload;
   try {
     payload = JSON.parse(readStdin());
