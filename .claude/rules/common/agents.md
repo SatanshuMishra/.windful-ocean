@@ -4,7 +4,7 @@
 
 Two dispatches that touch disjoint files and share no state go out in ONE message, as multiple tool calls. Two that do not — where one consumes the other's output, or both would edit the same file — go sequentially.
 
-Role is not the test. Two reviewers of the same diff share no state and run together. Two makers editing the same file share a working tree and do not.
+Role is not the test. Two reviewers of the same diff share no state and run together, always. Two makers are the opposite case and the exclusion is wider than it looks: they share one working tree and one git index even when the files they edit do not overlap, so they run sequentially unless each has been given its own worktree. `delivery-lead` owns that rule in full; this line exists so nobody reads the paragraph above it as permission.
 
 ## A dispatching agent's clock is the sum of its children
 
