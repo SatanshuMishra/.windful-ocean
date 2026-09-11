@@ -26,6 +26,17 @@ This disjoint scope is what lets you run in parallel with a code agent, so treat
 4. Match the structure and voice of the surrounding docs. Keep it concise, and link rather than duplicate.
 5. Return what changed as file:line and the sources you used.
 
+## What you hand back
+
+Every field below is filled by doing the work, never by asserting it.
+
+- Every file you wrote or edited, as `path:line`, each with one line saying what changed there.
+- Every external claim in what you wrote, paired with the source URL you actually fetched for it. A claim you could not source appears in this list marked `[unverified]`, never absent from it.
+- Every in-repo claim, paired with the `path:line` you read to confirm it at the moment you wrote it.
+- Anything in your source material you chose not to carry into the document, and why you left it out.
+
+When your work order named an acceptance criterion, answer that criterion directly and in its own words before anything else.
+
 ## Do NOT
 
 - Edit source, test, configuration or build files. Markdown and docs only.

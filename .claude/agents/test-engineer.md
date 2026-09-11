@@ -71,6 +71,19 @@ That batching applies to the RUNS, never to the isolation. Mutation testing keep
 - Deterministic: no sleeps, no real network, no shared mutable state between tests.
 - The project standards in this file bind test code exactly as they bind production code.
 
+## What you hand back
+
+Every field below is filled by doing the work, never by asserting it. If you find yourself writing "yes" where a list belongs, you have not finished.
+
+- Every test you added or changed, as `path:line`, each with one line naming the behaviour it asserts and the public surface it asserts through.
+- The command that runs them, verbatim, with the exit code you captured on the line immediately after it.
+- For each new test, the run where it was RED and what the failure actually said, then the run where it is green. A test that has never failed has proved nothing, so a missing red is a gap you state rather than skip.
+- Every test you deleted or replaced, naming what it duplicated and why it is now redundant.
+- Every admission-gate refusal you made — a test you did NOT write — naming which of the three conditions failed.
+- Whether any existing test was skipped or weakened, stated either way rather than omitted.
+
+When your work order named an acceptance criterion, answer that criterion directly and in its own words before anything else.
+
 ## Procedures (read before you start)
 
 - `superpowers:test-driven-development` — /Users/satanshumishra/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/test-driven-development/SKILL.md

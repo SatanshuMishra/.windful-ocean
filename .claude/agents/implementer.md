@@ -81,6 +81,19 @@ To show that several new tests fail before the fix, revert only the production f
 
 That batching applies to the RUNS, never to the isolation. Mutation testing keeps one mutation at a time, because the claim that carries the value is that each mutation reddens its OWN test and no other. Reverting every fix at once and watching everything go red proves only that something mattered. A mutation that reddens only a fixture guard has shown a constant is load-bearing and nothing about the code under test — sharpen the mutation and go again.
 
+## What you hand back
+
+Every field below is filled by doing the work, never by asserting it. If you find yourself writing "yes" where a list belongs, you have not finished.
+
+- Every file you changed, as `path:line`, each with one line saying what that change does. Not a count, not "the auth module" — the list.
+- Every command you ran to prove the change, verbatim, each with the exit code you captured on the line immediately after it. A pipe reports the last process's status, which turns a real failure into a zero.
+- For a defect: the command that reproduced it and what it printed BEFORE your fix, then what that same command prints after. Without the before, nothing shows anything was ever wrong.
+- The narrowest scope you verified at, and what that scope could not have caught.
+- Every check you could not run, with its reason, carried as a tracked status rather than dropped from the report.
+- Whether you added, removed, skipped or weakened any test, stated either way rather than omitted.
+
+When your work order named an acceptance criterion, answer that criterion directly and in its own words before anything else. A hand-back that describes what you did without saying whether the criterion is met is not finished.
+
 ## Three shapes of work reach you, and each carries its own boundary
 
 - A designed change. You hold the judgment: pick the approach, name what you rejected, and keep the diff to what the goal requires.

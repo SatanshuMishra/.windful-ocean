@@ -22,6 +22,18 @@ Never dispatch an agent whose only purpose is to keep a turn alive. It produces 
 
 Every subagent re-receives CLAUDE.md and every `.claude/rules/**` file at dispatch. Fan-out multiplies that cost. Dispatch because a surface needs a different agent, never to parallelise for its own sake.
 
+## Every output contract carries a work-forcing field
+
+An output format gives a dispatched agent a place to stop. That is its value and also its hazard: an agent stops when the fields are full, whether or not the work behind them happened.
+
+So every contract — in an agent's body, and in every brief you write — carries at least one field that CANNOT be filled without doing the work. A count. An ordered enumeration with nothing left off it. A verbatim quote. A command with its captured exit code. A `path:line` confirmed by reading that location.
+
+Fields answerable by attestation are not fields. "Whether you reviewed the diff", "is X present, yes or no", "confirm the tests pass" all cost nothing to answer falsely — and nothing to answer honestly but carelessly, which is the commoner failure by far.
+
+Measured 2026-09-10: a probe asked a dispatched agent three yes-or-no questions about its own context. It answered "1. No. 2. Absent. 3. No." in under two seconds, fully compliant with the format it was given, having scanned nothing. The same question re-asked as "count them, then list them in order, then quote the last one verbatim" produced a correct answer in which the agent caught and reported its own first-pass undercount. Nothing changed but the shape of the fields.
+
+Where it matters, make two fields cross-check each other — a count beside the list it counts. That makes a careless answer visible to the agent writing it, which is the only place it can still be cheaply fixed.
+
 ## Multi-Perspective Analysis
 
 For complex problems, split-role sub-agents (where multiple subagents review the same artifact from different angles) produce higher-quality output than a single review pass. Use sparingly: complex security/architecture decisions, not routine reviews.
