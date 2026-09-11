@@ -43,9 +43,12 @@ Every fix ships an acceptance test that is red on the PARENT COMMIT and green on
 
 ## Verification
 
-- Default verification is diff-scoped: run the project's `/verify-<project> <scope>`.
-- The full suite runs only at integration boundaries or pre-push — never as a per-change reflex.
-- If `/verify-<project>` does not exist, suggest running the `verify-setup` skill once for the project.
+- Default verification is diff-scoped. Derive the scope from the files the change actually touched (`git diff --name-only` against the base), never from how large the unit feels.
+- Run the FIRST of these that exists in the project, and stop there: the project's `/verify-<project> <scope>`; a scoped script the project already defines (a `test:unit`, `lint:changed` or equivalent); the test runner pointed at the touched paths (`npx vitest run <paths>`, `npx jest <paths>`, `pytest <paths>`, `go test ./<pkg>`); typecheck plus lint on the touched files.
+- A missing `/verify-<project>` is not a reason to fall back to the full suite. It moves you one rung down the list above. The full suite is the last rung, taken only when nothing narrower can be run, and taken while saying that is why.
+- The full suite runs at most twice per unit of work: once if it is the only runnable check, and once before hand-off or push. Never as a per-change reflex.
+- Never re-run a check that passed. A second green carries no information the first did not, and "for determinism" is not a reason — a test that passes then fails is a flaky test, which is a defect to file rather than a reason to run it a third time.
+- If `/verify-<project>` does not exist, suggest running the `verify-setup` skill once for the project. That is a follow-up, never a substitute for verifying the change in hand.
 
 ## Cleanup Discipline
 
