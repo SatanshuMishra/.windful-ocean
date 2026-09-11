@@ -9,27 +9,31 @@ Evidence before claims, sized to the change.
 
 ## Rule
 
-- Trivial change → typecheck + scoped lint on touched files (1–2s).
-- Domain-bounded change → invoke `verifier` subagent → run `/verify-<project> <scope>`.
-- Cross-cutting change → invoke `verifier` → likely returns `scope=full` → run full pipeline.
-- Pre-push (explicit) → run full pipeline.
+Breadth is sized to the change, and it widens one rung at a time.
+
+- Trivial change -> typecheck plus scoped lint on the touched files.
+- Domain-bounded change -> scoped run against the touched paths.
+- Cross-cutting change -> scoped run against every touched path, then widen to the affected packages or suites. Widening is done one rung at a time, and each rung is justified by a failure the narrower rung could not have caught. "Cross-cutting" is not a licence to run everything.
+- Pre-push, or explicitly requested -> full pipeline.
 
 ## Implementation
 
 When invoked:
 
-1. Check if the project has a `/verify-<name>` command (look for `<project>/.claude/commands/verify-*.md`).
-2. If yes:
-   - Spawn `verifier` subagent (Sonnet) with the touched-files list (from session memory or `git diff --name-only`).
-   - It returns `{"scope": "<value>"}`.
-   - Run `/verify-<project> <scope>`.
-3. If no:
-   - Run `npx tsc --noEmit --incremental` and `npx eslint <changed-files>` directly.
-   - Suggest running the `verify-setup` skill once so future verification can be scoped via `/verify-<project>`.
+1. Determine the touched files (`git diff --name-only` against the base).
+2. Run the first of these that exists, and stop there:
+   - the project's `/verify-<project> <scope>` (look for `<project>/.claude/commands/verify-*.md`);
+   - a scoped script the project already defines in `package.json`, `Makefile`, or equivalent;
+   - the test runner pointed at the touched paths directly;
+   - `npx tsc --noEmit --incremental` plus `npx eslint <changed-files>`.
+3. Dispatch a `verifier` subagent ONLY when the agent that made the change cannot produce the receipt itself: its own checks do not cover the declared acceptance criterion, the criterion spans files no single maker touched, or a maker reported a check it could not run. Otherwise read the receipt the maker already returned. Re-running a maker's own passing check is a re-verification round, and it adds a second error source rather than confidence.
+4. Where no `/verify-<project>` exists, suggest the `verify-setup` skill as a follow-up. Never let its absence promote the run to the full pipeline.
 
 ## Do NOT
 
 - Run `npm run lint && npm run build && npm test` as the default. That is the full pipeline; reserved for pre-push or explicit user request.
+- Re-run a check that already passed. A repeated green proves nothing a single green does not.
+- Run a check after each individual edit when that check reports every failing row in one run. Run it once, fix every row it named in one pass, then run it once to confirm.
 - Claim work is complete without running at least the trivial-change verification.
 - Skip verification because "the change is small" — proportional evidence still requires evidence.
 
