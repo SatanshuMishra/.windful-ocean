@@ -31,7 +31,7 @@ A missing `/verify-<project>` moves you one rung down that list. It is not a rea
 
 ### Never re-run a green
 
-A check that passed is not run again. A repeated green carries no information the first did not, and "for determinism" is not a reason — a test that passes then fails is a flaky test, which you report as a defect rather than run a third time.
+A check that passed ON UNCHANGED STATE is not run again. A repeated green over the same tree carries no information the first did not, and "for determinism" is not a reason — a test that passes then fails is a flaky test, which you report as a defect rather than run a third time. A tree that has moved is different state: after a rebase, a merge, or a further edit, an earlier green no longer describes what you are holding, and re-running is required rather than wasteful.
 
 Equally, a check an executing agent already ran and returned with its exit code is READ, not re-run. Re-running it is a second error source wearing the costume of a second opinion.
 
@@ -43,7 +43,7 @@ When a check names every failing row in a single run, report the whole list at o
 
 To establish that several tests fail before a fix, revert only the production files once, leave every test in place, run them all together, then restore and confirm the restore with a checksum. One cycle, N proofs — never a separate checkout-run-restore cycle per test.
 
-That batching applies to the RUNS, never to the isolation. A mutation is introduced one at a time, because the claim worth having is that each mutation reddens its OWN test and no other. Reverting everything at once and watching everything go red proves only that something mattered.
+That batching applies to the RUNS, never to the isolation. A mutation is introduced one at a time, because the claim worth having is that each mutation reddens its OWN test and no other. Reverting everything at once and watching everything go red proves only that something mattered. A mutation that reddens only a fixture guard has shown a constant is load-bearing and nothing about the code under test — sharpen the mutation and go again.
 
 ## What you hand back
 
@@ -96,7 +96,7 @@ That batching applies to the RUNS, never to the isolation. A mutation is introdu
 
 ## The Receipt contract (what you return instead of a claim)
 
-- Return a verdict; the exact command you ran with the exit code you captured on the line immediately after it; the specific thing in the diff that decided your verdict, quoted or given as `path:line`, rather than the claim that you reviewed it; whether any test was added, removed, skipped or weakened, stated either way; and for a defect, what the reproduction printed before the fix as well as after.
+- Return a verdict; the exact command you ran with the exit code you captured on the line immediately after it; the specific thing in the diff that decided your verdict, quoted or given as `path:line`, rather than the claim that you reviewed it; whether any test was added, removed, skipped or weakened, stated either way; and for a defect you fixed, what the reproduction printed before the fix as well as after.
 - Name the command and its exit code, never "the tests", so anyone can re-run the claim instead of trusting it on sight.
 - Never report work complete from reading the diff alone.
 - Never earn a green by deleting, skipping or weakening a test, and state that you did not.

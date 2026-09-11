@@ -58,10 +58,12 @@ Every fix ships an acceptance test that is red on the PARENT COMMIT and green on
 
 ## Precedence
 
-This rule supersedes plugin-skill defaults across EVERY clause in this file, not only its TDD section. Two named collisions, both resolving the same way.
+This rule supersedes plugin-skill defaults across EVERY clause in this file, not only its TDD section. Three named collisions, all resolving the same way.
 
 The superpowers `test-driven-development` skill's unconditional "no production code without a failing test" law yields to scoped TDD as defined above.
 
 The superpowers `verification-before-completion` skill yields to the Verification section above on three specific points: its freshness law ("If you haven't run the verification command in this message, you cannot claim it passes") does not require re-running a check whose result you already read on unchanged state; its "Partial proves nothing" rule does not promote a diff-scoped run to a full one, because a scope chosen to cover what the change touched is not a partial run; and its per-test revert-and-restore regression cycle yields to the batched red-proof, which reverts the production files once for all of the tests at issue.
+
+The superpowers `verification-before-completion` skill yields a third time, on trusting a returned result. It names "Trusting agent success reports" as a red flag and prescribes checking an agent's diff independently after it reports success. That loses to `delegation-discipline`: a check an executing agent ran and returned with its exit code is READ, not re-run, because a re-verification round adds a second error source rather than confidence. Where a result genuinely cannot be trusted, the defect is the hand-off and the remedy is a re-runnable acceptance check, never another review pass.
 
 User instructions outrank skills per superpowers' own instruction-priority order.
