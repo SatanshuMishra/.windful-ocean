@@ -18,7 +18,7 @@ inventory before asserting specifics.
 - **Frontmatter** — the small block of settings fenced by `---` at the top of a Markdown file (name, description, etc.) that tools read to understand the file.
 - **Tool** — a single action Claude can take (read a file, run a shell command, edit code); tools are what hooks gate and what agents are granted.
 - **Memory (auto-memory)** — durable per-project notes Claude keeps so a later session remembers decisions that aren't written in the code.
-- **Continuity ledger** — per-project files that teach the next session the cumulative state of the work (what's decided, what's in progress).
+- **Logbook** — the plugin that remembers a project across sessions: threads with completion criteria, decisions, and session logs, stored on the project's `_ledger` git branch.
 - **graphify** — a locally-built "map" of a codebase (a knowledge graph) Claude queries to orient itself before drilling in.
 - **Serena** — an MCP server for precise code navigation (find every caller, every implementation) and symbol-level edits.
 - **Effort level** — a setting that tunes how much reasoning the model spends per turn.

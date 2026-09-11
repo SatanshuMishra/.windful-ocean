@@ -14,7 +14,7 @@ Store ONLY facts that are durable and not derivable from the repository:
 NEVER store:
 
 - Code structure, file lists, function names, or anything derivable from the repo, git history, or CLAUDE.md
-- Current task state or in-progress work — that belongs in a session-handoff, not memory
+- Current task state or in-progress work — that belongs in a debrief, not memory
 - Anything that changes daily; if a fact churns with normal development, it does not qualify
 
 ## Recall Discipline

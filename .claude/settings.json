@@ -154,11 +154,6 @@
           },
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/ledger-staleness-scan.sh",
-            "timeout": 10
-          },
-          {
-            "type": "command",
             "command": "$HOME/.claude/hooks/superpowers-cmd-hook-heal.sh",
             "timeout": 10
           },
@@ -182,18 +177,6 @@
           {
             "type": "command",
             "command": "node $HOME/.claude/hooks/observer/session-observer.mjs",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/ledger-resume-roster.sh",
             "timeout": 10
           }
         ]

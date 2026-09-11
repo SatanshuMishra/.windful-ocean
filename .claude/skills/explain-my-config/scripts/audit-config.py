@@ -207,7 +207,6 @@ def collect_settings(settings):
 def collect_cross_cutting():
     return {
         "memory": bool(glob.glob(os.path.join(ROOT, "projects", "*", "memory"))),
-        "ledger": bool(glob.glob(os.path.join(ROOT, "projects", "*", "ledger"))),
         "graphify": os.path.isdir(os.path.join(ROOT, "graphify-out")),
     }
 
