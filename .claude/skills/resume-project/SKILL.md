@@ -5,7 +5,7 @@ description: Use ONLY when the user explicitly types the /resume-project slash c
 
 # Resume Project
 
-Teach this session the cumulative project state from the ledger, cheaply, present a Resumption Brief, then STOP. Layout, lifecycle, and discipline: `~/.claude/rules/common/continuity-ledger.md`. The write side is the `session-handoff` skill.
+Teach this session the cumulative project state from the ledger, cheaply, present a Resumption Brief, then STOP. The write side is the `session-handoff` skill.
 
 A `UserPromptSubmit` hook injects the roster of resumable threads when it detects resume intent; use it if present, but this skill is the source of truth for the procedure.
 
