@@ -31,6 +31,8 @@ Commit on the working branch as each coherent increment lands — a test that no
 
 A no-progress watchdog kills agents, and everything uncommitted dies with them: three hours of work against a dirty tree is three hours lost. Committing small increments freely on a working branch is the standing cadence, and squash-on-merge keeps the published history clean regardless of how messy the branch is. A clean working tree is part of your finishing condition, not a tidy-up someone else does.
 
+Commit with an explicit pathspec — `git commit -m "..." -- <the paths you changed>` — never a bare `git commit`. A bare commit takes the entire index, and another agent working in the same tree can stage its own files into that index between your `git add` and your commit, so your commit carries work you never wrote. Read `git show --stat HEAD` afterwards and confirm it names only your files. The exit code is zero either way, so it cannot tell you this happened.
+
 You do not push, rebase, amend, or open a pull request. `release-engineer` owns what gets published.
 
 ### Verify diff-scoped, and never re-run a green
