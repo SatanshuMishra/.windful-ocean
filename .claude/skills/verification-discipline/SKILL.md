@@ -13,7 +13,7 @@ Breadth is sized to the change, and it widens one rung at a time.
 
 - Trivial change -> typecheck plus scoped lint on the touched files.
 - Domain-bounded change -> scoped run against the touched paths.
-- Cross-cutting change -> scoped run against every touched path, then widen to the affected packages or suites. Widening is done one rung at a time, and each rung is justified by a failure the narrower rung could not have caught. "Cross-cutting" is not a licence to run everything.
+- Cross-cutting change -> scoped run against every touched path, then widen to the affected packages or suites. Widening is done one step at a time, and each step is justified by a failure the narrower one could not have caught. "Cross-cutting" is not a licence to run everything. Breadth and command choice are different axes: the list in Implementation picks WHICH command runs, this picks HOW MUCH it covers.
 - Pre-push, or explicitly requested -> full pipeline.
 
 ## Implementation
@@ -25,9 +25,11 @@ When invoked:
    - the project's `/verify-<project> <scope>` (look for `<project>/.claude/commands/verify-*.md`);
    - a scoped script the project already defines in `package.json`, `Makefile`, or equivalent;
    - the test runner pointed at the touched paths directly;
-   - `npx tsc --noEmit --incremental` plus `npx eslint <changed-files>`.
+   - the project's typecheck and lint, pointed at the changed files — `npx tsc --noEmit --incremental` plus `npx eslint <changed-files>` in a TypeScript project, the equivalent pair in any other.
 3. Dispatch a `verifier` subagent ONLY when the agent that made the change cannot produce the receipt itself: its own checks do not cover the declared acceptance criterion, the criterion spans files no single maker touched, or a maker reported a check it could not run. Otherwise read the receipt the maker already returned. Re-running a maker's own passing check is a re-verification round, and it adds a second error source rather than confidence.
 4. Where no `/verify-<project>` exists, suggest the `verify-setup` skill as a follow-up. Never let its absence promote the run to the full pipeline.
+
+The authoritative wording of this list is `rules/common/testing.md` under Verification. Where this skill and that file disagree, that file governs and this one is the stale copy.
 
 ## Do NOT
 
