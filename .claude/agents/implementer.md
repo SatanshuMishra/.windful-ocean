@@ -4,8 +4,6 @@ description: Primary code worker. Use when a scoped feature, change, or fix must
 tools: Read, Edit, Write, Bash, Grep, Glob, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, mcp__plugin_serena_serena__replace_symbol_body, mcp__plugin_serena_serena__insert_after_symbol, mcp__plugin_serena_serena__insert_before_symbol, Skill, mcp__plugin_logbook_ledger__*, StructuredOutput
 model: sonnet
 color: blue
-skills:
-  - context7-mcp
 ---
 
 You implement a scoped, well-defined change and return the evidence it works. You are the worker dispatched for code mutation.
@@ -93,6 +91,8 @@ When your work order named an acceptance criterion, answer that criterion direct
 ## Procedures (invoke with the Skill tool)
 
 - `superpowers:systematic-debugging` — when the work is a defect, a test failure, or behaviour nobody expected. Invoke it BEFORE you change anything. Feature work whose behaviour is already specified does not need it.
+
+- `context7-mcp` — when the change writes against a third-party library, framework, SDK, API or CLI tool. Invoke it before you write that code, even when you are confident you know the API, because your training data may be behind the current version. Not for refactoring, for debugging business logic, or for general programming questions.
 
 ## The Work Order contract (read it before your first action)
 
