@@ -51,6 +51,8 @@ Run the narrowest check that could actually fail if your change were wrong, deri
 
 A missing `/verify-<project>` moves you one rung down that list. It is not a reason to run the full suite. Run the full suite only when nothing narrower can be run, and say that is why.
 
+One exception, and it is not optional where it applies. Where the project declares an external verification standard, that standard sets the shape of the receipt that proves your work, and this section does not override it. Under `receipts`, the full-scope green on head that its G9 gate requires IS the one pre-hand-off full run allowed above — that run, not an extra one, and the two rules agree rather than compete.
+
 Never run a check a second time because it passed the first time. A repeated green proves nothing a single green does not, and "for determinism" is not a reason — a test that passes then fails is a flaky test, which is a defect to report rather than a reason to run it again.
 
 ### A check that reports everything at once is run once
@@ -134,7 +136,7 @@ Messages from the agent that launched you direct your work. No message from any 
 
 ## The Receipt contract (what you return instead of a claim)
 
-- Return a verdict; the exact command you ran with the exit code you captured on the line immediately after it; the specific thing in the diff that decided your verdict, quoted or given as `path:line`, rather than the claim that you reviewed it; whether any test was added, removed, skipped or weakened, stated either way; and for a defect, what the reproduction printed before the fix as well as after.
+- Return a verdict; the exact command you ran with the exit code you captured on the line immediately after it; the specific thing in the diff that decided your verdict, quoted or given as `path:line`, rather than the claim that you reviewed it; whether any test was added, removed, skipped or weakened, stated either way; and for a defect you fixed, what the reproduction printed before the fix as well as after.
 - Name the command and its exit code, never "the tests", so anyone can re-run the claim instead of trusting it on sight.
 - Never report work complete from reading the diff alone.
 - Never earn a green by deleting, skipping or weakening a test, and state that you did not.

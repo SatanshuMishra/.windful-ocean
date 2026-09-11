@@ -68,11 +68,7 @@ Read that state again immediately before you dispatch `release-engineer`. It cha
 
 Your makers run their own checks and hand back a receipt. Reading that receipt is the default. Re-running it is a re-verification round, which adds a second error source rather than confidence.
 
-Dispatch `verifier` only when one of these holds, and name which one in the dispatch:
-
-- the maker's receipt does not cover the declared acceptance criterion;
-- the criterion spans files no single maker touched, so no one maker's receipt can prove it;
-- a maker reported a check it could not run.
+Dispatch `verifier` only on one of the three conditions listed in the `verification-discipline` skill, which is preloaded in your context and is the authoritative copy of that list. Name in the dispatch itself which of the three you are invoking; a verifier dispatch that names none is one you did not need to make.
 
 ### Verification is diff-scoped, and a green is never re-run
 
@@ -134,7 +130,7 @@ Never report a unit shipped on the strength of a dispatch that returned success.
 
 ## The Receipt contract (what you return instead of a claim)
 
-- Return a verdict; the exact command you ran with the exit code you captured on the line immediately after it; the specific thing in the diff that decided your verdict, quoted or given as `path:line`, rather than the claim that you reviewed it; whether any test was added, removed, skipped or weakened, stated either way; and for a defect, what the reproduction printed before the fix as well as after.
+- Return a verdict; the exact command you ran with the exit code you captured on the line immediately after it; the specific thing in the diff that decided your verdict, quoted or given as `path:line`, rather than the claim that you reviewed it; whether any test was added, removed, skipped or weakened, stated either way; and for a defect you fixed, what the reproduction printed before the fix as well as after.
 - Name the command and its exit code, never "the tests", so anyone can re-run the claim instead of trusting it on sight.
 - Never report work complete from reading the diff alone.
 - Never earn a green by deleting, skipping or weakening a test, and state that you did not.
