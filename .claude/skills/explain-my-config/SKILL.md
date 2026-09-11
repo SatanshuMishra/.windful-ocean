@@ -56,8 +56,8 @@ config explainer.
   inventory (frontmatter-level facts) — cheap, no full-body reads.
 - `explain-my-config <area>` -> deep-dive on ONE area, reading full file bodies for that slice only
   (and MAY fan out parallel subagents since this is heavier). Recognized `<area>` enum:
-  `skills`, `agents`, `rules`, `hooks`, `plugins`, `mcp`, `pipeline`, `settings`, `memory`,
-  `ledger`. An out-of-scope or path-like argument is rejected per the scope guard above. A bare
+  `skills`, `agents`, `rules`, `hooks`, `plugins`, `mcp`, `pipeline`, `settings`, `memory`.
+  An out-of-scope or path-like argument is rejected per the scope guard above. A bare
   near-miss typo of an area falls back to the overview with a one-line note.
 
 ## Constraints

@@ -5,7 +5,7 @@ Scope of this document: `.claude/hooks/block-destructive-bash.sh` and its suppor
 
 ## 1. Scope
 
-The gate is `.claude/hooks/block-destructive-bash.sh` (242 lines, measured 2026-08-13; 250 after criterion c6, 100 when this document was written on 2026-08-05), run as a `PreToolUse` hook on every Bash call, plus `.claude/hooks/lib/` (currently holds only `ledger-common.sh`; the hook sources nothing from that directory today).
+The gate is `.claude/hooks/block-destructive-bash.sh` (242 lines, measured 2026-08-13; 250 after criterion c6, 100 when this document was written on 2026-08-05), run as a `PreToolUse` hook on every Bash call, plus `.claude/hooks/lib/` (holds no hook library files; the hook sources nothing from that directory).
 
 Since 2026-08-14 the gate's terminal verdict is `no-opinion`, reversing the 2026-08-13 change to `allow`. M24 still holds — a `PreToolUse` `allow` suppresses the auto-mode classifier itself, not merely the prompt — and that measurement is exactly why the terminal verdict is no longer `allow`: an affirmative allow on every unnamed command made this gate the sole arbiter of Bash and left the classifier's rule set unreachable for shell commands. Abstaining restores the classifier as the layer behind the gate. The gate now reaches only two verdicts, `deny` and `no-opinion`; the `ask` token was removed from the source entirely, so no path through this gate can stop an unattended session.
 

@@ -29,7 +29,7 @@ gap — never assert a piece that no longer exists.
 8. **Commit** — plugin: commit-commands; rules: git/commits (Conventional Commits, atomic),
    git/branching (never commit to default branch). Hook (Bash): block-destructive-bash guards
    dangerous git.
-9. **Persist context** — skill: session-handoff writes the continuity ledger; auto-memory stores
+9. **Persist context** — skill: logbook:debrief writes the thread's session log; auto-memory stores
    durable decisions. Hook (Stop): graphify-refresh updates the codebase map; notify-complete pings.
 
 ## Cross-cutting throughout

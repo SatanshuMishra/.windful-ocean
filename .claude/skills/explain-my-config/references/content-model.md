@@ -10,12 +10,12 @@ possible ("if this changes, these change"). Each section pulls from the named in
 1. **Overview** — inventory: `counts`, `settings`, `crossCutting`.
    A whole-config map: counts at a glance, then a diagram of how the parts relate (rules constrain
    everything; skills are invoked; agents are dispatched by the orchestrator; hooks fire on events;
-   plugins/MCP add capabilities; memory/ledger/graphify persist context). One lead paragraph:
+   plugins/MCP add capabilities; memory/logbook/graphify persist context). One lead paragraph:
    "what is all this?"
 
 2. **Skills** — inventory: `localSkills`, `pluginSkills`, `counts`.
    Define "skill". Group by purpose, not source: process (brainstorming, planning, debugging),
-   implementation, project-continuity (resume-project, session-handoff), verification. Use a table
+   implementation, project-continuity (logbook:preflight, logbook:debrief, logbook:file), verification. Use a table
    (name, one-line purpose, local/plugin). Explain how skills are invoked and how they compose
    (e.g. brainstorming -> writing-plans -> subagent-driven-development).
 
@@ -38,7 +38,7 @@ possible ("if this changes, these change"). Each section pulls from the named in
 6. **Plugins & Integrations** — inventory: `plugins`, `commands`, `mcp`, `crossCutting`.
    Define "plugin", "marketplace", "MCP", "MCP server". Table of enabled plugins (name,
    marketplace, version). List slash commands they add. List MCP servers (name, source) and what
-   each connects to. Then the cross-cutting systems: memory, continuity-ledger, graphify,
+   each connects to. Then the cross-cutting systems: memory, logbook, graphify,
    tool-routing — one card each.
 
 7. **The Feature Pipeline** — built from `pipeline-narrative.md`, reconciled against inventory.
