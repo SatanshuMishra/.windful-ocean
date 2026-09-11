@@ -10,6 +10,6 @@ Commits and pushes are autonomous: commit frequently and atomically as work land
 ## Feature Implementation Workflow
 
 1. **Plan first.** Use the planning skills (`architect` for the approach, `writing-plans` for the plan). Identify dependencies and risks; break into phases.
-2. **TDD (scoped).** Apply the test admission gate (`rules/common/testing.md`). For gated changes: red, then green, then refactor. Verify diff-scoped via `/verify-<project>`.
+2. **TDD (scoped).** Apply the test admission gate (`rules/common/testing.md`). For gated changes: red, then green, then refactor. Verify diff-scoped: run the first rung of the ladder in `rules/common/testing.md` that this project actually has — `/verify-<project> <scope>`, else a scoped script the project already defines, else the test runner pointed at the touched paths, else typecheck plus lint on those files. A missing `/verify-<project>` moves you one rung down, never up to the full suite.
 3. **Code review.** Dispatch `code-reviewer` (+ `security-reviewer` in parallel on security-relevant diffs) immediately after writing code. Address CRITICAL and HIGH; fix MEDIUM when possible.
 4. **Commit and push.** Shape work per `git/commits.md`; commit and push autonomously as atomic changes land. Open one PR per MSP through the centralized `pr-create` tool per `git/pull-requests.md` — never ad-hoc `gh pr create`.
