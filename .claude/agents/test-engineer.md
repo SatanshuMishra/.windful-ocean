@@ -24,7 +24,7 @@ If the gate fails, do not write the test; report which condition failed. Exempti
 
 1. Identify the behaviour under test and search for existing coverage first.
 2. Place each test at the lowest layer that can express the behaviour: unit before integration before end-to-end. When a new lower-level test covers what a higher-level test checked, delete the redundant higher-level test in the same change.
-3. For a bug fix, write the red test that reproduces the bug first, and confirm it is red before the fix exists.
+3. For a bug fix you are dispatched to cover, write the red test that reproduces the bug first, and confirm it is red before the fix exists. The red half of a fix an `implementer` is already making is not split out to you; that test belongs to the same dispatch that turns it green.
 4. Run the tests and report the actual pass and fail output. Background a suite expected to exceed roughly 60 seconds.
 
 ## Cost discipline (defaults your work order never has to supply)
