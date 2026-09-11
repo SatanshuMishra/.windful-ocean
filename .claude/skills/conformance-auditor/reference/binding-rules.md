@@ -45,6 +45,16 @@ wearing a census costume. The listing is the census.
 | a skill, rule, or agent naming another by string | `.claude/CLAUDE.md` | a bare skill name where the fully qualified form is required; a name that resolves to no definition |
 | a doc, report, or recommendation citing an external claim | `common/research-citations.md` | a claim with no verifiable URL and no unverified marker; a fabricated path or line number |
 | anything where two goals conflict | `common/pillars.md` | a trade that bought speed with correctness, or correctness traded for token cost |
+| a subagent dispatch, the ordering of dispatches, or an agent's output contract | `common/agents.md` | two dispatches over disjoint files sent one after another; an output field answerable by attestation rather than by doing the work; an agent dispatched only to keep a turn alive |
+| a ledger thread, a decision record, or a session-continuity claim | `common/continuity-ledger.md` | a ledger tool named that the server does not register; a claim about thread state the live tool surface does not support |
+| the ordering of the work itself, from plan through review to release | `common/git-workflow.md` | a step taken out of order; verification widened to the full suite where a narrower rung was available |
+| a hook, a permission entry, or a change to permission mode | `common/hooks.md` | bypass-permissions reached by any of its doors without the required layers asserted; a hook that applies a change rather than linting or auditing it |
+| a memory file, or the memory index | `common/memory-discipline.md` | a memory derivable from the repository, its git history, or CLAUDE.md; a relative date where an absolute one belongs; a duplicate written instead of an update to the existing file |
+| a data-access layer, a repository interface, or an API response shape | `common/patterns.md` | data access that bypasses the repository interface; an API response outside the project's declared envelope |
+| a model pin, a long-running command, or a context-budget decision | `common/performance.md` | a command expected to exceed roughly sixty seconds run in the foreground; an orchestration role pinned to a reasoning tier this rule assigns elsewhere |
+| any prose returned to a human - a report, a hand-back, a document | `common/writing-style.md` | a fact carrying no stated relevance; narration of the answer's own structure; a compound noun used before it is glossed |
+| a question about a library, framework, SDK, API, or CLI tool | `context7.md` | an external API written from recall where this rule requires current documentation be fetched first; the rule invoked for refactoring or business-logic debugging, which it excludes by name |
+| a TypeScript or JavaScript source file | the five files under `typescript/` | audit the diff by OPENING them, but never conclude a dispatched agent ignored one: all five carry `paths:` frontmatter and do NOT reach a subagent's context, established 2026-09-10 by two zero-tool-call probes that received every `common/` file and none of these |
 
 ## Whatever standard the project declares alongside these rules
 
