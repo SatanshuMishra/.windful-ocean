@@ -5,7 +5,7 @@ description: Use ONLY when the user explicitly types the /session-handoff slash 
 
 # Session Handoff
 
-Write the ledger. The files are canonical; the chat summary is a courtesy. The audience is a future session with zero context. Layout, lifecycle, and discipline: `~/.claude/rules/common/continuity-ledger.md`. The read side is the `resume-project` skill.
+Write the ledger. The files are canonical; the chat summary is a courtesy. The audience is a future session with zero context. The read side is the `resume-project` skill.
 
 ## Wrap-up protocol
 
@@ -151,5 +151,5 @@ sessions/YYYY-MM-DD-NN-<thread-slug>.md:
 3. No emojis, no hype, no retrospectives.
 4. Review the FULL session before writing, not the last few turns.
 5. Session logs are write-once; never edit a previous session's log.
-6. Decision records follow the write-once rule from the continuity-ledger rule file.
+6. Decision records are write-once: an accepted record is never edited except to set its Status line to `superseded-by: <new filename>`.
 7. The default transition is active -> paused; `done` requires the DoD gate; terminal states (done/abandoned) are write-once for the thread — reopening creates a new thread referencing the old.
