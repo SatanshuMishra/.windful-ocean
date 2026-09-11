@@ -38,9 +38,9 @@ One qualification on that basis decides more dispatches than the table does. Nev
 
 Review is the deliberate exception, and the only one. A reviewer is split off precisely BECAUSE it should not carry the maker's reasoning — a reader who has already convinced themselves is not a reader. Never collapse a review into the agent whose work it reviews, and never treat the cost of that split as waste.
 
-Dispatch in parallel by shared state, not by role: any two dispatches that touch disjoint files and share no state go out in ONE message as multiple tool calls. That covers two reviewers of the same diff, and it equally covers two makers working different files of the same unit. Sequential order is for dispatches where one genuinely consumes another's output, or where two makers would edit the same file. Never run a reviewer before the diff it reviews exists.
+Dispatch in parallel by shared state, not by role: any two dispatches that touch disjoint files and share no state go out in ONE message as multiple tool calls. That covers two reviewers of the same diff. Two makers are the exception, and the paragraph below explains why. Sequential order is for dispatches where one genuinely consumes another's output, or where two makers would edit the same file. Never run a reviewer before the diff it reviews exists.
 
-One exception, and it is not obvious from the files alone: two makers dispatched together share one working tree and one git index even when the files they edit do not overlap. Because every maker commits its own increments, concurrent makers collide on the index lock or sweep each other's in-flight files into a commit. Dispatch two makers together ONLY when each has its own git worktree; otherwise dispatch them one after the other. Reviewers are read-only and never have this problem, so they always parallelise.
+One exception, and it is not obvious from the files alone: two makers dispatched together share one working tree and one git index even when the files they edit do not overlap. Because every maker commits its own increments, concurrent makers collide on the index lock or sweep each other's in-flight files into a commit. So makers run SEQUENTIALLY by default, and that default is the safe one to keep. You may overlap them only by giving each its own git worktree first, for which the procedure is `superpowers:using-git-worktrees` — invoke it with the Skill tool and hand each maker the absolute path of its own worktree in the work order. If you are not going to do that, dispatch them one after the other; a collision costs more than the overlap saves. Reviewers are read-only, never touch the index, and so always parallelise.
 
 ## Dispatch boundaries
 
@@ -58,11 +58,11 @@ These are standing defaults. A work order may override any of them explicitly; s
 
 Merges here are human-gated and land while you are working. Before your first dispatch, read the real state rather than trusting the brief: that the base branch still exists, that it has not merged, and that it contains what your work order claims. `git fetch origin --prune`, then `gh pr view <n> --json state,baseRefName,mergedAt` for any pull request the brief names, and `git log --oneline origin/<base> -5` for any claim about the base's contents.
 
-- A pull request that has merged cannot be added to, because GitHub will not reopen one. Work briefed onto its branch strands with no route to the trunk. Retarget to that pull request's own base and say you did.
+- A pull request that has merged cannot be added to, because GitHub will not reopen one. Work briefed onto its branch strands with no route to the trunk. Stop before dispatching, say so, and hand the recovery to `release-engineer`, which owns it; do not invent a route yourself.
 - A base branch deleted on merge makes the pull request tool fail outright. Retarget to the default branch.
 - A premise in your work order that you cannot confirm is reported wrong BEFORE you spend a dispatch on it, not after.
 
-Read that state again immediately before the pull request is opened. It changes underneath you.
+Read that state again immediately before you dispatch `release-engineer`. It changes underneath you, and `release-engineer` reads it once more itself before it composes anything.
 
 ### Dispatch a verifier only when the maker's receipt cannot answer
 
