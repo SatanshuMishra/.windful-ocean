@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { AuditError, DECLARED_COLUMNS, EXIT, POPULATION_DISPATCH, POPULATION_INTERNAL } from './contract.mjs';
+import { AGENT_SUBJECT, AuditError, DECLARED_COLUMNS, EXIT, POPULATION_DISPATCH, POPULATION_INTERNAL } from './contract.mjs';
 import { sqlLiteral } from './duckdb.mjs';
 
 export function defaultLogRoot(env = process.env) {
@@ -27,7 +27,7 @@ export function rawReaderExpression(logRoot) {
 export const POPULATION_CASE = `CASE WHEN bool_or(depth IS NOT NULL) OVER (PARTITION BY session_id, agent_id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) THEN '${POPULATION_DISPATCH}' ELSE '${POPULATION_INTERNAL}' END`;
 
 export function eventsCte(logRoot) {
-  return `ev AS (SELECT *, ${POPULATION_CASE} AS population FROM ${readerExpression(logRoot)})`;
+  return `ev AS (SELECT *, ${POPULATION_CASE} AS population FROM ${readerExpression(logRoot)} WHERE subject = ${sqlLiteral(AGENT_SUBJECT)})`;
 }
 
 export function depthBucketSql(column = 'depth') {
