@@ -1,7 +1,8 @@
 # SPEC: Agent architecture remediation
 
 Status: proposed, not applied
-Revision: 2 — supersedes revision 1 (brief-length gate removed, maker agent restored, circuit-breaker values measured)
+Revision: 3 — supersedes revision 2 (fork removed as a routing vehicle; reviewer entry invariants require a resolvable standard; fork tripwire added at §8.14)
+Revision 2 superseded revision 1 (brief-length gate removed, maker agent restored, circuit-breaker values measured)
 Author: derived from the incident analysis of session `cfdbeee9` (77 subagents, 2026-09-11)
 Target: `~/.claude` (symlinked into `SatanshuMishra/.windful-ocean`, PUBLIC repo)
 
@@ -41,7 +42,7 @@ Where a check cannot be made categorical, it becomes an **entry invariant**: an 
 
 - **Main thread** — the session you type into.
 - **Cold subagent** — a subagent started from a definition in `~/.claude/agents/`. Sees no conversation history. Must be told everything in its brief.
-- **Fork** — the built-in `fork` subagent type. Inherits the entire conversation, including its system prompt and any loaded skills. Has no custom body of its own, no tool restriction, no model override, and no worktree.
+- **Fork** — the built-in `fork` subagent type. Inherits the entire conversation, including its system prompt and any loaded skills. Has no custom body of its own, no tool restriction, no model override, and no worktree. **This spec does not use it as a routing vehicle** (§2.1, §10.4); the term is retained only because §3.2 argues from what a fork cannot do.
 - **Brief** — the `prompt` argument passed to the `Agent` tool. Written by the parent, and occupying the parent's context permanently.
 - **Skill** — a `SKILL.md` directory. Its description is always in context; its body loads on invocation.
 
@@ -68,10 +69,11 @@ Where a check cannot be made categorical, it becomes an **entry invariant**: an 
 ### 1.2 What this spec changes it to
 
 1. **Main works by default.** Delegation becomes the exception that needs a reason, so a routing mistake fails toward the cheap, correct path.
-2. **Procedure lives in skills, not in agent bodies.** A skill loads on demand and travels into a fork for free. An agent body is paid for on every dispatch whether or not it is relevant.
+2. **Procedure lives in skills, not in agent bodies.** A skill loads on demand, and is injected into a cold subagent only where that agent's `skills:` field declares it. An agent body is paid for on every dispatch whether or not it is relevant.
 3. **The roster shrinks from 13 to 5.** Thirteen types is thirteen available wrong routing answers.
 4. **The three measured pathologies are blocked by categorical hooks**, not discouraged by prose.
 5. **The always-on preamble drops from ~12,935 to ~2,520 tokens.**
+6. **Two vehicles only: main and cold subagent.** The configuration behaves identically in the CLI and the desktop app, because it cannot express a route that exists on only one of them (§2.1).
 
 ### 1.3 Explicit non-goals
 
@@ -89,21 +91,28 @@ The user directed that documentation wins where the two disagree. Four conflicts
 | C1 | `allowed-tools` "restricts which tools Claude can use when the skill is active — no editing, no writing" | "It does **not** restrict which tools are available: every tool remains callable" — [skills.md](https://code.claude.com/docs/en/skills.md) | `allowed-tools` is a **pre-approval**, not a guardrail. The grant clears at the next user message. | §7.2, §10.1 |
 | C2 | `name` is a required skill frontmatter field | "All fields are optional. Only `description` is recommended." `name` defaults to the directory name | `name` optional; still set it for legibility | §7.2 |
 | C3 | "Always restart Claude Code for changes to take effect" | Claude Code watches `~/.claude/agents/`; edits apply within seconds, restart needed only for a newly created scope directory, `--add-dir` paths, and `--disable-slash-commands` sessions — [sub-agents.md](https://code.claude.com/docs/en/sub-agents.md) | No blanket restart. Restart only for the three named cases | §9 |
-| C4 | Skills vs subagents framed as knowledge vs isolation | Docs add a third option the course omits entirely: the **`fork` subagent type**, which inherits the conversation | Fork is a first-class vehicle and is central to this spec | §3, §5.3 |
+| C4 | Skills vs subagents framed as knowledge vs isolation | Docs add a third option the course omits entirely: the **`fork` subagent type**, which inherits the conversation | Fork exists, and the docs are right that the course omits it. It is **not** used as a routing vehicle here: it is gated server-side and cannot be relied on (§2.1) | §3.2, §10.4 |
 
 **C1 is the most dangerous.** Building a "read-only skill" on `allowed-tools` would create a guardrail that does not hold — a new instance of the exact failure this spec exists to remove.
 
-### 2.1 Environment fact, verified
+### 2.1 Environment fact, probed
 
 | | Incident session | Desktop Code tab |
 |---|---|---|
 | `entrypoint` | `cli` | `claude-desktop` |
-| `fork` type available | Yes | No |
-| Agent tool exposes `run_in_background` | No | Yes |
+| `fork` type available | Yes | No — dispatch returns `Agent type 'fork' not found` |
 
-Fork mode is on in CLI sessions and off in the desktop app. Neither is set by config; no `CLAUDE_CODE_FORK_SUBAGENT` is present. **Self-test, runnable in any session: if the Agent tool offers `run_in_background`, fork mode is off.**
+**Availability is a server-side feature flag, not an entrypoint check.** The binary carries `isForkSubagentEnabled` and `tengu_fork_subagent_enabled`; `tengu_` is Claude Code's internal feature-gate namespace. No `CLAUDE_CODE_FORK_SUBAGENT` in the environment, no `fork` key in any settings file, and no local statsig cache holds or overrides the value. There is no local override in either direction.
 
-Consequence: fork-first routing applies to CLI sessions. In the desktop app the fallback is "do it in main", which is also the default this spec establishes, so nothing breaks.
+Probed 2026-09-11, desktop app 1.52386.3, claude-code 2.1.266. The earlier self-test — "if the Agent tool offers `run_in_background`, fork mode is off" — is withdrawn: it was an inference from two surfaces, and a direct dispatch attempt is categorical.
+
+Three consequences:
+
+1. Fork cannot be switched on in the desktop app.
+2. It cannot be switched off in the CLI to force parity downward.
+3. It can flip either way with no release and no config change, and nothing in this repository would see it move.
+
+**Therefore no rule in this configuration names fork as a route.** Such a rule would be a prose claim about a flag that cannot be read or set from here — the exact class of cached capability statement §5.4 prohibits. The user works in both the CLI and the desktop app and requires identical configuration behaviour on both; two vehicles, main and cold subagent, is the only arrangement where parity is a property of what the configuration can express rather than a behaviour asked of the model. See §5.3, §10.4, and the check at §8.14.
 
 ---
 
@@ -135,7 +144,7 @@ Six deletions, three collapsed into one, four retained.
 
 The four read-only agents are **fresh-context, result-only**. Each satisfies the decision rule from both sources: the intermediate work genuinely does not matter to the caller, and each does something the main thread cannot — sees the diff without having written it, or explores the open web without polluting the conversation.
 
-**`machinist` is the one maker, and it exists because three capabilities are available only to a cold subagent and not to a fork:**
+**`machinist` is the one maker, and it exists because three capabilities are available only to a cold subagent.** Each is stated below against a fork, which is the nearest alternative vehicle — this is the one place fork still appears in the spec, and the argument holds whether or not fork is reachable (§2.1):
 
 | Capability | Why it matters here |
 |---|---|
@@ -155,7 +164,7 @@ description: >
   in its own worktree. Use ONLY when all three hold: the change needs no
   discovery, it touches enough files that doing it here would flood this
   conversation, and no step depends on what an earlier step finds. If any one
-  fails, do the work here or fork.
+  fails, do the work here.
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: sonnet
 maxTurns: 800
@@ -267,9 +276,11 @@ The replacement inverts the default. Its full intended content:
 >
 > If none of those hold, do the work here.
 >
-> When work would flood this conversation but depends on what has already happened here, fork instead of dispatching a cold subagent. A fork inherits this conversation; a cold subagent needs it re-typed.
+> Everything a dispatched agent needs must be addressable without this conversation: a path, a commit range, or a question. Work that can only be described by referring to what has already happened here is work that stays here.
 
 Class: **A**, recorded in §10.1. The four reasons map one-to-one onto the five retained agents, so the roster itself is the structural half of the pairing: there is no agent to dispatch for a reason not on the list.
+
+The addressability clause is structural for the same reason. Every retained agent's entire input is a path, a commit range or a question (§6.2): a diff for the two reviewers, two resolvable paths for `conformance-auditor`, a question for `researcher`, an enumerated file list for `machinist`. The three agents whose work was inherently step-dependent — `delivery-lead`, `architect`, `investigator` — are deleted by §3.1 and their work returns to main. **There is no agent left to dispatch step-dependent work to**, so the clause is class **S** in effect: the wrong option does not exist rather than being discouraged.
 
 ### 5.4 Standing prohibition on capability claims
 
@@ -307,13 +318,17 @@ It was also largely redundant. The briefs that ran 14,000–20,855 characters we
 
 | Agent | Entry invariant | Proof |
 |---|---|---|
-| `code-reviewer` | A diff exists that this agent did not write | `git diff --stat <base>..HEAD` non-empty, output quoted |
+| `code-reviewer` | A diff exists that this agent did not write, **and every standard named in the brief resolves to a path** | `git diff --stat <base>..HEAD` non-empty, output quoted; each named standard `test -f` exit 0, path quoted |
 | `security-reviewer` | Same | Same |
 | `conformance-auditor` | A named standard and a named artifact both resolve to real paths | both `test -f` exit 0, both paths quoted |
 | `researcher` | The question requires a source outside this repository | names the source before searching |
 | `machinist` | The brief names every file to be touched | enumerate them, count them, and halt if the brief named none |
 
 The invariant is the **first field of the output contract** (§7.1, rule S4). It cannot be filled without running the check, and a failed check is a halt with a stated reason, not a finding.
+
+**On the reviewer clause.** The wording is *every standard **named in the brief***, and that is load-bearing. A brief naming no standard passes and a general-quality review proceeds, because a review with no named standard genuinely is a review against the always-on rules in §5.2, which the subagent receives verbatim (§5.1). The clause fires only on a named criterion that resolves to nothing — a brief such as "review this against the approach we settled on for auth", whose criteria exist only in the calling conversation. Without the clause that dispatch passes the diff check and the agent reviews against invented standards, which is the re-brief loop §6.6 exists to close, re-entered through the only door the two-vehicle model leaves open. The vacuous pass is correct semantics here rather than a gap in the census.
+
+Known limit: §8.8 checks that `1. Entry invariant` appears once per agent file. It does not check what the invariant says, so this clause is enforced at runtime by the halt and is unaudited in the body.
 
 ### 6.3 Hold-loop gate
 
@@ -429,8 +444,15 @@ Each is a command producing a value, not a judgment. The spec is applied when al
 | 8.11 | Task-output gate fires | `Read` on any `…/tasks/x.output` | denied |
 | 8.12 | Depth limit holds | dispatch an agent instructed to dispatch its own child | child dispatch fails; no depth-2 agent appears in `subagents/*.meta.json` |
 | 8.13 | Worktree isolation holds | dispatch two `machinist` agents concurrently | two distinct worktree paths; no index-lock error |
+| 8.14 | Fork is named nowhere in the routing surface | `grep -rniE '\bfork' ~/.claude/rules ~/.claude/agents ~/.claude/CLAUDE.md \| wc -l` | `0` |
 
 **8.9 through 8.13 are the ones that matter.** They test mechanisms. The rest test arrangement.
+
+**8.14 measured `0` on 2026-09-11, before any change**, across rules, agents, `CLAUDE.md` and also the skills tree, and individually across all six rules files §5.2 keeps. Fork routing exists only in this document, which lives outside `~/.claude`, so 8.14 is a tripwire against a future addition rather than a cleanup: it lands green with no remediation attached. It is a closed census over one word, not a list of phrasings — a pattern list would be the sampled allowlist §0.3 forbids, and a new phrasing would evade it.
+
+**Why `~/.claude/skills` is outside 8.14's scope**, despite measuring `0` there today. K9 permits `context: fork` on a skill carrying an actionable task, which is a skill execution mode rather than a routing choice. A bare-word census over the skills tree would forbid a field this spec's own authoring standard allows, and the only way to keep the wider scope would be a phrasing exception — the allowlist shape §0.3 forbids. Scope stops at the routing surface, where the word has exactly one meaning.
+
+**Open, not resolved here:** whether `context: fork` on a skill is gated by the same server-side flag as the `fork` subagent type (§2.1). If it is, a skill using it behaves differently across the two surfaces and K9 needs the same treatment §11 gives the subagent type. Untested; stated rather than assumed.
 
 ---
 
@@ -461,7 +483,7 @@ Listed because §0.1 requires every class-A item to be either paired with a mech
 
 ### 10.1 Routing cannot be made deterministic
 
-Which vehicle Claude picks — main, fork, or cold subagent — is a model decision steered by descriptions. §5.3 biases the default toward the cheap option and §6.2 makes a wrong dispatch halt loudly at its first action, but **nothing mechanically prevents a cold dispatch that should have been a fork.**
+Which vehicle Claude picks — main or cold subagent — is a model decision steered by descriptions. §5.3 biases the default toward the cheap option and §6.2 makes a wrong dispatch halt loudly at its first action, but **nothing mechanically prevents a cold dispatch that should have stayed in main.**
 
 Revision 1 proposed a brief-length gate for this. It was removed as a pinned count (§0.3, §6.2), and no categorical replacement exists: "does this brief re-explain context the parent already holds" is not a property of the brief's text.
 
@@ -475,9 +497,15 @@ S2, S3 and the non-invariant half of S4 shape what an agent returns. Nothing enf
 
 Admitted under §0.3 rather than hidden. It is permitted as a circuit breaker, its values are measured (§3.5) rather than chosen, and the failure mode is a partial resumable return rather than a loss. If a legitimate agent ever hits one, the value is wrong and gets re-derived — not overridden case by case.
 
-### 10.4 Fork is unavailable in the desktop app
+### 10.4 Dropping fork costs main-thread context on the CLI
 
-§5.3's routing assumes fork. In the desktop Code tab it does not exist. Fallback is "do it in main", which is the default anyway. No mitigation planned; recorded so it is not rediscovered.
+Fork is not used as a route (§2.1). The cost of that is real and is accepted: §1.3 names main-thread context occupancy as this remediation's primary objective, and fork was the only vehicle that reduced it without a re-typed brief. On the CLI, step-dependent high-volume work now stays in main, and the fallback when main fills is harness summarization — a fidelity loss rather than a failure, and one with no structural fix.
+
+**Accepted because** the cost is bounded and parity is worth more. High volume is nearly always many-file reading or many-file writing, and both have cold vehicles whose input is addressable without the conversation: `Explore` takes a question, `machinist` takes a file list. What remains in main is reasoning, which is low-volume. Fork's cell was "high volume **and** step-dependent", and those two properties rarely co-occur once reads and writes are routed out.
+
+The residual is step-dependent discovery, such as debugging where each move depends on the last finding. It stays in main and consumes context. Its mitigation is not a subagent: the project ledger survives compaction, and `superpowers:systematic-debugging` loads on demand without a dispatch.
+
+The alternative was to route on fork where available. Rejected because the same configuration would then behave differently on the two surfaces the user works in daily, and would drift further whenever the server-side gate moved.
 
 ### 10.5 This spec cannot verify its own effect
 
@@ -493,3 +521,4 @@ The incident session was still running during analysis and its totals moved (68 
 - **Does not rewrite the deleted agents as skills one-for-one.** Five carried personas or duplicated existing skills. Only four procedures survived the cut, in §4.
 - **Does not set token budgets as rules.** A budget in prose is class A with no mechanism. The budget is enforced by the roster size and the preamble cut, both class S.
 - **Does not gate on any tuned number outside §3.5.** Every other check in §6 asserts a categorical property.
+- **Does not use the `fork` subagent type as a routing vehicle.** It is gated server-side (§2.1), so a rule naming it would be a claim about a flag this configuration can neither read nor set. Fork survives in §3.2 only as the contrast that justifies `machinist`, an argument that holds whether or not fork is reachable.
