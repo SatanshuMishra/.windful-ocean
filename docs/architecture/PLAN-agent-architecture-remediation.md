@@ -437,6 +437,8 @@ Remove the nine `Agent(...)` entries added at step 1 from `permissions.deny`.
 
 **Halt if.** Step 7 did not complete. The deny rules are the only thing standing between a stale dispatch and a missing file.
 
+**Run this step AFTER the restart that closes step 8, not before.** Observed 2026-09-11: removing the deny rules in the same session that deleted the files brought all nine agent types back into the roster, with their old descriptions and tools, because the harness still held them cached. The files were absent from disk and the committed configuration was correct; only the live session was wrong. Taking step 9 after the restart avoids re-exposing definitions that no longer exist.
+
 **Commit.** `chore(config): drop the transitional agent deny rules`
 
 ---
