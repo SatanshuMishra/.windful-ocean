@@ -239,6 +239,8 @@ skills: writing-tests, committing-work, platform-engineer
 
 The description must not name `fork` — check 8.14 censuses `~/.claude/agents/` for that word and the SPEC's own revision 2 draft of this block failed it.
 
+**Brief a machinist against the default branch, not the current one.** Its worktree is cut from the default branch regardless of where the dispatching session sits (SPEC §3.3, measured). A brief naming a path that exists only on the working branch will send the agent to create it instead of edit it, and the divergence surfaces only in its section 2.
+
 ### 5b. Frontmatter for the four retained agents (§3.4, §3.5)
 
 | Agent | `model` | `maxTurns` | `skills:` | `tools` |

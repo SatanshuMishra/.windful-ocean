@@ -176,6 +176,10 @@ skills: writing-tests, committing-work, platform-engineer
 
 The third precondition is the sequential-pipeline test, stated as something checkable before dispatch rather than discovered after three rework rounds.
 
+**A machinist worktree is cut from the repository's default branch, not from the branch the dispatching session is on.** Measured 2026-09-11: two machinists dispatched from a session on `docs/agent-architecture-spec` (tip `94c31085`) both received worktrees based on `37192365`, the tip of `main`. Neither could see a directory that existed only on the dispatching branch, and each created it.
+
+Three consequences for any brief. It cannot reference uncommitted work. It cannot reference work committed only to the current branch. And every path it names must exist on the default branch, or the brief must say the file is being created - which is why `machinist`'s entry invariant quotes the `test -e` exit code rather than requiring it to be 0.
+
 **Entry invariant** (§6.2): before its first edit, `machinist` asserts that its brief names every file it will touch, and halts if it does not. A brief that cannot name its targets was not fully specified, which means the dispatch was wrong.
 
 ### 3.4 Required frontmatter for all five
