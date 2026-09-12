@@ -91,7 +91,7 @@ The user directed that documentation wins where the two disagree. Four conflicts
 |---|---|---|---|---|
 | C1 | `allowed-tools` "restricts which tools Claude can use when the skill is active — no editing, no writing" | "It does **not** restrict which tools are available: every tool remains callable" — [skills.md](https://code.claude.com/docs/en/skills.md) | `allowed-tools` is a **pre-approval**, not a guardrail. The grant clears at the next user message. | §7.2, §10.1 |
 | C2 | `name` is a required skill frontmatter field | "All fields are optional. Only `description` is recommended." `name` defaults to the directory name | `name` optional; still set it for legibility | §7.2 |
-| C3 | "Always restart Claude Code for changes to take effect" | Claude Code watches `~/.claude/agents/`; edits apply within seconds, restart needed only for a newly created scope directory, `--add-dir` paths, and `--disable-slash-commands` sessions — [sub-agents.md](https://code.claude.com/docs/en/sub-agents.md) | No blanket restart. Restart only for the three named cases | §9 |
+| C3 | "Always restart Claude Code for changes to take effect" | Claude Code watches `~/.claude/agents/`; edits apply within seconds, restart needed only for a newly created scope directory, `--add-dir` paths, and `--disable-slash-commands` sessions — [sub-agents.md](https://code.claude.com/docs/en/sub-agents.md) | No blanket restart, but four restarts are required by §9, and the docs' three cases are not the reason for any of them | §9 |
 | C4 | Skills vs subagents framed as knowledge vs isolation | Docs add a third option the course omits entirely: the **`fork` subagent type**, which inherits the conversation | Fork exists, and the docs are right that the course omits it. It is **not** used as a routing vehicle here: it is gated server-side and cannot be relied on (§2.1) | §3.2, §10.4 |
 
 **C1 is the most dangerous.** Building a "read-only skill" on `allowed-tools` would create a guardrail that does not hold — a new instance of the exact failure this spec exists to remove.
@@ -544,7 +544,16 @@ Ordered so each step is independently safe and reversible, and so no window exis
 | 9 | Remove §6.5 deny rules | Deleted files need no deny rule |
 | 10 | Run all of §8 | Full acceptance |
 
-**On restart (conflict C3):** Claude Code watches the agents and skills directories and applies edits within seconds. A restart is required only when creating a scope's *first* file in a directory that did not exist at session start. Since `~/.claude/agents/` and `~/.claude/skills/` both already exist, **no restart is required by this spec** except after step 2, because settings and hooks resolve at session start.
+**On restart (conflict C3):** the docs are right that Claude Code watches the agents and skills directories and applies edits within seconds, and right that their own three cases do not apply here. They are not the whole story, and **this spec requires four restarts**, each for a reason the docs do not cover:
+
+| After | Before | Why |
+|---|---|---|
+| Step 2 | Step 3 | `settings.json`, including hooks and `env`, resolves at session start |
+| Step 5 | Step 6 | An agent definition edit does not reach a dispatch made in the same session |
+| Step 8 | Step 9 | The harness retains a deleted definition; removing the deny rule masking it restores the type from a file that is gone |
+| — | — | Step 10 follows step 9 with no further restart |
+
+The third was measured on 2026-09-11 and is the one most easily missed: the deletion itself *did* clear the roster, and the type only returned when the mask was lifted.
 
 ---
 

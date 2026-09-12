@@ -25,7 +25,9 @@ Consequences that govern every step: editing `~/.claude/...` edits this repo on 
 
 **2. This repository is public.** No confidential project codename reaches any tracked file. Refer to the incident only as session `cfdbeee9`.
 
-**3. Restart points.** Claude Code watches `~/.claude/agents` and `~/.claude/skills` and applies edits within seconds — no restart for those. `settings.json` resolves at session start, so **step 2 requires a restart before step 3**. Separately, agent definition edits do not reach dispatches made in the same session, so **step 5 requires a restart before step 6**, and **step 8 requires a restart before step 10**.
+**3. Restart points — four of them.** `settings.json` resolves at session start, so **step 2 requires a restart before step 3**. Agent definition edits do not reach dispatches made in the same session, so **step 5 requires a restart before step 6**. **Step 8 requires a restart before step 9**, and step 10 follows step 9 without a further one.
+
+Creating or editing a file under `~/.claude/agents` or `~/.claude/skills` does reach the roster within seconds, and a deletion removes the type from the roster too. What does **not** clear is the harness's retained copy of a deleted definition: removing a deny rule that was masking it brings the whole type back, with its old description and tools, from a file that no longer exists. That is why step 9 sits after a restart and not before one (observed 2026-09-11; see step 9).
 
 **4. Branch.** Work continues on `docs/agent-architecture-spec`, cut from `origin/main`. Never commit to `main`.
 
@@ -427,7 +429,7 @@ Configuration states preferences, constraints, and facts about this project that
 
 **Commit.** `refactor(config): re-dispose the always-on preamble under the behaviour test`
 
-**→ RESTART REQUIRED before step 10.**
+**→ RESTART REQUIRED before step 9.** The harness still holds every definition step 7 deleted. Step 9 removes the deny rules that mask them, so taken in this session it restores all nine agent types from files that are gone. Restart first; steps 9 and 10 then run together.
 
 ## Step 9 — remove the transitional deny rules (§6.5)
 
@@ -437,7 +439,9 @@ Remove the nine `Agent(...)` entries added at step 1 from `permissions.deny`.
 
 **Verify.** `python3 -c "import json;d=json.load(open('$HOME/.claude/settings.json'));print([x for x in d['permissions']['deny'] if x.startswith('Agent(')])"` returns `[]`.
 
-**Halt if.** Step 7 did not complete. The deny rules are the only thing standing between a stale dispatch and a missing file.
+**Also verify the live roster, not just the file.** `settings.json` and disk were both correct in the observed incident; only the running session was wrong, so a settings-only check passes while the configuration is broken. Confirm the roster the harness actually offers holds exactly the five retained types and none of the nine deleted ones. If the nine are present, the restart before this step did not happen.
+
+**Halt if.** Step 7 did not complete, or the live roster still offers any deleted type. The deny rules are the only thing standing between a stale dispatch and a missing file.
 
 **Run this step AFTER the restart that closes step 8, not before.** Observed 2026-09-11: removing the deny rules in the same session that deleted the files brought all nine agent types back into the roster, with their old descriptions and tools, because the harness still held them cached. The files were absent from disk and the committed configuration was correct; only the live session was wrong. Taking step 9 after the restart avoids re-exposing definitions that no longer exist.
 
