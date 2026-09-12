@@ -475,9 +475,9 @@ Each is a command producing a value, not a judgment. The spec is applied when al
 | # | Check | Command | Expected |
 |---|---|---|---|
 | 8.1 | Roster is five | `ls ~/.claude/agents/*.md \| wc -l` | `5` |
-| 8.2 | The false claim is gone everywhere | `grep -rl "does not survive" ~/.claude/agents ~/.claude/rules ~/.claude/CLAUDE.md \| wc -l` | `0` |
+| 8.2 | The false claim is gone everywhere | census form below, pattern `does not survive` | `scanned>0 matches=0` |
 | 8.3 | Every agent has a circuit breaker | `grep -L "^maxTurns:" ~/.claude/agents/*.md \| wc -l` | `0` |
-| 8.4 | No capability claims remain | `grep -rniE "harness property\|is not supported\|you cannot wait\|children die" ~/.claude/rules ~/.claude/agents ~/.claude/CLAUDE.md \| wc -l` | `0` |
+| 8.4 | No capability claims remain | census form below, pattern `harness property\|is not supported\|you cannot wait\|children die\|does not survive` | `scanned>0 matches=0` |
 | 8.5 | Always-on budget | `cat ~/.claude/rules/common/*.md ~/.claude/CLAUDE.md \| wc -c` | `< 13000` |
 | 8.6 | Skill cost measured | `/skill-doctor` | report captured, before and after |
 | 8.7 | No preloaded skill blocks preloading | for each name in any `skills:` field, `grep -c "disable-model-invocation: *true" ~/.claude/skills/<name>/SKILL.md` | `0` |
@@ -487,17 +487,39 @@ Each is a command producing a value, not a judgment. The spec is applied when al
 | 8.11 | Task-output gate fires | `Read` on any `…/tasks/x.output` | denied |
 | 8.12 | Depth limit holds | dispatch an agent instructed to dispatch its own child | child dispatch fails; no depth-2 agent appears in `subagents/*.meta.json` |
 | 8.13 | Worktree isolation holds | dispatch two `machinist` agents concurrently | two distinct worktree paths; no index-lock error |
-| 8.14 | Fork is named nowhere in the routing surface | `grep -rniE '\bfork' ~/.claude/rules ~/.claude/agents ~/.claude/CLAUDE.md \| wc -l` | `0` |
+| 8.14 | Fork is named nowhere in the routing surface | census form below, pattern `\bfork` | `scanned>0 matches=0` |
 
 **8.9 through 8.13 are the ones that matter.** They test mechanisms. The rest test arrangement.
 
 **8.5 is a circuit breaker, not a target.** §5.2.3 lands the preamble near 5,850 bytes, so the 13,000 ceiling carries ~2.2x headroom and never fires in normal operation — the condition §0.3 places on any threshold. It is retained at 13,000 rather than tightened to the new figure, because a ceiling set just above the current value is a change-detector: it fails on the next legitimate addition rather than on a regression.
 
-**8.14 measured `0` on 2026-09-11, before any change**, across rules, agents, `CLAUDE.md` and also the skills tree, and individually across all six rules files §5.2 keeps. Fork routing exists only in this document, which lives outside `~/.claude`, so 8.14 is a tripwire against a future addition rather than a cleanup: it lands green with no remediation attached. It is a closed census over one word, not a list of phrasings — a pattern list would be the sampled allowlist §0.3 forbids, and a new phrasing would evade it.
+### The census form (8.2, 8.4, 8.14)
 
-**Why `~/.claude/skills` is outside 8.14's scope**, despite measuring `0` there today. K9 permits `context: fork` on a skill carrying an actionable task, which is a skill execution mode rather than a routing choice. A bare-word census over the skills tree would forbid a field this spec's own authoring standard allows, and the only way to keep the wider scope would be a phrasing exception — the allowlist shape §0.3 forbids. Scope stops at the routing surface, where the word has exactly one meaning.
+**A recursive grep over these paths is instrument-blind unless the path ends in a slash.** Every `~/.claude` config path is a symlink into the repository working tree, and BSD `grep -r` refuses to traverse a symlinked directory given without a trailing slash: it reports nothing and exits 0. `/usr/bin/grep` and `ugrep` behave identically, and `-R` does not fix it. Measured 2026-09-11: `grep -rl 'the' ~/.claude/rules` returned 0 files; the same command with `~/.claude/rules/` returned 20.
 
-**Open, not resolved here:** whether `context: fork` on a skill is gated by the same server-side flag as the `fork` subagent type (§2.1). If it is, a skill using it behaves differently across the two surfaces and K9 needs the same treatment §11 gives the subagent type. Untested; stated rather than assumed.
+Each census therefore runs in this form, which proves it scanned something before believing its own zero:
+
+```bash
+S=$(grep -rlE '' ~/.claude/rules/ ~/.claude/agents/ 2>/dev/null | wc -l)
+M=$(grep -rniE '<pattern>' ~/.claude/rules/ ~/.claude/agents/ ~/.claude/CLAUDE.md 2>/dev/null | wc -l)
+echo "scanned=$S matches=$M"
+```
+
+**A pass requires `S > 0` AND `M == 0`.** An `S` of 0 is an instrument failure reported as such, never a pass. This is the closed-census rule the testing standard already states, applied to this spec's own acceptance checks.
+
+**Corrected pre-change baselines, measured with working recursion:**
+
+| Check | Vacuous reading | True reading | Cleared by |
+|---|---:|---:|---|
+| 8.2 `does not survive` | 0 | **2** | `delivery-lead.md` at step 7, `agents.md` at step 8 |
+| 8.4 capability claims | 0 | **3** | the same two files |
+| 8.14 `\bfork` | 0 | **0** | genuinely zero; the tripwire lands green |
+
+8.2 and 8.4 would have read `0` before the work and `0` after, proving nothing either way. That is the defect the scan proof closes.
+
+**Why `~/.claude/skills` is outside 8.14's scope.** Not because of K9, which was the reason given in revision 3 and is wrong. Measured with working recursion the skills tree holds **7** hits for `\bfork`, and not one is `context: fork` — they are ordinary English: "the Feather fork", "fork it, remix it", "the reference fork's behaviour". A bare-word census there would fail on prose. Scope stops at the routing surface, where the word has exactly one meaning and the census can stay a closed census over one word rather than a list of phrasings, which would be the sampled allowlist §0.3 forbids.
+
+**Open, not resolved here:** whether `context: fork` on a skill is gated by the same server-side flag as the `fork` subagent type (§2.1). No skill currently uses the field.
 
 ---
 

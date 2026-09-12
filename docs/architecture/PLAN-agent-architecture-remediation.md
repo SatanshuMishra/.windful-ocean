@@ -21,6 +21,8 @@ Every step states its goal, the literal actions, the verification that closes it
 
 Consequences that govern every step: editing `~/.claude/...` edits this repo on whatever branch is checked out; `git checkout` changes the live configuration; and nothing is in force in a *new* session until the change is committed and on the branch that session's checkout holds.
 
+**1b. A recursive grep over these paths needs a trailing slash, or it silently scans nothing.** BSD `grep -r` refuses to traverse a symlinked directory given without one; it prints nothing and exits 0. `/usr/bin/grep` and `ugrep` behave the same, and `-R` does not fix it. `grep -rl 'the' ~/.claude/rules` returns 0 files; `~/.claude/rules/` returns 20. Every census in this plan runs in the scan-proving form the SPEC defines under §8, and a `scanned=0` is an instrument failure, never a pass.
+
 **2. This repository is public.** No confidential project codename reaches any tracked file. Refer to the incident only as session `cfdbeee9`.
 
 **3. Restart points.** Claude Code watches `~/.claude/agents` and `~/.claude/skills` and applies edits within seconds — no restart for those. `settings.json` resolves at session start, so **step 2 requires a restart before step 3**. Separately, agent definition edits do not reach dispatches made in the same session, so **step 5 requires a restart before step 6**, and **step 8 requires a restart before step 10**.
@@ -235,7 +237,7 @@ skills: writing-tests, committing-work, platform-engineer
 ---
 ```
 
-The description must not name `fork` — check 8.14 greps `~/.claude/agents` for that word and the SPEC's own revision 2 draft of this block failed it.
+The description must not name `fork` — check 8.14 censuses `~/.claude/agents/` for that word and the SPEC's own revision 2 draft of this block failed it.
 
 ### 5b. Frontmatter for the four retained agents (§3.4, §3.5)
 
@@ -416,7 +418,7 @@ Configuration states preferences, constraints, and facts about this project that
 | `cat ~/.claude/rules/common/*.md ~/.claude/CLAUDE.md \| wc -c` | under 13,000; expect ~5,850 |
 | `ls ~/.claude/rules/common/*.md \| wc -l` | `6` — no-comments, coding-style, security, memory-discipline, no-direct-db-access, and the new delegation file. `pillars.md` is gone |
 | `test -d ~/.claude/rules/common/git` | false |
-| capability-claim grep over rules, agents, `CLAUDE.md` | `0` |
+| capability-claim census (SPEC §8 form, trailing slashes) | `scanned>0 matches=0`; was `3` before the work |
 | `grep -c 'rules/common' ~/.claude/CLAUDE.md` | `0` |
 
 **Halt if.** The byte count exceeds 13,000 — at ~2.2x headroom that means a compression was not performed, not that the ceiling is wrong. Re-measure per file against the §5.2 targets before touching the ceiling.
@@ -446,9 +448,9 @@ Run all fourteen checks. Record each result verbatim against its thread criterio
 | # | Check | Expected | Thread criterion |
 |---|---|---|---|
 | 8.1 | `ls ~/.claude/agents/*.md \| wc -l` | `5` | c1 |
-| 8.2 | `grep -rl "does not survive" … \| wc -l` | `0` | — |
+| 8.2 | census, pattern `does not survive` | `scanned>0 matches=0`; was `2` | — |
 | 8.3 | `grep -L "^maxTurns:" ~/.claude/agents/*.md \| wc -l` | `0` | c3 |
-| 8.4 | capability-claim grep | `0` | c2 |
+| 8.4 | census, capability-claim pattern | `scanned>0 matches=0`; was `3` | c2 |
 | 8.5 | always-on byte count | `< 13000`, expect ~5,850 | c4 |
 | 8.6 | `/skill-doctor` report | captured before and after | c12 |
 | 8.7 | no preloaded skill sets `disable-model-invocation: true` | `0` | c5 |
@@ -458,9 +460,9 @@ Run all fourteen checks. Record each result verbatim against its thread criterio
 | 8.11 | task-output gate fires | denied | c7 |
 | 8.12 | depth limit holds | no depth-2 agent | c8 |
 | 8.13 | worktree isolation holds | two paths, no lock error | c11 |
-| 8.14 | fork named nowhere in the routing surface | `0` | — |
+| 8.14 | census, pattern `\bfork` | `scanned>0 matches=0`; was already `0` | — |
 
-**8.2 is redundant with 8.4** — `does not survive` is a substring 8.4's alternation already sweeps. Run both; the duplication costs nothing and removing it is not in scope.
+**8.2 is redundant with 8.4** — `does not survive` is now folded into 8.4's alternation explicitly. Run both; the duplication costs nothing and removing it is not in scope. Both had a true pre-change reading above zero (2 and 3), so unlike the vacuous form they actually distinguish before from after.
 
 **8.6 needs a before-reading.** Criterion c12 requires `/skill-doctor` captured at both points. If no before-reading was taken prior to step 4, c12 closes as `unverified-reasoned` naming the missing baseline. Do not fabricate one.
 
