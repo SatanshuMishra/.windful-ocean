@@ -103,7 +103,16 @@
       "Read(~/.npmrc)",
       "Read(~/.cargo/credentials*)",
       "Read(~/.pypirc)",
-      "Read(~/Library/Keychains/**)"
+      "Read(~/Library/Keychains/**)",
+      "Agent(delivery-lead)",
+      "Agent(implementer)",
+      "Agent(test-engineer)",
+      "Agent(platform-engineer)",
+      "Agent(verifier)",
+      "Agent(architect)",
+      "Agent(investigator)",
+      "Agent(technical-writer)",
+      "Agent(release-engineer)"
     ],
     "defaultMode": "bypassPermissions"
   },
