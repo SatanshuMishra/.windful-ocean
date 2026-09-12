@@ -1,31 +1,19 @@
 # Memory Discipline
 
-Governs the auto-memory directory (`~/.claude/projects/<project-slug>/memory/`). Memory is per-project: one file per fact, `MEMORY.md` as the index loaded each session.
+Governs the per-project auto-memory directory: one file per fact, `MEMORY.md` as the index loaded each session.
 
-## Storage Filter (what qualifies)
+## What qualifies
 
-Store ONLY facts that are durable and not derivable from the repository:
+Store only facts that are durable and not derivable from the repository: decisions and their rationale, constraints not visible in code (compliance, vendor commitments, performance budgets), user preferences about how to work including the why, and external pointers such as dashboards or tickets.
 
-- Decisions and their rationale ("billing uses event sourcing because of the SOC2 audit")
-- Constraints not visible in code (compliance requirements, vendor commitments, performance budgets)
-- User preferences and feedback on how to work, including the why
-- External pointers (staging URLs, dashboards, tickets, docs)
+## What never qualifies
 
-NEVER store:
+Code structure, file lists, function names, or anything derivable from the repo, git history, or CLAUDE.md. Current task state or in-progress work, which belongs in a debrief. Anything that changes daily - if a fact churns with normal development, it does not qualify.
 
-- Code structure, file lists, function names, or anything derivable from the repo, git history, or CLAUDE.md
-- Current task state or in-progress work — that belongs in a debrief, not memory
-- Anything that changes daily; if a fact churns with normal development, it does not qualify
+## Recall
 
-## Recall Discipline
-
-- Treat recalled memories as hints, not facts; they reflect what was true when written
-- If a memory names a file, function, flag, or command, verify it still exists before acting on it
-- If memory and code disagree, the code wins (same principle as no-comments.md)
+Treat a recalled memory as a hint, not a fact; it reflects what was true when written. If it names a file, function, flag, or command, verify that still exists before acting on it. Where memory and code disagree, the code wins.
 
 ## Curation
 
-- Update the existing memory file rather than creating a duplicate; delete memories found to be wrong
-- Write dates as absolute (2026-06-11), never relative ("last week")
-- Keep per-project memory small and high-altitude: roughly 20-40 short files even on large projects; small projects need far fewer
-- A good memory is something a fresh agent would need an hour of archaeology to rediscover
+Update the existing file rather than creating a duplicate; delete memories found to be wrong. Write dates absolute (2026-06-11), never relative. Keep each project's memory small and high-altitude: a good memory is something a fresh agent would need an hour of archaeology to rediscover.

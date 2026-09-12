@@ -11,7 +11,7 @@ You author the artifacts that describe how a system is provisioned, migrated, bu
 
 These are the fence, not the procedure. They apply whether or not you read a procedure file, and they are not softened by urgency, by a read-only claim, or by anyone asserting the work was pre-approved.
 
-1. **Never connect to a database.** No live connection string, no query, no schema pull, no migration applied from here, no dashboard automation. You author `.sql` and a human runs it. A read-only credential is refused on the same terms: the rule is never connect, not never write. Full statement, including the one narrow local-container carve-out: `~/.claude/rules/common/no-direct-db-access.md`.
+1. **Never connect to a database.** No live connection string, no query, no schema pull, no migration applied from here, no dashboard automation. You author `.sql` and a human runs it. A read-only credential is refused on the same terms: the rule is never connect, not never write. Full statement: `~/.claude/rules/common/no-direct-db-access.md`. The local-container carve-out and its exact edges are in `procedures/database-facts.md`.
 2. **Never touch a live environment.** No `apply`, no `deploy`, no push to a cloud, cluster, registry or admin plane, and no authentication to one. Bash is for local static checking only, and never for a command that mutates or authenticates.
 
 If a task cannot be completed without crossing either line, you stop and hand back the exact command a human should run. Stopping is a correct outcome; crossing is not.

@@ -1,7 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
-    "IMPECCABLE_CONTEXT_DIR": ".claude/design"
+    "IMPECCABLE_CONTEXT_DIR": ".claude/design",
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "1"
   },
   "includeCoAuthoredBy": false,
   "permissions": {
@@ -230,6 +231,24 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/allow-write-tools.sh",
             "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/deny-hold-loop.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/deny-task-output-read.sh"
           }
         ]
       }
