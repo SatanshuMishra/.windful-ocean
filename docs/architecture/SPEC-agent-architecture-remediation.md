@@ -1,7 +1,8 @@
 # SPEC: Agent architecture remediation
 
 Status: proposed, not applied
-Revision: 3 — supersedes revision 2 (fork removed as a routing vehicle; reviewer entry invariants require a resolvable standard; fork tripwire added at §8.14)
+Revision: 4 — supersedes revision 3 (§5.2 re-disposed under a second test: does a rule change behaviour, or only restate a default or duplicate a mechanism that already binds)
+Revision 3 superseded revision 2 (fork removed as a routing vehicle; reviewer entry invariants require a resolvable standard; fork tripwire added at §8.14)
 Revision 2 superseded revision 1 (brief-length gate removed, maker agent restored, circuit-breaker values measured)
 Author: derived from the incident analysis of session `cfdbeee9` (77 subagents, 2026-09-11)
 Target: `~/.claude` (symlinked into `SatanshuMishra/.windful-ocean`, PUBLIC repo)
@@ -72,7 +73,7 @@ Where a check cannot be made categorical, it becomes an **entry invariant**: an 
 2. **Procedure lives in skills, not in agent bodies.** A skill loads on demand, and is injected into a cold subagent only where that agent's `skills:` field declares it. An agent body is paid for on every dispatch whether or not it is relevant.
 3. **The roster shrinks from 13 to 5.** Thirteen types is thirteen available wrong routing answers.
 4. **The three measured pathologies are blocked by categorical hooks**, not discouraged by prose.
-5. **The always-on preamble drops from ~12,935 to ~2,520 tokens.**
+5. **The always-on preamble drops from ~12,935 to ~1,460 tokens.** Revision 3 targeted ~2,520 by cutting twelve files; revision 4 reaches ~1,460 by applying the same test to the six it had exempted (§5.2).
 6. **Two vehicles only: main and cold subagent.** The configuration behaves identically in the CLI and the desktop app, because it cannot express a route that exists on only one of them (§2.1).
 
 ### 1.3 Explicit non-goals
@@ -134,7 +135,7 @@ Current roster is 13. Target is 5: four read-only, one maker.
 | `test-engineer` | **COLLAPSE → `machinist`** | S | Procedure moves to the `writing-tests` skill (§4.1) |
 | `platform-engineer` | **COLLAPSE → `machinist`** | S | The `platform-engineer` **skill already exists** and carries the procedure; its safety constraint lives in `no-direct-db-access.md`, which stays always-on |
 | `code-reviewer` | **KEEP** | — | Fresh-eyes review is endorsed by both docs and course: Claude reviews code better when it did not write it. |
-| `security-reviewer` | **KEEP** | — | Same rationale, different lens. Parallelises with `code-reviewer` at no shared-state cost. |
+| `security-reviewer` | **KEEP** | — | Same rationale, different lens. Parallelises with `code-reviewer` at no shared-state cost. **Preloads the existing `vibesec` skill via `skills:`** — §5.2 compresses `security.md` on the grounds that `vibesec` covers its checklist in more depth, and without this wiring the agent would know less about security after this change than before. |
 | `conformance-auditor` | **KEEP** | — | Read-only fresh-eyes audit. Its duplicate skill is retained and **preloaded via `skills:`**. |
 | `researcher` | **KEEP, narrowed** | — | External web research is the canonical subagent case and needs tools Explore lacks. Narrowed to external research only; codebase search routes to the built-in `Explore`, which skips CLAUDE.md and therefore costs roughly a quarter as much. |
 
@@ -234,30 +235,72 @@ Not created, and why:
 
 Every byte here is sent to the main thread and to every cold subagent, verbatim, on every dispatch. This was verified empirically: a probe agent quoted all 18 `rules/common` files back verbatim without using a single tool. The claim in `agents.md` that this happens is one of the few capability claims in the config that is **true**.
 
-The cost is therefore real and multiplied. Only content that is a genuine invariant across all work earns a place.
+The cost is therefore real and multiplied. A file earns its place only by passing **both** tests:
+
+- **T1, scope.** Does this apply to every piece of work, rather than to a kind of work? A file failing T1 becomes a skill, which loads when it is relevant.
+- **T2, effect.** Does this change what Claude does — as against restating a default it already follows, or duplicating a mechanism that already binds at class S or M? A file failing T2 is deleted, or compressed to the part that passes.
+
+Revisions 1 through 3 applied only T1. That is why twelve files were cut for being situational while six were kept without anyone asking whether they did anything. T2 is applied to all eighteen below, and it changes the disposition of all six.
 
 ### 5.2 Disposition of every file
 
-| File | Bytes | Action | Class | Intent |
-|---|---|---|---|---|
-| `pillars.md` | 1,323 | **KEEP** | — | Genuine cross-cutting tie-break |
-| `no-comments.md` | 1,459 | **KEEP** | — | Applies to every file touched |
-| `no-direct-db-access.md` | 4,293 | **KEEP** | — | Safety-critical, irreversible if violated; carries the constraint that justified `platform-engineer` |
-| `coding-style.md` | 1,402 | **KEEP** | — | Applies to every edit |
-| `security.md` | 1,605 | **KEEP** | — | Applies to every commit |
-| `memory-discipline.md` | 1,616 | **KEEP** | — | Governs writes to a persistent store; cheap and genuinely always-on |
-| `agents.md` | 3,971 | **DELETE** | S | Contains the false claim at `:17` that caused the incident. Its accurate content (parallelism by shared state, work-forcing fields) moves into the five agent bodies where it is actually needed. |
-| `delegation-discipline.md` | 3,497 | **DELETE and replace** | S | Its mandate to delegate every mutation is what makes misrouting the compliant behaviour. Replaced by §5.3. |
-| `testing.md` | 6,668 | **MOVE to skill** §4.1 | S | Only relevant when writing tests |
-| `git/commits.md` | 2,561 | **MOVE to skill** §4.2 | S | Only relevant when committing |
-| `git/branching.md` | 327 | **MOVE to skill** §4.2 | S | Merged into the same skill |
-| `git/pull-requests.md` | 5,216 | **MOVE** — already the `pr` skill | S | Duplication |
-| `git-workflow.md` | 1,840 | **DELETE** | S | A hub that points at spokes; pure indirection cost |
-| `research-citations.md` | 1,460 | **MOVE to skill** §4.4 | S | Only relevant to research deliverables |
-| `writing-style.md` | 3,936 | **DELETE** | S | The output style already binds the main thread; agents carry their own answer format |
-| `performance.md` | 5,984 | **DELETE** | S | Names model versions that have moved on, and its central advice (background long commands) is now harness default |
-| `patterns.md` | 1,022 | **DELETE** | S | Generic design-pattern content Claude already has. Textbook expert-claim content. |
-| `hooks.md` | 1,490 | **DELETE** | S | Describes the harness to itself — the exact class of content §5.4 forbids |
+Both tests, then the action. A file passing both keeps its bytes; one failing T2 keeps only the part that passes.
+
+| File | Bytes | T1 | T2 | Action | Target |
+|---|---:|---|---|---|---:|
+| `pillars.md` | 1,323 | pass | **fail** | **DELETE.** The rule is already one bullet in `CLAUDE.md`; this file is its rationale. A priority ordering only bites when a cheaper option is also worse, and in practice it is cited to justify a choice already made rather than to decide one | 0 |
+| `no-comments.md` | 1,459 | pass | partial | **COMPRESS.** The rule and the functional carve-out bind — without the carve-out Claude will not write a shebang or a `@ts-expect-error`. The rationale and the four-bullet expansion are already restated in `CLAUDE.md` and again in every agent body | ~300 |
+| `coding-style.md` | 1,402 | pass | partial | **COMPRESS to the immutability rule**, which is genuinely non-default in Python and JavaScript. Error handling, input validation and the checklist are the same textbook content `patterns.md` is deleted for, and the 800-line ceiling is a naked threshold §0.3 forbids | ~300 |
+| `security.md` | 1,605 | pass | partial | **COMPRESS to the response protocol and the bash-gate pointer.** Every checklist item is covered deeper by the `vibesec` skill, and its first line — no hardcoded secrets — is already enforced by `secret-scanner.sh` as a `PreToolUse` hook on `Edit\|Write`. Prose restating a working class-M gate is redundant | ~400 |
+| `memory-discipline.md` | 1,616 | pass | **pass** | **KEEP, lightly trimmed.** The only one of the six that survives T2 intact: it governs writes to a persistent store and is specific to this setup's auto-memory rather than generic | ~1,200 |
+| `no-direct-db-access.md` | 4,293 | pass | partial | **RESCOPE and SPLIT** — see §5.2.1 | ~600 |
+| `agents.md` | 3,971 | fail | fail | **DELETE.** Contains the false claim at `:17` that caused the incident. Its accurate content — parallelism decided by shared state, work-forcing fields — moves into the five agent bodies where it is actually needed | 0 |
+| `delegation-discipline.md` | 3,497 | fail | fail | **DELETE and replace.** Its mandate to delegate every mutation is what makes misrouting the compliant behaviour. Replaced by §5.3 | ~900 |
+| `testing.md` | 6,668 | **fail** | pass | **MOVE to skill** §4.1. Only relevant when writing tests | 0 |
+| `git/commits.md` | 2,561 | **fail** | pass | **MOVE to skill** §4.2. Only relevant when committing | 0 |
+| `git/branching.md` | 327 | **fail** | pass | **MOVE to skill** §4.2. Merged into the same skill | 0 |
+| `git/pull-requests.md` | 5,216 | **fail** | pass | **MOVE** — already the `pr` skill. Duplication | 0 |
+| `git-workflow.md` | 1,840 | fail | fail | **DELETE.** A hub that points at spokes; pure indirection cost | 0 |
+| `research-citations.md` | 1,460 | **fail** | pass | **MOVE to skill** §4.4. Only relevant to research deliverables | 0 |
+| `writing-style.md` | 3,936 | pass | **fail** | **DELETE.** The output style already binds the main thread; agents carry their own answer format | 0 |
+| `performance.md` | 5,984 | pass | **fail** | **DELETE.** Names model versions that have moved on, and its central advice — background long commands — is now harness default | 0 |
+| `patterns.md` | 1,022 | pass | **fail** | **DELETE.** Generic design-pattern content Claude already has. Textbook expert-claim content | 0 |
+| `hooks.md` | 1,490 | pass | **fail** | **DELETE.** Describes the harness to itself — the exact class of content §5.4 forbids | 0 |
+
+### 5.2.1 `no-direct-db-access.md`, rescoped
+
+The file is 4,293 bytes because its prohibition is scoped too widely and then walked back. It reads "any MCP that connects to **a project database**", which catches a local disposable test container that was never meant to be prohibited — so a 1,377-byte ratified carve-out exists to undo it, and a further 408 bytes enumerate tools that are not databases at all. Scope the prohibition precisely and both sections stop being necessary.
+
+| Section | Bytes | Disposition |
+|---|---:|---|
+| Header + opening | 323 | Keep, rescoped to *live, hosted, staging or production* |
+| Hard Prohibitions | 663 | Keep, rescoped. Drop the MCP product enumeration, which dates |
+| Migrations and Schema Changes | 553 | **MOVE** to the `platform-engineer` skill — procedure, not prohibition |
+| Live Data Inspection | 445 | **MOVE** to the `platform-engineer` skill — procedure |
+| What Stays Allowed | 408 | **DELETE** — enumerates things the rescoped prohibition never covered |
+| Test-Only Container Exception | 1,377 | **DELETE** — a local container is not a live database, so it needs no exception |
+| Why | 520 | Compress to one line |
+
+The carve-out is safe to delete because it is already delivered where it lands: `block-destructive-bash.sh` denies a hosted Supabase connection at class M, and its deny message states the local-container exception verbatim at the moment of the mistake.
+
+**What is not delegated to the gate.** That hook matches the Supabase CLI path only. It does not match `psql`, a raw `DATABASE_URL`, or a generic Postgres client. The general prohibition therefore stays as prose and is **not** replaced by a pointer to the hook.
+
+### 5.2.2 Dead pointers in `CLAUDE.md`
+
+Six of `CLAUDE.md`'s bullets end by naming the rule file that expands them — for instance "Full rule + carve-out: `~/.claude/rules/common/no-comments.md`". Every one of those targets is already in context, because the whole `rules/common` tree is always-on. The pointer costs bytes and resolves to something the reader is already holding. All six are removed; where the target is deleted, the bullet keeps the rule and loses the reference.
+
+### 5.2.3 Resulting budget
+
+| Component | Before | After |
+|---|---:|---:|
+| The six formerly-kept rules | 11,698 | ~2,800 |
+| The twelve cut or moved rules | 37,972 | 0 |
+| New delegation rule (§5.3) | — | ~900 |
+| `CLAUDE.md` | 2,070 | ~2,150 |
+| **Total bytes** | **51,740** | **~5,850** |
+| **Tokens** | **~12,935** | **~1,460** |
+
+§1.2's target is met with room to spare. §8.5's 13,000-byte ceiling now sits at roughly 2.2x the actual figure, which is the shape §0.3 requires of any threshold: a circuit breaker set where it never fires in normal operation, rather than a target to squeeze under.
 
 ### 5.3 The replacement for `delegation-discipline.md`
 
@@ -448,6 +491,8 @@ Each is a command producing a value, not a judgment. The spec is applied when al
 
 **8.9 through 8.13 are the ones that matter.** They test mechanisms. The rest test arrangement.
 
+**8.5 is a circuit breaker, not a target.** §5.2.3 lands the preamble near 5,850 bytes, so the 13,000 ceiling carries ~2.2x headroom and never fires in normal operation — the condition §0.3 places on any threshold. It is retained at 13,000 rather than tightened to the new figure, because a ceiling set just above the current value is a change-detector: it fails on the next legitimate addition rather than on a regression.
+
 **8.14 measured `0` on 2026-09-11, before any change**, across rules, agents, `CLAUDE.md` and also the skills tree, and individually across all six rules files §5.2 keeps. Fork routing exists only in this document, which lives outside `~/.claude`, so 8.14 is a tripwire against a future addition rather than a cleanup: it lands green with no remediation attached. It is a closed census over one word, not a list of phrasings — a pattern list would be the sampled allowlist §0.3 forbids, and a new phrasing would evade it.
 
 **Why `~/.claude/skills` is outside 8.14's scope**, despite measuring `0` there today. K9 permits `context: fork` on a skill carrying an actionable task, which is a skill execution mode rather than a routing choice. A bare-word census over the skills tree would forbid a field this spec's own authoring standard allows, and the only way to keep the wider scope would be a phrasing exception — the allowlist shape §0.3 forbids. Scope stops at the routing surface, where the word has exactly one meaning.
@@ -507,7 +552,15 @@ The residual is step-dependent discovery, such as debugging where each move depe
 
 The alternative was to route on fork where available. Rejected because the same configuration would then behave differently on the two surfaces the user works in daily, and would drift further whenever the server-side gate moved.
 
-### 10.5 This spec cannot verify its own effect
+### 10.5 Compressing a safety rule narrows what is always-on
+
+§5.2 compresses `security.md` and rescopes `no-direct-db-access.md`, both safety-relevant. The compression is defensible only because each has a mechanism behind it: secrets are caught by `secret-scanner.sh` on `Edit|Write`, and hosted Supabase connections by `block-destructive-bash.sh`, both class M and both already live.
+
+**Two gaps remain and are accepted rather than closed.** `vibesec` triggers on web application code, so a non-web project gets no depth from it — mitigated by wiring it into `security-reviewer` (§3.1), which is dispatched regardless of project type. And the bash gate does not match `psql` or a raw `DATABASE_URL`, which is why §5.2.1 keeps the general prohibition as prose rather than deferring to the hook.
+
+If either gap is later closed by a mechanism, the corresponding prose becomes deletable. Neither is closed by this spec.
+
+### 10.6 This spec cannot verify its own effect
 
 The incident session was still running during analysis and its totals moved (68 to 77 agents, 348 to 458 minutes of waiting). Post-change measurement requires a comparable unit of work run under the new configuration. **§8 proves the configuration is applied; it does not prove the configuration is better.** The comparison to run afterwards: agents per unit of work, wall-clock per unit, and peak main-thread context.
 

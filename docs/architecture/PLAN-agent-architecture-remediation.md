@@ -31,40 +31,15 @@ Consequences that govern every step: editing `~/.claude/...` edits this repo on 
 
 ---
 
-## Blocker B1 — the §8.5 byte budget is unachievable as §5.2 is written
+## Blocker B1 — DISSOLVED by SPEC revision 4
 
-**This blocks step 8 only. Steps 1 through 7 and step 9 proceed unaffected.**
+B1 recorded that check 8.5's 13,000-byte ceiling was unreachable: the six rules §5.2 kept totalled 11,698 bytes and `CLAUDE.md` another 2,070, putting the subtotal at 13,768 before the new delegation rule existed. Three resolutions were costed — trim in place, split to a skill, or raise the ceiling.
 
-Check 8.5 requires `cat ~/.claude/rules/common/*.md ~/.claude/CLAUDE.md | wc -c` to return under 13,000. Measured against the six files §5.2 keeps:
+**None was taken.** SPEC revision 4 re-disposed all eighteen rule files under a second test — does a rule change behaviour, or only restate a default or duplicate a mechanism that already binds — and all six formerly-kept files changed disposition. The preamble now lands near 5,850 bytes, so the ceiling carries ~2.2x headroom and the question B1 asked no longer arises.
 
-| Component | Bytes |
-|---|---:|
-| `pillars.md` | 1,323 |
-| `no-comments.md` | 1,459 |
-| `no-direct-db-access.md` | 4,293 |
-| `coding-style.md` | 1,402 |
-| `security.md` | 1,605 |
-| `memory-discipline.md` | 1,616 |
-| **Six kept rules** | **11,698** |
-| `CLAUDE.md`, today | 2,070 |
-| **Subtotal, before a single byte is added** | **13,768** |
-| Headroom to 13,000 | **−768** |
+Check 8.5 keeps its 13,000 value deliberately. It is now a circuit breaker in the §0.3 sense — set where it never fires in normal operation — rather than a target to squeeze under. Tightening it to just above the new figure would make it a change-detector that fails on the next legitimate addition.
 
-The new §5.3 delegation rule (~900 B) is not yet counted, and `CLAUDE.md` must still gain the §5.4 prohibition. The real overshoot at step 8 is roughly 1,700 bytes.
-
-The check is also already looser than the goal it enforces: §1.2 targets ~2,520 tokens ≈ 10,080 bytes, while 8.5 admits 13,000. Both are missed.
-
-**Three resolutions. The choice is the user's; do not pick one during execution.**
-
-| # | Resolution | Result | Cost |
-|---|---|---|---|
-| R1 | Trim `no-direct-db-access.md` from 4,293 to ≤3,295 B in place | ~12,600 total | Edits a safety-critical file §5.2 marked KEEP |
-| **R2** | **Split it: the prohibition (~800 B) stays always-on, the rationale and the paste-cycle workflow move into the existing `platform-engineer` skill** | **~10,500 total, ≈2,626 tokens — meets §1.2's target** | One more skill edit; changes a §5.2 row from KEEP to SPLIT |
-| R3 | Raise the threshold in 8.5 and criterion c4 to 14,500 | Passes as-is | Abandons §1.2's stated objective; a tuned number replacing a missed one |
-
-**Recommended R2.** It is the move §5.2 already makes five times — always-on prohibition stays, task-specific procedure becomes a skill — and `platform-engineer` is the skill the file's own §5.2 row names. It is the only option that meets §1.2 rather than redefining it.
-
----
+**Step 8 is unblocked. Proceed without a user decision.**
 
 ## Blocker B2 — criterion c4's check is broken independently
 
@@ -215,6 +190,16 @@ Each skill is `~/.claude/skills/<name>/SKILL.md` — exact filename, inside a na
 
 These are moves, not rewrites. Carry the source content across intact, minus any persona framing and minus anything that is a Three Pillars restatement. Do not author new procedure. Do not add comments (global rule).
 
+### 4b. Absorb relocated procedure into two existing skills
+
+SPEC revision 4 moves content out of two files that step 8 then compresses. Both moves land here, because §9's ordering principle is that procedure exists before its source is removed.
+
+| Into | From | Content |
+|---|---|---|
+| `platform-engineer` (exists) | `no-direct-db-access.md` §5.2.1 | "Migrations and Schema Changes" (553 B) and "Live Data Inspection" (445 B) — the paste-cycle workflow, which is procedure rather than prohibition |
+
+Nothing moves into `vibesec`. `security.md`'s checklist is deleted rather than relocated, because `vibesec` already covers every item in more depth — relocating it would create the duplication §5.2 is removing.
+
 **Do not create:** an implementation skill, a documentation skill, a release skill, a migration skill, or a verification skill. §4 rejects each by name — the first three are persona-only, and the last two already exist as `platform-engineer` and `verification-discipline`.
 
 **Verify.** All four `SKILL.md` files exist; `grep -c 'disable-model-invocation: *true'` returns `0` on each; no file exceeds 500 lines; `grep -c 'allowed-tools'` returns `0` on each.
@@ -257,11 +242,13 @@ The description must not name `fork` — check 8.14 greps `~/.claude/agents` for
 | Agent | `model` | `maxTurns` | `skills:` | `tools` |
 |---|---|---:|---|---|
 | `code-reviewer` | explicit | 300 | `reviewing-code` | minimum viable, never omitted |
-| `security-reviewer` | explicit | 300 | — | minimum viable |
+| `security-reviewer` | explicit | 300 | `vibesec` | minimum viable |
 | `conformance-auditor` | explicit | 300 | `conformance-auditor` | minimum viable |
 | `researcher` | explicit | 300 | `research-citations` | minimum viable |
 
 `tools` is always an explicit allowlist (S5) — omitting it inherits every tool available to subagents. `maxTurns` is always set (S6); the values are the measured circuit breakers from §3.5, not preferences.
+
+**`security-reviewer` must preload `vibesec`.** Step 8 compresses `security.md` on the grounds that `vibesec` covers its checklist in more depth. Without this wiring the agent knows less about security after the change than before, and the compression becomes a net loss. `vibesec` does not set `disable-model-invocation`, so it is preloadable (K8, verified).
 
 Each `description` states its precondition and an explicit "do NOT use when" clause (S1). Keep all five descriptions mutually distinct (K10) and short — detail belongs in the body, which loads only on dispatch.
 
@@ -342,23 +329,52 @@ Nine files. `platform-engineer.md` the **agent** is deleted; `~/.claude/skills/p
 
 ## Step 8 — rule dispositions and the delegation replacement (§5.2, §5.3, §5.4)
 
-**Goal.** The preamble shrinks last, once nothing depends on the moved content.
+**Goal.** The preamble shrinks last, once nothing depends on the moved content. Target: ~5,850 bytes total, against a 13,000 ceiling.
 
-**→ B1 BLOCKS THIS STEP. Do not begin until the user has chosen R1, R2, or R3.**
-
-### 8a. Delete seven files
+### 8a. Delete seven files outright
 
 `agents.md`, `delegation-discipline.md`, `git-workflow.md`, `writing-style.md`, `performance.md`, `patterns.md`, `hooks.md`.
 
 `agents.md` carries the false claim at `:17` that caused the incident. Its accurate content — parallelism decided by shared state, and work-forcing fields — moves into the five agent bodies written at step 5, where it is actually needed.
 
-### 8b. Confirm five files are already relocated
+### 8b. Delete five already-relocated files
 
-`testing.md`, `git/commits.md`, `git/branching.md`, `research-citations.md` moved to skills at step 4; `git/pull-requests.md` is already the `pr` skill. Delete the originals now, not before — step 4 is their new home and it must exist first.
+`testing.md`, `git/commits.md`, `git/branching.md`, `research-citations.md` moved to skills at step 4; `git/pull-requests.md` is already the `pr` skill. Delete the originals now, not before — step 4 is their new home and it must exist first. `rules/common/git/` is then empty; remove the directory rather than leaving it with a placeholder.
 
-### 8c. Write the §5.3 replacement
+### 8c. Delete `pillars.md`
 
-New file, replacing `delegation-discipline.md`. Content exactly:
+T2 failure. The rule survives as the `CLAUDE.md` bullet that already states it; only the rationale is lost. Drop the trailing pointer from that bullet per 8f.
+
+### 8d. Compress four files
+
+Each keeps only the part that passes T2. Targets are budget guidance, not thresholds to hit exactly.
+
+| File | 4,293 → | What survives | What goes |
+|---|---|---|---|
+| `no-comments.md` | ~300 | The rule, one sentence. The functional carve-out list: shebangs, tooling pragmas, codegen and SPDX markers | The "Why" section, the four-bullet expansion, the editing-existing-comments paragraph. All restated in `CLAUDE.md` and in every agent body |
+| `coding-style.md` | ~300 | The immutability rule — genuinely non-default in Python and JavaScript | Error handling, input validation, the quality checklist (textbook, same species as `patterns.md`), and the 200/400/800-line ceilings, which are naked thresholds §0.3 forbids |
+| `security.md` | ~400 | The security response protocol, and the `docs/security/bash-gate-threat-model.md` pointer with its precedence carve-out | The pre-commit checklist — every item is covered deeper by `vibesec`, and its first line is already enforced by `secret-scanner.sh` on `Edit\|Write`. The secret-management section, for the same reason |
+| `memory-discipline.md` | ~1,200 | Storage filter, recall discipline, curation. The only one of the six passing T2 intact | Light trim only. Do not restructure |
+
+### 8e. Rescope and split `no-direct-db-access.md` (§5.2.1)
+
+Target ~600 bytes, down from 4,293.
+
+| Section | B | Action |
+|---|---:|---|
+| Header + opening | 323 | Keep, **rescoped** from "a project database" to *live, hosted, staging or production* |
+| Hard Prohibitions | 663 | Keep, rescoped. Drop the MCP product enumeration, which dates |
+| Migrations and Schema Changes | 553 | Already moved to `platform-engineer` at step 4 — delete here |
+| Live Data Inspection | 445 | Already moved to `platform-engineer` at step 4 — delete here |
+| What Stays Allowed | 408 | **Delete.** Enumerates things the rescoped prohibition never covered |
+| Test-Only Container Exception | 1,377 | **Delete.** A local container is not a live database, so it needs no exception |
+| Why | 520 | Compress to one line |
+
+**Do not replace the prohibition with a pointer to the bash gate.** `block-destructive-bash.sh` matches the Supabase CLI path only; it does not match `psql`, a raw `DATABASE_URL`, or a generic Postgres client. The general prohibition stays as prose precisely because the mechanism is narrower than the rule.
+
+### 8f. Write the §5.3 replacement
+
+New file replacing `delegation-discipline.md`. Content exactly:
 
 ```markdown
 # Delegation
@@ -377,7 +393,11 @@ Everything a dispatched agent needs must be addressable without this conversatio
 
 Nothing more. No worked examples, no rationale — both belong in the SPEC, which is not always-on.
 
-### 8d. Add the §5.4 prohibition to `CLAUDE.md`
+### 8g. Rewrite `CLAUDE.md`
+
+Three changes.
+
+**Add the §5.4 prohibition:**
 
 ```markdown
 No file in this configuration describes what Claude Code can or cannot do. Not its turn lifetime, not whether subagents survive, not what is delivered when, not what a tool returns. The harness describes itself at runtime, accurately, for free, and it updates without telling this repository.
@@ -385,25 +405,25 @@ No file in this configuration describes what Claude Code can or cannot do. Not i
 Configuration states preferences, constraints, and facts about this project that the harness cannot know. Nothing else.
 ```
 
-### 8e. Rewrite `CLAUDE.md`'s bullet list
+**Strip all six dead pointers (§5.2.2).** Every bullet ending in a `~/.claude/rules/...` path names a file that is already in context — the pointer costs bytes and resolves to something the reader holds. Where the target is deleted, the bullet keeps its rule and loses the reference.
 
-Three bullets point at files deleted in 8a and 8b and must go or be rewritten:
+**Replace the delegation bullet.** The bullet beginning "The main thread orchestrates and does not perform: delegate every code mutation…" is the single sentence this entire remediation exists to reverse. Replace with one line pointing at the new delegation rule's default: main does the work, delegation is the exception.
 
-| Current bullet | Action |
+### Verify
+
+| Check | Expected |
 |---|---|
-| "The main thread orchestrates and does not perform: delegate every code mutation…" ending `delegation-discipline.md` | **Replace** — it is the inverted default, and it is the single sentence this whole remediation exists to reverse |
-| The `pull-requests.md` pointer | Repoint to the `pr` skill |
-| The `cd` prefix bullet | Keep — it is a real harness-interaction constraint, not a capability claim |
+| `cat ~/.claude/rules/common/*.md ~/.claude/CLAUDE.md \| wc -c` | under 13,000; expect ~5,850 |
+| `ls ~/.claude/rules/common/*.md \| wc -l` | `6` — no-comments, coding-style, security, memory-discipline, no-direct-db-access, and the new delegation file. `pillars.md` is gone |
+| `test -d ~/.claude/rules/common/git` | false |
+| capability-claim grep over rules, agents, `CLAUDE.md` | `0` |
+| `grep -c 'rules/common' ~/.claude/CLAUDE.md` | `0` |
 
-**Verify.** `cat ~/.claude/rules/common/*.md ~/.claude/CLAUDE.md | wc -c` returns under 13,000 (closes c4 after B2's amendment). `grep -rniE 'harness property|is not supported|you cannot wait|children die|does not survive' ~/.claude/rules ~/.claude/agents ~/.claude/CLAUDE.md | wc -l` returns `0`.
+**Halt if.** The byte count exceeds 13,000 — at ~2.2x headroom that means a compression was not performed, not that the ceiling is wrong. Re-measure per file against the §5.2 targets before touching the ceiling.
 
-**Halt if.** The byte count still exceeds the threshold after the chosen resolution — that means the resolution was mis-sized, and the answer is to re-measure, never to delete a seventh file on the spot.
-
-**Commit.** `refactor(config): cut the always-on preamble and invert the delegation default`
+**Commit.** `refactor(config): re-dispose the always-on preamble under the behaviour test`
 
 **→ RESTART REQUIRED before step 10.**
-
----
 
 ## Step 9 — remove the transitional deny rules (§6.5)
 
@@ -429,7 +449,7 @@ Run all fourteen checks. Record each result verbatim against its thread criterio
 | 8.2 | `grep -rl "does not survive" … \| wc -l` | `0` | — |
 | 8.3 | `grep -L "^maxTurns:" ~/.claude/agents/*.md \| wc -l` | `0` | c3 |
 | 8.4 | capability-claim grep | `0` | c2 |
-| 8.5 | always-on byte count | `< 13000` | c4 |
+| 8.5 | always-on byte count | `< 13000`, expect ~5,850 | c4 |
 | 8.6 | `/skill-doctor` report | captured before and after | c12 |
 | 8.7 | no preloaded skill sets `disable-model-invocation: true` | `0` | c5 |
 | 8.8 | `grep -c "1\. Entry invariant" ~/.claude/agents/*.md` | `1` per file | c9 |
@@ -458,5 +478,5 @@ Run all fourteen checks. Record each result verbatim against its thread criterio
 
 - **No PR.** Opening one is a separate act, through `node .claude/lib/git/pr.mjs pr-create` only. Never ad-hoc `gh pr create`.
 - **No re-measurement of the incident.** Those figures are in the SPEC. Re-measuring is a second error source, not confirmation.
-- **No proof that the configuration is better.** §8 proves it is *applied*. §10.5 is explicit that improvement needs a comparable unit of work run afterwards, measured on agents per unit, wall-clock per unit, and peak main-thread context.
+- **No proof that the configuration is better.** §8 proves it is *applied*. §10.6 is explicit that improvement needs a comparable unit of work run afterwards, measured on agents per unit, wall-clock per unit, and peak main-thread context.
 - **No change outside `~/.claude` and this checkout.**
