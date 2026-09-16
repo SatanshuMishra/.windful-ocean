@@ -1,6 +1,7 @@
 ---
 name: writing-tests
-description: Use when writing, adding, or hardening tests - adding coverage for untested behaviour, proving a bug fix red before green, building out a suite, or deciding whether a test should exist at all. Covers the admission gate, the entry point a test reaches its observable through, seam coverage where two surfaces must agree, test size budgets, scoped TDD, test placement, the batched red proof, inertness mutation, and the quality bar.
+description: Use whenever a code change needs tests - implementing a feature, fixing a bug, adding coverage, hardening or speeding up a suite, or judging whether a test should exist at all. Invoke before writing any test and before concluding a change needs none, including when the request never says the word test.
+when_to_use: Invoke on requests phrased like add validation, fix this bug, implement this feature, make it handle X, add a test, add coverage, is this tested, should I test this, my tests are slow, CI takes too long, clean up the suite. Also invoke before creating, editing or deleting any file under test/, tests/ or __tests__/, or named *.test.* or *.spec.*, whichever planning or debugging skill led the task - this one sets the standard those tests must meet and composes with them rather than replacing them.
 ---
 
 Tests exist to create trust that the code works. The health metric of a suite is trust, never test count and never coverage percentage.
@@ -26,9 +27,9 @@ Every fix ships an acceptance test that is red on the parent commit and green on
 
 ## Placement and consolidation
 
-Place each test at the lowest layer that reaches the observable through the same entry point the caller uses. Lowest layer that can EXPRESS the behaviour is the wrong rule: a renderer can be exercised as a function while the tool that calls it goes untouched, and a suite built that way passes while the product is broken.
+Place each test at the lowest layer that reaches the observable through the same entry point the caller uses. Not the lowest layer that can EXPRESS the behaviour - that licenses exercising a function while the path to it goes untested, and such a suite passes while the product is broken.
 
-The entry point carries part of the claim. Where a protocol returns a failure as a value, calling the handler directly throws instead, so a handler-level test asserts on an exception the caller never sees. A process, transport or serialisation boundary the caller crosses is a boundary the test crosses. Reaching the observable more cheaply than the caller does is legitimate only when nothing between the cheap door and the real one is under test, and that has to be true rather than assumed.
+Cross every process, transport and serialisation boundary the caller crosses. Where a protocol returns a failure as a value, calling the handler directly throws instead, so a handler-level test asserts on an exception the caller never sees. Take a cheaper door only when nothing between it and the real one is under test, and establish that rather than assuming it.
 
 When a new lower-level test covers what a higher-level test checked, delete the redundant higher-level test in the same change. One behaviour, one home.
 
@@ -38,17 +39,17 @@ Every test addition includes a local dedup pass: superseded or duplicated tests 
 
 A seam is where two surfaces owned by different mechanisms must agree: a prompt or instruction file and the tool it names, a lifecycle hook and the state a tool wrote, a manifest and the loader that reads it, a client and the server it was generated against. Every seam a change touches gets at least one test that crosses it in one flow.
 
-Surfaces tested only in isolation pass individually and contradict each other in production. Each side's test encodes its own half as correct and nothing compares them, so both stay green while the path a user actually takes is broken. Adding tests within either surface never closes this. The crossing test is the only thing that does.
+Each side's test encodes its own half as correct and nothing compares them, so both stay green while the path a user takes is broken. Adding tests within either surface never closes this; only the crossing test does.
 
-Where the surfaces are co-owned, the crossing test belongs on the pre-merge gate. Where one side is an external provider standing behind a double, that is a contract test instead: it runs on the provider's change rhythm and its job is to catch the double drifting from the real thing. Do not conflate them - the first is about agreement, the second about drift.
+Co-owned surfaces: the crossing test goes on the pre-merge gate. One side an external provider behind a double: that is a contract test instead, run on the provider's rhythm to catch the double drifting. Agreement and drift are different problems - do not conflate them.
 
 ## Size contract
 
-Declare each test's size by the resources it may touch and hold it to that size's time budget. Small touches no network, no file system, no database, no threads and no sleeps. Medium may reach localhost and the disk. Large may reach anything. Size is a checkable fact about a test, not an opinion about what to call it, which is the whole reason to use it in place of the usual vocabulary.
+Declare each test's size by the resources it may touch and hold it to that size's time budget. Small touches no network, no file system, no database, no threads and no sleeps. Medium may reach localhost and the disk. Large may reach anything. Size is a checkable fact, not an opinion about what to call the test.
 
-A test that exceeds its own size's budget is a defect in the test, not a fact about the code. A pure computation running for minutes is a Small test breaking its contract, and the remedy is fixed inputs pinned at the boundaries rather than a search that rediscovers the same boundaries on every run.
+A test over its own size's budget is a defect in the test, not a fact about the code. A pure computation running for minutes is a Small test breaking its contract; pin fixed inputs at the boundaries rather than searching for the same boundaries on every run.
 
-Generated and exhaustive input sweeps go on a schedule, never on the gate. Keep a small deterministic sample pre-merge with the seed fixed, so a gate failure reproduces, and put the unbounded run in a separate job. A sweep on the gate is paid by every job that runs the suite, which is more often than it looks.
+Generated and exhaustive sweeps go on a schedule, never on the gate. Pre-merge keeps a small sample with the seed fixed so a failure reproduces; the unbounded run goes in a separate job. A sweep on the gate is paid by every job that runs the suite.
 
 ## Proving several tests red in one cycle
 
