@@ -1,6 +1,7 @@
 ---
 name: writing-tests
-description: Use when writing, adding, or hardening tests - adding coverage for untested behaviour, proving a bug fix red before green, building out a suite, or deciding whether a test should exist at all. Covers the admission gate, scoped TDD, test placement, the batched red proof, inertness mutation, and the quality bar.
+description: Use whenever a code change needs tests - implementing a feature, fixing a bug, adding coverage, hardening or speeding up a suite, or judging whether a test should exist at all. Invoke before writing any test and before concluding a change needs none, including when the request never says the word test.
+when_to_use: Invoke on requests phrased like add validation, fix this bug, implement this feature, make it handle X, add a test, add coverage, is this tested, should I test this, my tests are slow, CI takes too long, clean up the suite. Also invoke before creating, editing or deleting any file under test/, tests/ or __tests__/, or named *.test.* or *.spec.*, whichever planning or debugging skill led the task - this one sets the standard those tests must meet and composes with them rather than replacing them.
 ---
 
 Tests exist to create trust that the code works. The health metric of a suite is trust, never test count and never coverage percentage.
@@ -12,6 +13,7 @@ A new test is created ONLY when ALL of these hold:
 1. The change introduces or changes a behaviour, fixes a bug, or defines a public contract.
 2. A search of existing tests finds no coverage of that behaviour. If a similar test exists, update or replace it; never duplicate.
 3. The test asserts observable behaviour through a public surface - an API response, rendered UI, returned state - not an implementation detail.
+4. You can name the change to shipped code that turns this test red. A test whose expected value is derived from the implementation rather than from the requirement has no such change, and a correct and an incorrect program are equally likely to pass it.
 
 Gate fails, no test, unless the user explicitly requests one. Report which condition failed rather than writing the test anyway.
 
@@ -25,9 +27,29 @@ Every fix ships an acceptance test that is red on the parent commit and green on
 
 ## Placement and consolidation
 
-Place each test at the lowest layer that can express the behaviour: unit before integration before end-to-end. When a new lower-level test covers what a higher-level test checked, delete the redundant higher-level test in the same change. One behaviour, one home.
+Place each test at the lowest layer that reaches the observable through the same entry point the caller uses. Not the lowest layer that can EXPRESS the behaviour - that licenses exercising a function while the path to it goes untested, and such a suite passes while the product is broken.
+
+Cross every process, transport and serialisation boundary the caller crosses. Where a protocol returns a failure as a value, calling the handler directly throws instead, so a handler-level test asserts on an exception the caller never sees. Take a cheaper door only when nothing between it and the real one is under test, and establish that rather than assuming it.
+
+When a new lower-level test covers what a higher-level test checked, delete the redundant higher-level test in the same change. One behaviour, one home.
 
 Every test addition includes a local dedup pass: superseded or duplicated tests in the affected area are updated or deleted in the same change.
+
+## Seams
+
+A seam is where two surfaces owned by different mechanisms must agree: a prompt or instruction file and the tool it names, a lifecycle hook and the state a tool wrote, a manifest and the loader that reads it, a client and the server it was generated against. Every seam a change touches gets at least one test that crosses it in one flow.
+
+Each side's test encodes its own half as correct and nothing compares them, so both stay green while the path a user takes is broken. Adding tests within either surface never closes this; only the crossing test does.
+
+Co-owned surfaces: the crossing test goes on the pre-merge gate. One side an external provider behind a double: that is a contract test instead, run on the provider's rhythm to catch the double drifting. Agreement and drift are different problems - do not conflate them.
+
+## Size contract
+
+Declare each test's size by the resources it may touch and hold it to that size's time budget. Small touches no network, no file system, no database, no threads and no sleeps. Medium may reach localhost and the disk. Large may reach anything. Size is a checkable fact, not an opinion about what to call the test.
+
+A test over its own size's budget is a defect in the test, not a fact about the code. A pure computation running for minutes is a Small test breaking its contract; pin fixed inputs at the boundaries rather than searching for the same boundaries on every run.
+
+Generated and exhaustive sweeps go on a schedule, never on the gate. Pre-merge keeps a small sample with the seed fixed so a failure reproduces; the unbounded run goes in a separate job. A sweep on the gate is paid by every job that runs the suite.
 
 ## Proving several tests red in one cycle
 
@@ -52,6 +74,8 @@ Never pipe a verification command into a pager or a filter. The pipeline reports
 - Maximum 1-2 test doubles per test; never mock types you do not own unless a contract or integration test covers that boundary elsewhere.
 - No change-detector tests, which fail on a refactor that preserved behaviour.
 - Any gate that classifies tokens, identifiers or paths is a closed census that halts on the unclassifiable. A pinned count or a sampled allowlist is forbidden - both are change-detectors wearing a census costume.
+- A census over the repository's own authored text - source files, documents, manifests, workflow configuration - is lint. It states a property of the tree rather than of the running product, so it cannot redden when the product breaks and does redden whenever a file is reworded. It belongs in a lint stage, off the test runner. The closed-census discipline above governs how to write one; it never makes one a test.
+- A test whose subject is the test harness - a classifier, parser or fixture builder defined inside the test file - protects no shipped behaviour and no change to shipped code can redden it. If the helper is worth proving, it is production code and belongs in the tree the product ships.
 - No assertion-weak tests: snapshot-everything, assert-not-null-only, expected values copied from actual output.
 - Deterministic: no sleeps, no real network, no shared mutable state between tests.
 - Authorization changes require deny-case assertions: roles that must NOT have access are asserted as denied, not just the allowed role as allowed.
