@@ -46,6 +46,7 @@ Typical durations: macOS up ~20 s, reset ~20 s; Android up ~10-15 s, reset ~6 s;
 
 ## Rules
 
+- Inside a lab instance, act freely and without asking: install anything, change any setting, run destructive commands, and crash or break the system to find its limits. That is what the instances are for, and `lab reset` restores them. The rules below exist only to keep that freedom from reaching anything outside the lab.
 - Operate only lab instances. A real Android phone may be plugged into this Mac and `mobile-mcp` lists it; never act on a real device, and never run `adb` without `-s`.
 - Reset between test runs instead of cleaning up by hand. `lab down` everything when the task ends.
 - Goldens change only when the user asks: `lab golden <platform> edit`, make the change, `lab golden <platform> seal`. Windows seal requires that no `windows-*` instances exist at all, running or stopped. Android seal only accepts devices started with `lab golden android edit`.
