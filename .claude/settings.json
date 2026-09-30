@@ -74,9 +74,22 @@
       "mcp__visualize__*",
       "Bash(node --test:*)",
       "Bash",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(lab:*)",
+      "Bash(tart:*)",
+      "Bash(vmrun:*)",
+      "Bash(xcrun simctl:*)",
+      "Bash(adb:*)",
+      "Bash(emulator:*)",
+      "Bash(mobilecli:*)",
+      "Bash(vncdo:*)",
+      "Read(~/VMLab/shots/**)",
+      "Read(~/VMLab/logs/**)",
+      "mcp__mobile-mcp__*"
     ],
     "deny": [
+      "Read(~/VMLab/keys/**)",
+      "Read(~/VMLab/config/**)",
       "Bash(supabase db push:*)",
       "Bash(supabase db pull:*)",
       "Bash(supabase migration up:*)",
