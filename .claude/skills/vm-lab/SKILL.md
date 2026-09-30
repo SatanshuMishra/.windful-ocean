@@ -86,6 +86,6 @@ Permission prompts are part of the test. `lab install` on Android leaves runtime
 ## When something fails
 
 - `lab doctor` checks every tool and golden image and prints the fix command.
-- A macOS instance that resolves names but cannot load HTTPS: check `lab exec <name> -- ifconfig en0` shows `mtu 1280`. `lab` lowers it at every boot because a VPN on this Mac drops the VM's full-size packets; `lab reset` reapplies it.
+- A macOS instance that resolves names but cannot load HTTPS: check `lab exec <name> -- ifconfig en0` shows `mtu 1280`. `lab` sets it in every instance it starts, and it survives reboots, because a VPN on this Mac drops the VM's full-size packets. If it reads 1500, `lab reset` restores it.
 - Logs: `~/VMLab/logs/<name>.log` (macOS, Android), `~/VMLab/logs/<name>-vmrun.log` (Windows). Windows golden build progress: `~/VMLab/logs/windows-golden-progress.png`.
 - Rebuild a golden from scratch: `lab golden macos prepare --rebuild`, `lab golden windows prepare --rebuild [--iso PATH]` (finish an interrupted build with `--resume`), `lab golden android prepare [--device android-phone]` (always re-creates the clean snapshot). `lab golden ipad prepare [--model NAME]` only creates a missing golden; to rebuild one, delete it with `xcrun simctl delete ipad-golden` first.
