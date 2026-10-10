@@ -146,7 +146,9 @@ const FORMAT_GATED_CREATE_TOOLS = Object.freeze([
   'mcp__plugin_github_github__create_pull_request',
 ]);
 
-const FORMAT_HOOK_MATCHER = FORMAT_GATED_CREATE_TOOLS.join('|');
+const ROUND_ONE_FORMAT_HOOK_MATCHER = FORMAT_GATED_CREATE_TOOLS.join('|');
+
+const FORMAT_HOOK_MATCHER = '^mcp__.+__(create_pull_request|merge_pull_request)$';
 
 const FORMAT_HOOK_HOOKS = Object.freeze([
   Object.freeze({ type: 'command', command: 'node "$HOME/.claude/hooks/pr-format-gate.mjs" || exit 2', timeout: 10 }),
@@ -175,4 +177,30 @@ test('the tracked settings deny every merge surface and raw create path, and gat
   const gates = preToolUse.filter((entry) => entry !== null && typeof entry === 'object' && entry.matcher === FORMAT_HOOK_MATCHER);
   assert.equal(gates.length, 1, `${SETTINGS_LABEL} must register exactly one PreToolUse entry with the matcher ${FORMAT_HOOK_MATCHER}; found ${gates.length}`);
   assert.deepEqual(gates[0].hooks, FORMAT_HOOK_HOOKS, `${SETTINGS_LABEL} registers the format hook with a hooks array other than the one .claude/settings.json must carry`);
+});
+
+test('round 2: settings gate create and merge tools under any server name', () => {
+  const settings = readTrackedSettings(SETTINGS_PATH);
+  const preToolUse = settings?.hooks?.PreToolUse;
+  assert.ok(Array.isArray(preToolUse), `${SETTINGS_LABEL} carries no hooks.PreToolUse array, so nothing gates the MCP create and merge tools`);
+  const entries = preToolUse.filter((entry) => entry !== null && typeof entry === 'object');
+  const gates = entries.filter((entry) => entry.matcher === FORMAT_HOOK_MATCHER);
+  assert.equal(gates.length, 1, `${SETTINGS_LABEL} must register exactly one PreToolUse entry with the matcher ${FORMAT_HOOK_MATCHER}; found ${gates.length}`);
+  assert.deepEqual(gates[0].hooks, FORMAT_HOOK_HOOKS, `${SETTINGS_LABEL} registers the format hook under ${FORMAT_HOOK_MATCHER} with a hooks array other than the one .claude/settings.json must carry`);
+  const roundOne = entries.filter((entry) => entry.matcher === ROUND_ONE_FORMAT_HOOK_MATCHER);
+  assert.equal(roundOne.length, 0, `${SETTINGS_LABEL} still registers a PreToolUse entry with the round-1 matcher ${ROUND_ONE_FORMAT_HOOK_MATCHER}`);
+  const formatHooks = entries.filter((entry) => Array.isArray(entry.hooks) && entry.hooks.some((hook) => typeof hook?.command === 'string' && hook.command.includes('pr-format-gate.mjs')));
+  assert.equal(formatHooks.length, 1, `${SETTINGS_LABEL} registers the format hook in ${formatHooks.length} PreToolUse entries; exactly one must carry it`);
+  const deny = settings?.permissions?.deny;
+  assert.ok(Array.isArray(deny), `${SETTINGS_LABEL} carries no permissions.deny array`);
+  for (const entry of REQUIRED_DENY_ENTRIES) {
+    assert.ok(deny.includes(entry), `${SETTINGS_LABEL} permissions.deny dropped ${entry}; the any-server gate adds to the settings denies and replaces none of them`);
+  }
+  const matcher = new RegExp(FORMAT_HOOK_MATCHER);
+  for (const tool of ['mcp__github__create_pull_request', 'mcp__plugin_github_github__create_pull_request', 'mcp__acme_github__create_pull_request', 'mcp__github__merge_pull_request', 'mcp__acme_github__merge_pull_request']) {
+    assert.ok(matcher.test(tool), `the matcher ${FORMAT_HOOK_MATCHER} does not match ${tool}`);
+  }
+  for (const tool of ['mcp__github__create_pull_request_with_copilot', 'mcp__github__list_pull_requests', 'create_pull_request']) {
+    assert.ok(!matcher.test(tool), `the matcher ${FORMAT_HOOK_MATCHER} matches ${tool}`);
+  }
 });
