@@ -38,7 +38,7 @@ wearing a census costume. The listing is the census.
 | a gate, census, lint or check | `common/testing.md` | a pinned count or a sampled allowlist where a closed census is required |
 | commits on the branch | `common/git/commits.md` | a refactor mixed with a behavior change in one commit; a message outside Conventional Commits |
 | the branch itself | `common/git/branching.md` | a commit made directly on the default branch |
-| a pull request | `common/git/pull-requests.md` | a PR opened by any path other than the centralized tool; a title outside the grammar; a Verified line for a check that was not run |
+| a pull request | the `pr` skill, `.claude/skills/pr/SKILL.md` (`pr-render`, then `create_pull_request`) | a PR opened by any path other than the GitHub MCP create tool with pr-render's title and body; a title outside the grammar; a Verified line for a check that was not run |
 | credentials, auth, input handling, external calls | `common/security.md` | a hardcoded secret, token or key; an error message leaking sensitive data |
 | SQL, migrations, cloud or database config | `common/no-direct-db-access.md` | any code path or command that connects to a live project database or cloud admin surface |
 | a subagent dispatch, or an agent definition | `common/delegation-discipline.md` | the main thread re-running a subagent's checks; a new narrow agent that fails the anti-sprawl test |

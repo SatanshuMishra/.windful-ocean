@@ -12,7 +12,7 @@ const ROOTS = Object.freeze([
 const EXTRA_FILES = Object.freeze([
   '.claude/hooks/block-destructive-bash.sh',
   '.claude/skills/pr/SKILL.md',
-  '.claude/rules/common/git/pull-requests.md',
+  '.claude/hooks/pr-format-gate.mjs',
 ]);
 
 const BANNED = Object.freeze([
