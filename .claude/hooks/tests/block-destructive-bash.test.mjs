@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { existsSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { FLAG_SPEC } from '../../lib/git/pr.mjs';
+import { FLAG_SPEC, parsePrToolArgv } from '../../lib/git/pr.mjs';
 
 const hookPath = fileURLToPath(new URL('../block-destructive-bash.sh', import.meta.url));
 
@@ -267,6 +267,40 @@ test('the creation deny reason names every required pr-render flag and the MCP c
   assert.match(reason, /pull\/new URL printed by git push is not an approved path/);
 });
 
+const PR_TOOL_PATH = '/Users/satanshumishra/.claude/lib/git/pr.mjs';
+
+const prRenderAllowArgvs = Object.freeze([
+  Object.freeze([
+    'pr-render',
+    '--title', 'fix(gate): deny raw pull-request creation',
+    '--why', 'Raw creation bypassed the format.',
+    '--what', 'The gate denies raw creation.',
+    '--not-verified', 'CI - not run.',
+  ]),
+  Object.freeze([
+    'pr-render',
+    '--title', 'fix(gate): deny raw pull-request creation',
+    '--why', 'The raw creation path is blocked at the gate.',
+    '--what', 'The gate denies raw creation.',
+    '--not-verified', 'CI - not run.',
+  ]),
+]);
+
+const prRenderWrapperArgv = Object.freeze([
+  'pr-render',
+  '--title', 'fix(gate): deny chained creation',
+  '--why', 'Chained creation bypassed the format.',
+  '--what', 'The gate denies chained creation.',
+  '--not-verified', 'CI - not run.',
+]);
+
+function prRenderCommand(argv) {
+  const words = argv.map((token) => (token === 'pr-render' || token.startsWith('--') ? token : `"${token}"`));
+  return ['node', PR_TOOL_PATH, ...words].join(' ');
+}
+
+const prRenderWrapperCommand = `${prRenderCommand(prRenderWrapperArgv)} && gh pr create --fill`;
+
 const allowCommands = [
   'gh pr view 12',
   'gh pr edit 12 --add-label x',
@@ -281,8 +315,8 @@ const allowCommands = [
   'gh api graphql -f query=\'mutation { updatePullRequestBranch(input: {pullRequestId: "x"}) { clientMutationId } }\'',
   "echo 'high pr create'",
   'gh pr edit 12 -B main',
-  'node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-render --title "fix(gate): deny raw pull-request creation" --origin machine --provenance "agent=gate model=opus" --why "raw creation bypassed the format" --what "gate denies raw creation" --not-verified "CI - not run"',
-  'node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-render --title "fix(gate): deny raw pull-request creation" --origin human --why "the gh pr create path is blocked at the gate" --what "gate denies raw creation" --not-verified "CI - not run"',
+  prRenderCommand(prRenderAllowArgvs[0]),
+  prRenderCommand(prRenderAllowArgvs[1]),
   'git -C /repo status',
   'git -C /repo push --force-with-lease origin main',
   'git -C /repo branch -d feature',
@@ -299,9 +333,26 @@ for (const command of allowCommands) {
 }
 
 test('the wrapper loses its own exemption the moment anything is chained onto it', () => {
-  const r = runHook('node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-render --title "fix(gate): x" --origin human --why "w" --what "c" --not-verified "n" && gh pr create --fill');
+  const r = runHook(prRenderWrapperCommand);
   assert.equal(decisionOf(r), 'deny');
   assert.equal(reasonOf(r), CREATION_DENY_REASON);
+});
+
+test('round 3: every pr-render example in the gate\'s tests is a command pr-render accepts', () => {
+  for (const argv of [...prRenderAllowArgvs, prRenderWrapperArgv]) {
+    const parsed = parsePrToolArgv([...argv]);
+    assert.equal(parsed.ok, true, parsed.error ?? '');
+    assert.equal(parsed.verb, 'pr-render');
+    assert.ok(!argv.includes('--origin') && !argv.includes('--provenance'));
+    for (const token of argv) {
+      assert.doesNotMatch(token, /["$\\`]/, `value ${token} holds a character the command string cannot carry`);
+    }
+  }
+  for (const argv of prRenderAllowArgvs) {
+    assert.ok(allowCommands.includes(prRenderCommand(argv)));
+  }
+  assert.ok(prRenderWrapperCommand.startsWith(`${prRenderCommand(prRenderWrapperArgv)} && `));
+  assert.ok(prRenderWrapperCommand.endsWith(' && gh pr create --fill'));
 });
 
 test('the superseded superpowers-parallel path carries no exemption, so exactly one path is canonical', () => {
