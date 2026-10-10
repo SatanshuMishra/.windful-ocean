@@ -97,8 +97,6 @@
       "Bash(supabase link:*)",
       "Bash(gh pr merge:*)",
       "Bash(gh pr create:*)",
-      "mcp__github__create_pull_request",
-      "mcp__plugin_github_github__create_pull_request",
       "mcp__github__create_pull_request_with_copilot",
       "mcp__plugin_github_github__create_pull_request_with_copilot",
       "mcp__github__merge_pull_request",
@@ -262,6 +260,16 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/deny-task-output-read.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "^mcp__.+__(create_pull_request|merge_pull_request)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/pr-format-gate.mjs\" || exit 2",
+            "timeout": 10
           }
         ]
       }

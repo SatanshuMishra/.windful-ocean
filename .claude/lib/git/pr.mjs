@@ -5,19 +5,17 @@ import { fileURLToPath } from 'node:url';
 import { assertSpawnAllowed } from './exec-policy.mjs';
 import { classifyGhMerge, resolveRealGh, DEFAULT_FALLBACKS, MERGE_DENY_EXIT, REAL_GH_MISSING_EXIT } from './gh-merge-shim.mjs';
 import { validateRefToken } from './ref-tokens.mjs';
-import { validateRepoIdentity, parsePrRef } from './merge-watch.mjs';
+import { validateRepoIdentity } from './merge-watch.mjs';
 import {
   inertValue,
-  carriesComposedSkeleton,
   renderPrCreateBody,
-  isSentenceShaped,
-  carriesReceiptLineToken,
+  checkPrFields,
   PR_TITLE_PATTERN,
   PR_TITLE_TYPES,
-  PR_TITLE_CAP,
   PR_VALUE_CAP,
   PR_MULTI_LIMITS,
-  SUPERSEDES_PREFIX,
+  PR_RENDER_FLAGS,
+  PR_VALUE_REFUSALS,
 } from './pr-format.mjs';
 
 export { inertValue, renderPrCreateBody, PR_TITLE_PATTERN, PR_TITLE_TYPES };
@@ -27,16 +25,17 @@ export const PR_TOOL_TRIPWIRE_EXIT = MERGE_DENY_EXIT;
 export const PR_TOOL_OBSERVE_EXIT = 20;
 export const PR_TOOL_CONVERGE_EXIT = 21;
 export const PR_TOOL_GH_MISSING_EXIT = REAL_GH_MISSING_EXIT;
-export const PR_TOOL_VERBS = Object.freeze(['pr-create', 'pr-close', 'compare']);
+export const PR_TOOL_VERBS = Object.freeze(['pr-render', 'pr-close', 'compare']);
 
 const NO_INDIRECT_IO = Object.freeze({ readFile: () => null, readStdin: () => null });
 const GH_BINARY = 'gh';
+const isRepeatable = (flag) => Object.hasOwn(PR_MULTI_LIMITS, flag);
 
 export const FLAG_SPEC = Object.freeze({
-  'pr-create': Object.freeze({
-    required: Object.freeze(['--repo', '--head', '--base', '--title', '--why', '--what']),
-    single: Object.freeze(['--repo', '--head', '--base', '--title', '--risk', '--supersedes']),
-    multiple: Object.freeze(['--why', '--what', '--verified', '--not-verified', '--link']),
+  'pr-render': Object.freeze({
+    required: Object.freeze(['--title', '--why', '--what']),
+    single: Object.freeze(PR_RENDER_FLAGS.filter((flag) => !isRepeatable(flag))),
+    multiple: Object.freeze(PR_RENDER_FLAGS.filter(isRepeatable)),
   }),
   'pr-close': Object.freeze({
     required: Object.freeze(['--repo', '--pr']),
@@ -50,7 +49,7 @@ export const FLAG_SPEC = Object.freeze({
   }),
 });
 
-const PR_NARRATIVE_FIELDS = Object.freeze([
+const PR_RENDER_LISTS = Object.freeze([
   Object.freeze(['--why', 'why']),
   Object.freeze(['--what', 'what']),
   Object.freeze(['--verified', 'verified']),
@@ -62,35 +61,6 @@ const PR_NUMBER_PATTERN = /^[1-9][0-9]{0,9}$/;
 
 function rejection(error) {
   return Object.freeze({ ok: false, error, verb: null, opts: null });
-}
-
-function valueRejection(verb, flag, cap) {
-  return `pr-tool ${verb}: a ${flag} value is empty, over the ${cap}-character cap, or carries something a pull-request document may not carry: a leading field-indirection sigil, a non-ascii character, an html tag opener, a leading markdown block opener, or a setext underline`;
-}
-
-function sentenceRejection(flag, value) {
-  return `pr-tool pr-create: a ${flag} value must begin with an uppercase letter and end with . ? or !, so the body reads as sentences; received ${JSON.stringify(value)}`;
-}
-
-function sentenceCheck(flag, value) {
-  if (flag === '--what') {
-    if (carriesReceiptLineToken(value)) {
-      return "pr-tool pr-create: a --what value may not begin with a receipts line token; a bulleted line cannot satisfy the enforcer's line-start grammar. Pass it as --why instead.";
-    }
-    if (!isSentenceShaped(value)) return sentenceRejection(flag, value);
-    return null;
-  }
-  if (carriesReceiptLineToken(value)) return null;
-  if (!isSentenceShaped(value)) return sentenceRejection(flag, value);
-  return null;
-}
-
-function canonicalPrUrl(candidate) {
-  const ref = parsePrRef(candidate);
-  if (ref === null || !validateRepoIdentity(ref.ownerRepo)) return null;
-  const canonical = `https://github.com/${ref.ownerRepo}/pull/${ref.prNumber}`;
-  if (inertValue(canonical, PR_VALUE_CAP - SUPERSEDES_PREFIX.length) === null) return null;
-  return canonical;
 }
 
 function collectFlags(verb, argv) {
@@ -129,92 +99,16 @@ function collectFlags(verb, argv) {
   return { single, multiple };
 }
 
-function collectInertList(multiple, flag) {
-  const raws = multiple.filter((entry) => entry.flag === flag).map((entry) => entry.value);
-  const ceiling = PR_MULTI_LIMITS[flag];
-  if (!Number.isInteger(ceiling)) {
-    return { error: `pr-tool pr-create: ${flag} carries no value ceiling; refusing to compose an unbounded body` };
-  }
-  if (raws.length > ceiling) {
-    return { error: `pr-tool pr-create: ${raws.length} ${flag} values exceed the ${ceiling}-value ceiling` };
-  }
-  const values = [];
-  for (const raw of raws) {
-    const value = inertValue(raw, PR_VALUE_CAP);
-    if (value === null) return { error: valueRejection('pr-create', flag, PR_VALUE_CAP) };
-    if (flag === '--why' || flag === '--what') {
-      const sentenceError = sentenceCheck(flag, value);
-      if (sentenceError !== null) return { error: sentenceError };
-    }
-    values.push(value);
-  }
-  return { values: Object.freeze(values) };
-}
-
-function readPrCreateTarget(single) {
-  const repo = single.get('--repo');
-  if (!validateRepoIdentity(repo)) return { error: `pr-tool pr-create: --repo ${JSON.stringify(repo)} is not an owner/repo slug` };
-  const head = single.get('--head');
-  if (!validateRefToken(head)) return { error: `pr-tool pr-create: --head ${JSON.stringify(head)} is not a conservative git ref token` };
-  const base = single.get('--base');
-  if (!validateRefToken(base)) return { error: `pr-tool pr-create: --base ${JSON.stringify(base)} is not a conservative git ref token` };
-  const title = inertValue(single.get('--title'), PR_TITLE_CAP);
-  if (title === null) return { error: valueRejection('pr-create', '--title', PR_TITLE_CAP) };
-  if (!PR_TITLE_PATTERN.test(title)) {
-    return { error: `pr-tool pr-create: --title ${JSON.stringify(title)} is not a conventional-commits title of the form <type>(<scope>): <lowercase imperative summary>; the types are ${PR_TITLE_TYPES.join(' ')}, the scope is at most 16 lowercase characters, and the whole title is at most ${PR_TITLE_CAP} characters with no trailing period` };
-  }
-  return { target: Object.freeze({ repo, head, base, title }) };
-}
-
-function readPrCreateNarrative(multiple) {
-  const narrative = {};
-  for (const [flag, field] of PR_NARRATIVE_FIELDS) {
-    const collected = collectInertList(multiple, flag);
-    if (collected.error) return { error: collected.error };
-    narrative[field] = collected.values;
-  }
-  if (narrative.verified.length + narrative.notVerified.length === 0) {
-    return { error: 'pr-tool pr-create: the verification section needs at least one --verified or --not-verified value; a check that was not run is stated as --not-verified "<thing> - not run", never left out' };
-  }
-  return { narrative: Object.freeze(narrative) };
-}
-
-function readPrCreateRisk(single) {
-  let risk = null;
-  if (single.has('--risk')) {
-    risk = inertValue(single.get('--risk'), PR_VALUE_CAP);
-    if (risk === null) return { error: valueRejection('pr-create', '--risk', PR_VALUE_CAP) };
-    const sentenceError = sentenceCheck('--risk', risk);
-    if (sentenceError !== null) return { error: sentenceError };
-  }
-  return { risk };
-}
-
-function readPrCreateReferences(single) {
-  let supersedes = null;
-  if (single.has('--supersedes')) {
-    const candidate = single.get('--supersedes');
-    supersedes = canonicalPrUrl(candidate);
-    if (supersedes === null) return { error: `pr-tool pr-create: --supersedes ${JSON.stringify(candidate)} is not a github pull-request url that composes an inert link line within the ${PR_VALUE_CAP}-character cap` };
-  }
-  return { references: Object.freeze({ supersedes }) };
-}
-
-function parsePrCreate(single, multiple) {
-  const target = readPrCreateTarget(single);
-  if (target.error) return rejection(target.error);
-  const narrative = readPrCreateNarrative(multiple);
-  if (narrative.error) return rejection(narrative.error);
-  const risk = readPrCreateRisk(single);
-  if (risk.error) return rejection(risk.error);
-  const references = readPrCreateReferences(single);
-  if (references.error) return rejection(references.error);
-  return Object.freeze({
-    ok: true,
-    error: null,
-    verb: 'pr-create',
-    opts: Object.freeze({ ...target.target, ...narrative.narrative, risk: risk.risk, ...references.references }),
+function parsePrRender(single, multiple) {
+  const lists = PR_RENDER_LISTS.map(([flag, field]) => [field, multiple.filter((entry) => entry.flag === flag).map((entry) => entry.value)]);
+  const checked = checkPrFields({
+    title: single.get('--title'),
+    ...Object.fromEntries(lists),
+    risk: single.has('--risk') ? single.get('--risk') : null,
+    supersedes: single.has('--supersedes') ? single.get('--supersedes') : null,
   });
+  if (checked.fields === null) return rejection(checked.problems.map((problem) => `pr-tool pr-render: ${problem}`).join('\n'));
+  return Object.freeze({ ok: true, error: null, verb: 'pr-render', opts: checked.fields });
 }
 
 function parsePrClose(single) {
@@ -225,7 +119,7 @@ function parsePrClose(single) {
   let comment = null;
   if (single.has('--comment')) {
     comment = inertValue(single.get('--comment'), PR_VALUE_CAP);
-    if (comment === null) return rejection(valueRejection('pr-close', '--comment', PR_VALUE_CAP));
+    if (comment === null) return rejection(`pr-tool pr-close: a --comment value is empty, over the ${PR_VALUE_CAP}-character cap, or carries ${PR_VALUE_REFUSALS}`);
   }
   return Object.freeze({ ok: true, error: null, verb: 'pr-close', opts: Object.freeze({ repo, pr, comment }) });
 }
@@ -250,18 +144,12 @@ export function parsePrToolArgv(argv) {
   }
   const collected = collectFlags(verb, argv);
   if (collected.error) return rejection(collected.error);
-  if (verb === 'pr-create') return parsePrCreate(collected.single, collected.multiple);
+  if (verb === 'pr-render') return parsePrRender(collected.single, collected.multiple);
   if (verb === 'pr-close') return parsePrClose(collected.single);
   return parseCompare(collected.single);
 }
 
 export function buildGhArgv(verb, stage, opts) {
-  if (verb === 'pr-create' && stage === 'observe') {
-    return ['pr', 'list', '-R', opts.repo, '--head', opts.head, '--base', opts.base, '--state', 'open', '--json', 'url,number,body'];
-  }
-  if (verb === 'pr-create' && stage === 'converge') {
-    return ['pr', 'create', '-R', opts.repo, '--head', opts.head, '--base', opts.base, '--title', opts.title, '--body', renderPrCreateBody(opts)];
-  }
   if (verb === 'pr-close' && stage === 'observe') {
     return ['pr', 'view', '-R', opts.repo, opts.pr, '--json', 'state,url'];
   }
@@ -345,95 +233,6 @@ export function spawnAllowed(binary, argv, options, executable) {
     throw new Error(`pr-tool: refusing to spawn ${JSON.stringify(binary)} through ${JSON.stringify(executable)}; the resolved executable must be an absolute path so that no PATH lookup decides which file runs`);
   }
   return spawnSync(executable, argv, options);
-}
-
-function readPrEntry(entry, repo) {
-  if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return null;
-  if (typeof entry.url !== 'string') return null;
-  const ref = parsePrRef(entry.url);
-  if (ref === null) return null;
-  if (ref.ownerRepo.toLowerCase() !== repo.toLowerCase()) return null;
-  const number = Number.isInteger(entry.number) ? entry.number : Number(ref.prNumber);
-  if (!Number.isInteger(number)) return null;
-  return Object.freeze({ url: entry.url.trim(), number, composedHere: carriesComposedSkeleton(entry.body) });
-}
-
-function readPrUrl(text, repo) {
-  for (const line of String(text).split('\n')) {
-    const candidate = line.trim();
-    if (candidate.length === 0) continue;
-    const ref = parsePrRef(candidate);
-    if (ref === null) continue;
-    if (ref.ownerRepo.toLowerCase() !== repo.toLowerCase()) continue;
-    return Object.freeze({ url: candidate, number: Number(ref.prNumber) });
-  }
-  return null;
-}
-
-function observeOpenPr(ghBin, opts) {
-  const res = execGh(ghBin, buildGhArgv('pr-create', 'observe', opts));
-  if (res.refused) return { refused: true, reason: res.reason };
-  if (res.status !== 0) return { failed: `the open-pull-request probe exited ${res.status}`, stderr: res.stderr };
-  const text = res.stdout.trim();
-  if (text.length === 0) return { failed: 'the open-pull-request probe printed nothing' };
-  let payload;
-  try {
-    payload = JSON.parse(text);
-  } catch {
-    return { failed: 'the open-pull-request probe printed unparseable JSON' };
-  }
-  if (!Array.isArray(payload)) return { failed: 'the open-pull-request probe did not return a JSON array' };
-  return { list: payload };
-}
-
-function runPrCreate(ghBin, opts, out) {
-  const observed = observeOpenPr(ghBin, opts);
-  if (observed.refused) {
-    out.err(`${observed.reason}\n`);
-    return PR_TOOL_TRIPWIRE_EXIT;
-  }
-  if (observed.failed) {
-    out.err(`pr-tool pr-create: ${observed.failed}; nothing was created.\n${observed.stderr || ''}`);
-    return PR_TOOL_OBSERVE_EXIT;
-  }
-  if (observed.list.length > 0) {
-    const existing = readPrEntry(observed.list[0], opts.repo);
-    if (existing === null) {
-      out.err('pr-tool pr-create: an open pull request already exists on this head but its url could not be read; refusing to open a second one.\n');
-      return PR_TOOL_OBSERVE_EXIT;
-    }
-    if (!existing.composedHere) {
-      out.err(`pr-tool pr-create: the open pull request already on this head (${existing.url}) does not carry the composed section skeleton, so this tool composed neither its title nor its body; reporting it as reused-unverified rather than asserting the mandated format. A human closes it and reopens it through this tool, or confirms it as it stands.\n`);
-      out.log(`${JSON.stringify({ action: 'reused-unverified', url: existing.url, number: existing.number })}\n`);
-      return 0;
-    }
-    out.log(`${JSON.stringify({ action: 'reused', url: existing.url, number: existing.number })}\n`);
-    return 0;
-  }
-  const created = execGh(ghBin, buildGhArgv('pr-create', 'converge', opts));
-  if (created.refused) {
-    out.err(`${created.reason}\n`);
-    return PR_TOOL_TRIPWIRE_EXIT;
-  }
-  if (created.status !== 0) {
-    out.err(created.stderr || `pr-tool pr-create: the create call exited ${created.status}.\n`);
-    return PR_TOOL_CONVERGE_EXIT;
-  }
-  const printed = readPrUrl(created.stdout, opts.repo);
-  if (printed !== null) {
-    out.log(`${JSON.stringify({ action: 'created', url: printed.url, number: printed.number })}\n`);
-    return 0;
-  }
-  const recovered = observeOpenPr(ghBin, opts);
-  if (!recovered.refused && !recovered.failed && recovered.list.length > 0) {
-    const entry = readPrEntry(recovered.list[0], opts.repo);
-    if (entry !== null) {
-      out.log(`${JSON.stringify({ action: 'created', url: entry.url, number: entry.number })}\n`);
-      return 0;
-    }
-  }
-  out.err('pr-tool pr-create: the create call reported success but no pull-request url for this repository could be resolved from its output or from the recovery probe; a pull request MAY exist, so read the repository before retrying.\n');
-  return PR_TOOL_CONVERGE_EXIT;
 }
 
 function runPrClose(ghBin, opts, out) {
@@ -527,12 +326,15 @@ function runPrTool(argv, out) {
     out.err(`${parsed.error}\n`);
     return PR_TOOL_USAGE_EXIT;
   }
+  if (parsed.verb === 'pr-render') {
+    out.log(`${JSON.stringify({ title: parsed.opts.title, body: renderPrCreateBody(parsed.opts) })}\n`);
+    return 0;
+  }
   const ghBin = resolveGhBinary({ pathValue: process.env.PATH });
   if (!ghBin) {
     out.err('pr-tool: could not locate a gh binary on PATH or any pinned fallback; nothing was executed.\n');
     return PR_TOOL_GH_MISSING_EXIT;
   }
-  if (parsed.verb === 'pr-create') return runPrCreate(ghBin, parsed.opts, out);
   if (parsed.verb === 'pr-close') return runPrClose(ghBin, parsed.opts, out);
   return runCompare(ghBin, parsed.opts, out);
 }

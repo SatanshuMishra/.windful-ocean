@@ -39,11 +39,11 @@ const TAB = String.fromCharCode(9);
 const LF = String.fromCharCode(10);
 const DEL = String.fromCharCode(127);
 
-const PR_CREATE_REQUIRED = Object.freeze(['--repo', '--head', '--base', '--title', '--why', '--what']);
+const PR_RENDER_REQUIRED = Object.freeze(['--title', '--why', '--what']);
 
-function prCreateArgv(extra = []) {
+function prRenderArgv(extra = []) {
   return [
-    'pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE, '--title', TITLE,
+    'pr-render', '--title', TITLE,
     '--why', WHY,
     '--what', WHAT,
     '--not-verified', NOT_VERIFIED,
@@ -51,8 +51,8 @@ function prCreateArgv(extra = []) {
   ];
 }
 
-function prCreateArgvWithout(flag) {
-  const argv = prCreateArgv();
+function prRenderArgvWithout(flag) {
+  const argv = prRenderArgv();
   const kept = [];
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === flag) {
@@ -64,8 +64,8 @@ function prCreateArgvWithout(flag) {
   return kept;
 }
 
-function prCreateArgvReplacing(flag, value) {
-  const argv = prCreateArgv();
+function prRenderArgvReplacing(flag, value) {
+  const argv = prRenderArgv();
   const replaced = [];
   for (let i = 0; i < argv.length; i += 1) {
     replaced.push(argv[i]);
@@ -98,19 +98,17 @@ function failParse(argv) {
 }
 
 test('the wrapper exposes exactly three verbs and none of them is a merge verb', () => {
-  assert.deepEqual([...PR_TOOL_VERBS].sort(), ['compare', 'pr-close', 'pr-create']);
+  assert.deepEqual([...PR_TOOL_VERBS].sort(), ['compare', 'pr-close', 'pr-render']);
   for (const verb of PR_TOOL_VERBS) {
     assert.ok(!/merge|approve|review/.test(verb), `verb ${verb} must not name a merge or approval action`);
   }
 });
 
-test('FLAG_SPEC pins the whole pr-create surface and every repeatable flag carries a cardinality ceiling', () => {
-  assert.deepEqual([...FLAG_SPEC['pr-create'].required], [...PR_CREATE_REQUIRED]);
-  assert.deepEqual([...FLAG_SPEC['pr-create'].single], [
-    '--repo', '--head', '--base', '--title', '--risk', '--supersedes',
-  ]);
-  assert.deepEqual([...FLAG_SPEC['pr-create'].multiple], ['--why', '--what', '--verified', '--not-verified', '--link']);
-  for (const flag of FLAG_SPEC['pr-create'].multiple) {
+test('FLAG_SPEC pins the whole pr-render surface and every repeatable flag carries a cardinality ceiling', () => {
+  assert.deepEqual([...FLAG_SPEC['pr-render'].required], [...PR_RENDER_REQUIRED]);
+  assert.deepEqual([...FLAG_SPEC['pr-render'].single], ['--title', '--risk', '--supersedes']);
+  assert.deepEqual([...FLAG_SPEC['pr-render'].multiple], ['--why', '--what', '--verified', '--not-verified', '--link']);
+  for (const flag of FLAG_SPEC['pr-render'].multiple) {
     assert.equal(typeof PR_MULTI_LIMITS[flag], 'number', `${flag} must carry a cardinality ceiling`);
   }
 });
@@ -132,12 +130,9 @@ for (const argv of REJECTED_VERBS) {
   });
 }
 
-test('parse accepts a well-formed pr-create and freezes the parsed values', () => {
-  const parsed = okParse(prCreateArgv());
-  assert.equal(parsed.verb, 'pr-create');
-  assert.equal(parsed.opts.repo, REPO);
-  assert.equal(parsed.opts.head, HEAD);
-  assert.equal(parsed.opts.base, BASE);
+test('parse accepts a well-formed pr-render and freezes the parsed values', () => {
+  const parsed = okParse(prRenderArgv());
+  assert.equal(parsed.verb, 'pr-render');
   assert.equal(parsed.opts.title, TITLE);
   assert.deepEqual(parsed.opts.why, [WHY]);
   assert.deepEqual(parsed.opts.what, [WHAT]);
@@ -149,9 +144,9 @@ test('parse accepts a well-formed pr-create and freezes the parsed values', () =
   assert.ok(Object.isFrozen(parsed.opts));
 });
 
-for (const flag of PR_CREATE_REQUIRED) {
-  test(`parse REJECTS a pr-create missing the required flag ${flag}`, () => {
-    const parsed = failParse(prCreateArgvWithout(flag));
+for (const flag of PR_RENDER_REQUIRED) {
+  test(`parse REJECTS a pr-render missing the required flag ${flag}`, () => {
+    const parsed = failParse(prRenderArgvWithout(flag));
     assert.ok(parsed.error.includes(`missing required flag ${flag}`), `expected the rejection to name ${flag}, got: ${parsed.error}`);
   });
 }
@@ -170,27 +165,27 @@ for (const argv of MISSING_REQUIRED) {
   });
 }
 
-test('parse REJECTS --repo entirely so the wrapper can never resolve the ambient cwd repo', () => {
-  const parsed = failParse(prCreateArgvWithout('--repo'));
+test('parse REJECTS --repo on pr-render, so the renderer never names a repository', () => {
+  const parsed = failParse(prRenderArgv(['--repo', REPO]));
   assert.match(parsed.error, /--repo/);
 });
 
 const REJECTED_FLAG_FORMS = Object.freeze([
-  ['pr-create', '--repo=acme/widgets', '--head', HEAD, '--base', BASE, '--title', TITLE],
-  prCreateArgv(['--body-file', '/etc/passwd']),
-  prCreateArgv(['--fill']),
-  prCreateArgv(['-F', 'body=@/etc/passwd']),
-  prCreateArgv(['-f', 'body=x']),
-  prCreateArgv(['--input', '/tmp/x.json']),
-  prCreateArgv(['--field', 'body=x']),
-  prCreateArgv(['--raw-field', 'body=x']),
-  prCreateArgv(['-X', 'PUT']),
-  prCreateArgv(['--method', 'PUT']),
-  prCreateArgv(['--web']),
-  prCreateArgv(['--repo', 'other/repo']),
-  prCreateArgv(['--title', 'second title']),
-  prCreateArgv(['stray-positional']),
-  prCreateArgv(['--']),
+  ['pr-render', '--title=refactor(pr-tool): centralize pull-request creation', '--why', WHY, '--what', WHAT],
+  prRenderArgv(['--body-file', '/etc/passwd']),
+  prRenderArgv(['--fill']),
+  prRenderArgv(['-F', 'body=@/etc/passwd']),
+  prRenderArgv(['-f', 'body=x']),
+  prRenderArgv(['--input', '/tmp/x.json']),
+  prRenderArgv(['--field', 'body=x']),
+  prRenderArgv(['--raw-field', 'body=x']),
+  prRenderArgv(['-X', 'PUT']),
+  prRenderArgv(['--method', 'PUT']),
+  prRenderArgv(['--web']),
+  prRenderArgv(['--repo', 'other/repo']),
+  prRenderArgv(['--title', 'second title']),
+  prRenderArgv(['stray-positional']),
+  prRenderArgv(['--']),
 ]);
 
 for (const argv of REJECTED_FLAG_FORMS) {
@@ -203,13 +198,13 @@ const RETIRED_FREE_FORM_FLAGS = Object.freeze(['--body-line', '--review-order'])
 
 for (const flag of RETIRED_FREE_FORM_FLAGS) {
   test(`parse REJECTS the retired free-form flag ${flag} as unknown, keeping the escape hatch closed`, () => {
-    const parsed = failParse(prCreateArgv([flag, 'anything at all']));
+    const parsed = failParse(prRenderArgv([flag, 'anything at all']));
     assert.match(parsed.error, /unknown flag/);
   });
 }
 
 test('parse accumulates repeated --why and --what values instead of rejecting them', () => {
-  const parsed = okParse(prCreateArgv(['--why', 'The gate now denies the ad-hoc path.', '--what', 'Removed the free-form line flag entirely.']));
+  const parsed = okParse(prRenderArgv(['--why', 'The gate now denies the ad-hoc path.', '--what', 'Removed the free-form line flag entirely.']));
   assert.deepEqual(parsed.opts.why, [WHY, 'The gate now denies the ad-hoc path.']);
   assert.deepEqual(parsed.opts.what, [WHAT, 'Removed the free-form line flag entirely.']);
 });
@@ -220,9 +215,9 @@ test('parse ACCEPTS a dash-leading pr-close comment', () => {
 });
 
 const FLAG_IN_VALUE_POSITION = Object.freeze([
-  ['pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE, '--title', '--what', 'x'],
-  prCreateArgv(['--what', '--risk', 'x']),
-  prCreateArgv(['--supersedes', '--title']),
+  ['pr-render', '--title', '--what', 'x'],
+  prRenderArgv(['--what', '--risk', 'x']),
+  prRenderArgv(['--supersedes', '--title']),
   ['pr-close', '--repo', REPO, '--pr', '12', '--comment', '--repo', 'other/repo'],
   ['compare', '--repo', REPO, '--base', '--head', '--head', HEAD],
 ]);
@@ -234,12 +229,12 @@ for (const argv of FLAG_IN_VALUE_POSITION) {
 }
 
 const AT_SIGIL_VALUES = Object.freeze([
-  prCreateArgvReplacing('--title', '@/etc/passwd'),
-  prCreateArgv(['--what', '@/etc/passwd']),
-  prCreateArgv(['--why', '@-']),
-  prCreateArgv(['--link', '@/etc/passwd']),
-  prCreateArgv(['--verified', '@/etc/passwd']),
-  prCreateArgv(['--risk', '@/etc/passwd']),
+  prRenderArgvReplacing('--title', '@/etc/passwd'),
+  prRenderArgv(['--what', '@/etc/passwd']),
+  prRenderArgv(['--why', '@-']),
+  prRenderArgv(['--link', '@/etc/passwd']),
+  prRenderArgv(['--verified', '@/etc/passwd']),
+  prRenderArgv(['--risk', '@/etc/passwd']),
   ['pr-close', '--repo', REPO, '--pr', '12', '--comment', '@/etc/passwd'],
 ]);
 
@@ -249,45 +244,46 @@ for (const argv of AT_SIGIL_VALUES) {
   });
 }
 
-test('parse strips control characters from a title rather than letting them reach gh', () => {
-  const parsed = okParse(prCreateArgvReplacing('--title', `chore(pr-tool)${NUL}: strip control${BEL} characters`));
+test('parse strips control characters from a title rather than letting them reach the printed title', () => {
+  const parsed = okParse(prRenderArgvReplacing('--title', `chore(pr-tool)${NUL}: strip control${BEL} characters`));
   assert.equal(parsed.opts.title, 'chore(pr-tool): strip control characters');
 });
 
 test('parse strips control characters from every body value', () => {
-  const parsed = okParse(prCreateArgv(['--what', `On${LF}e survives control-character stripping.`, '--what', `Tw${DEL}o survives it as well.`]));
+  const parsed = okParse(prRenderArgv(['--what', `On${LF}e survives control-character stripping.`, '--what', `Tw${DEL}o survives it as well.`]));
   assert.deepEqual(parsed.opts.what, [WHAT, 'One survives control-character stripping.', 'Two survives it as well.']);
 });
 
 test('parse REJECTS a value that is empty once control characters are stripped', () => {
-  failParse(prCreateArgvReplacing('--title', `${LF}${TAB}${NUL}`));
+  failParse(prRenderArgvReplacing('--title', `${LF}${TAB}${NUL}`));
 });
 
 test('parse REJECTS an over-cap title rather than silently truncating it', () => {
   const prefix = 'refactor(pr-tool): ';
   const atCap = `${prefix}${'w'.repeat(PR_TITLE_CAP - prefix.length)}`;
-  assert.equal(okParse(prCreateArgvReplacing('--title', atCap)).opts.title.length, PR_TITLE_CAP);
-  failParse(prCreateArgvReplacing('--title', `${atCap}w`));
+  assert.equal(okParse(prRenderArgvReplacing('--title', atCap)).opts.title.length, PR_TITLE_CAP);
+  failParse(prRenderArgvReplacing('--title', `${atCap}w`));
 });
 
 test('parse REJECTS a --title that is not a conventional-commits subject', () => {
   for (const bad of ['MSP-1 ships the thing', 'mitosis: msp-1', 'refactor(pr-tool): Centralize creation', 'refactor(pr-tool): centralize creation.', 'refactor: x']) {
-    failParse(prCreateArgvReplacing('--title', bad));
+    failParse(prRenderArgvReplacing('--title', bad));
   }
-  okParse(prCreateArgvReplacing('--title', 'fix(hooks): deny raw pr creation at the gate'));
-  okParse(prCreateArgvReplacing('--title', 'docs: point the rule at the central tool'));
+  okParse(prRenderArgvReplacing('--title', 'fix(hooks): deny raw pr creation at the gate'));
+  okParse(prRenderArgvReplacing('--title', 'docs: point the rule at the central tool'));
 });
 
 test('parse REJECTS an over-cap body value rather than silently truncating it', () => {
   const atCap = `A${'y'.repeat(PR_VALUE_CAP - 2)}.`;
   assert.equal(atCap.length, PR_VALUE_CAP);
-  okParse(prCreateArgv(['--what', atCap]));
-  failParse(prCreateArgv(['--what', `A${'y'.repeat(PR_VALUE_CAP - 1)}.`]));
+  okParse(prRenderArgv(['--what', atCap]));
+  failParse(prRenderArgv(['--what', `A${'y'.repeat(PR_VALUE_CAP - 1)}.`]));
 });
 
 const SENTENCE_CHECKED_MULTI = new Set(['--why', '--what']);
 
 function boundedValueFor(flag) {
+  if (flag === '--link') return 'refs #1';
   return SENTENCE_CHECKED_MULTI.has(flag) ? 'A bounded value that satisfies the sentence rule.' : 'a bounded value';
 }
 
@@ -303,15 +299,15 @@ for (const [flag, baseline] of CARDINALITY_CEILINGS) {
   test(`parse REJECTS a ${flag} COUNT past the ${PR_MULTI_LIMITS[flag]}-value ceiling rather than accumulating an unbounded body`, () => {
     const headroom = PR_MULTI_LIMITS[flag] - baseline;
     const value = boundedValueFor(flag);
-    okParse(prCreateArgv(repeatFlag(flag, headroom, value)));
-    failParse(prCreateArgv(repeatFlag(flag, headroom + 1, value)));
+    okParse(prRenderArgv(repeatFlag(flag, headroom, value)));
+    failParse(prRenderArgv(repeatFlag(flag, headroom + 1, value)));
   });
 }
 
-test('parse REJECTS a pr-create carrying no verification statement at all', () => {
-  const parsed = failParse(prCreateArgvWithout('--not-verified'));
+test('parse REJECTS a pr-render carrying no verification statement at all', () => {
+  const parsed = failParse(prRenderArgvWithout('--not-verified'));
   assert.match(parsed.error, /--verified or --not-verified/);
-  okParse([...prCreateArgvWithout('--not-verified'), '--verified', 'node --test tests/pr.test.mjs - 0 fail']);
+  okParse([...prRenderArgvWithout('--not-verified'), '--verified', 'node --test tests/pr.test.mjs - 0 fail']);
 });
 
 const REJECTED_REPO_SLUGS = Object.freeze([
@@ -356,9 +352,6 @@ const REJECTED_REF_TOKENS = Object.freeze([
 ]);
 
 for (const ref of REJECTED_REF_TOKENS) {
-  test(`parse REJECTS the ref token ${JSON.stringify(ref)} in --head`, () => {
-    failParse(prCreateArgvReplacing('--head', ref));
-  });
   test(`parse REJECTS the ref token ${JSON.stringify(ref)} in --base`, () => {
     failParse(['compare', '--repo', REPO, '--base', ref, '--head', HEAD]);
   });
@@ -390,12 +383,12 @@ const REJECTED_SUPERSEDES = Object.freeze([
 
 for (const url of REJECTED_SUPERSEDES) {
   test(`parse REJECTS --supersedes ${JSON.stringify(url)}`, () => {
-    failParse(prCreateArgv(['--supersedes', url]));
+    failParse(prRenderArgv(['--supersedes', url]));
   });
 }
 
 test('parse ACCEPTS a github pull-request url for --supersedes', () => {
-  const parsed = okParse(prCreateArgv(['--supersedes', 'https://github.com/acme/widgets/pull/41']));
+  const parsed = okParse(prRenderArgv(['--supersedes', 'https://github.com/acme/widgets/pull/41']));
   assert.equal(parsed.opts.supersedes, 'https://github.com/acme/widgets/pull/41');
 });
 
@@ -403,7 +396,7 @@ const CONTROL_IN_BODY = /[\x00-\x1F\x7F]/;
 
 test('parse drops the caller-controlled --supersedes tail so no control character reaches the body', () => {
   const tail = `${NUL}${BEL}${String.fromCharCode(27)}[31m`;
-  const parsed = okParse(prCreateArgv(['--supersedes', `https://github.com/acme/widgets/pull/41/${tail}`]));
+  const parsed = okParse(prRenderArgv(['--supersedes', `https://github.com/acme/widgets/pull/41/${tail}`]));
   const body = renderPrCreateBody(parsed.opts);
   for (const line of body.split('\n')) {
     assert.ok(!CONTROL_IN_BODY.test(line), `a composed body line must carry no control character: ${JSON.stringify(line)}`);
@@ -412,19 +405,19 @@ test('parse drops the caller-controlled --supersedes tail so no control characte
 });
 
 test('parse refuses a markdown tail on the supersedes line so no caller-controlled content reaches it', () => {
-  const parsed = okParse(prCreateArgv(['--supersedes', 'https://github.com/acme/widgets/pull/1?x=<!--']));
+  const parsed = okParse(prRenderArgv(['--supersedes', 'https://github.com/acme/widgets/pull/1?x=<!--']));
   const body = renderPrCreateBody(parsed.opts);
   assert.ok(!body.includes('<!--'), 'no caller-controlled tail may reach the supersedes line');
 });
 
 test('parse canonicalises a --supersedes carrying a trailing newline so its body line cannot split', () => {
-  const parsed = okParse(prCreateArgv(['--supersedes', `https://github.com/acme/widgets/pull/1?x=y${LF}`]));
+  const parsed = okParse(prRenderArgv(['--supersedes', `https://github.com/acme/widgets/pull/1?x=y${LF}`]));
   assert.equal(parsed.opts.supersedes, 'https://github.com/acme/widgets/pull/1');
   assert.match(renderPrCreateBody(parsed.opts), /^Supersedes https:\/\/github\.com\/acme\/widgets\/pull\/1$/m);
 });
 
 test('parse REJECTS a --supersedes whose composed body line would exceed the value cap', () => {
-  failParse(prCreateArgv(['--supersedes', `https://github.com/${'a'.repeat(600)}/widgets/pull/41`]));
+  failParse(prRenderArgv(['--supersedes', `https://github.com/${'a'.repeat(600)}/widgets/pull/41`]));
 });
 
 test('renderPrCreateBody composes a fixed template from inert values only', () => {
@@ -443,27 +436,6 @@ test('renderPrCreateBody omits the links section entirely when no link-bearing f
   const body = renderPrCreateBody({ why: ['A reason for the change.'], what: ['A change that is different now.'], verified: ['a check - 0 fail'] });
   assert.ok(!body.includes('Supersedes'));
   assert.ok(!body.includes('## Links'));
-});
-
-test('buildGhArgv composes the pr-create OBSERVE probe as an exact argv array', () => {
-  const { opts } = okParse(prCreateArgv());
-  assert.deepEqual(buildGhArgv('pr-create', 'observe', opts), [
-    'pr', 'list', '-R', REPO, '--head', HEAD, '--base', BASE, '--state', 'open', '--json', 'url,number,body',
-  ]);
-});
-
-test('buildGhArgv composes the pr-create CONVERGE call with an inline --body and no reference-valued flag', () => {
-  const { opts } = okParse(prCreateArgv());
-  const argv = buildGhArgv('pr-create', 'converge', opts);
-  assert.deepEqual(argv.slice(0, 10), [
-    'pr', 'create', '-R', REPO, '--head', HEAD, '--base', BASE, '--title', TITLE,
-  ]);
-  assert.equal(argv[10], '--body');
-  assert.equal(argv.length, 12);
-  assert.match(argv[11], /## Why/);
-  for (const banned of ['--body-file', '--fill', '-F', '-f', '--field', '--raw-field', '--input', '-X', '--method']) {
-    assert.ok(!argv.includes(banned), `the converge argv must never carry ${banned}`);
-  }
 });
 
 test('buildGhArgv composes the pr-close OBSERVE and CONVERGE calls and the converge one can only close', () => {
@@ -487,17 +459,15 @@ test('buildGhArgv composes the compare path as ONE argv element with no method o
 });
 
 test('buildGhArgv REFUSES an unknown verb or stage rather than emitting a partial argv', () => {
-  const { opts } = okParse(prCreateArgv());
+  const { opts } = okParse(prRenderArgv());
   assert.throws(() => buildGhArgv('pr-merge', 'converge', opts));
-  assert.throws(() => buildGhArgv('pr-create', 'merge', opts));
+  assert.throws(() => buildGhArgv('pr-render', 'merge', opts));
   assert.throws(() => buildGhArgv('compare', 'converge', opts));
 });
 
 test('every argv this wrapper can construct passes the shim classifier (merge is absent by construction)', () => {
   const noIo = Object.freeze({ readFile: () => null, readStdin: () => null });
   const cases = [
-    ['pr-create', 'observe', okParse(prCreateArgv()).opts],
-    ['pr-create', 'converge', okParse(prCreateArgv()).opts],
     ['pr-close', 'observe', okParse(['pr-close', '--repo', REPO, '--pr', '412']).opts],
     ['pr-close', 'converge', okParse(['pr-close', '--repo', REPO, '--pr', '412']).opts],
     ['compare', 'read', okParse(['compare', '--repo', REPO, '--base', BASE, '--head', HEAD]).opts],
@@ -606,123 +576,6 @@ function withSandbox(plan, body) {
   }
 }
 
-function openPrListing(body) {
-  return JSON.stringify([{ url: 'https://github.com/acme/widgets/pull/41', number: 41, body }]);
-}
-
-test('e2e: pr-create REUSES an existing open PR this tool composed and never issues a create call', () => {
-  const composed = renderPrCreateBody(okParse(prCreateArgv()).opts);
-  withSandbox([{ stdout: openPrListing(composed) }], (sandbox) => {
-    const res = runWrapper(prCreateArgv(), sandbox);
-    assert.equal(res.status, 0, `expected exit 0; stderr=${res.stderr}`);
-    assert.deepEqual(JSON.parse(res.stdout), { action: 'reused', url: 'https://github.com/acme/widgets/pull/41', number: 41 });
-    const calls = recordedCalls(sandbox);
-    assert.equal(calls.length, 1, `expected only the observe probe, got ${JSON.stringify(calls)}`);
-    assert.deepEqual(calls[0], ['pr', 'list', '-R', REPO, '--head', HEAD, '--base', BASE, '--state', 'open', '--json', 'url,number,body']);
-  });
-});
-
-test('e2e: pr-create reports an out-of-format open PR as reused-unverified rather than laundering it into a compliance receipt', () => {
-  withSandbox([{ stdout: openPrListing('opened by hand with a free-form body and no composed skeleton') }], (sandbox) => {
-    const res = runWrapper(prCreateArgv(), sandbox);
-    assert.equal(res.status, 0, `expected exit 0; stderr=${res.stderr}`);
-    assert.deepEqual(JSON.parse(res.stdout), { action: 'reused-unverified', url: 'https://github.com/acme/widgets/pull/41', number: 41 });
-    assert.match(res.stderr, /does not carry the composed section skeleton/);
-    assert.equal(recordedCalls(sandbox).length, 1, 'an unverified reuse must still never issue a create call');
-  });
-});
-
-test('e2e: pr-create CONVERGES only after an empty observe, and the create argv carries an inline body', () => {
-  withSandbox([
-    { stdout: '[]' },
-    { stdout: 'https://github.com/acme/widgets/pull/42\n' },
-  ], (sandbox) => {
-    const res = runWrapper(prCreateArgv(['--what', 'The interdiff summary reads as one full sentence now.']), sandbox);
-    assert.equal(res.status, 0, `expected exit 0; stderr=${res.stderr}`);
-    assert.deepEqual(JSON.parse(res.stdout), { action: 'created', url: 'https://github.com/acme/widgets/pull/42', number: 42 });
-    const calls = recordedCalls(sandbox);
-    assert.equal(calls.length, 2);
-    assert.deepEqual(calls[1].slice(0, 9), ['pr', 'create', '-R', REPO, '--head', HEAD, '--base', BASE, '--title']);
-    assert.equal(calls[1][10], '--body');
-    assert.match(calls[1][11], /- The interdiff summary reads as one full sentence now\./);
-  });
-});
-
-test('e2e: pr-create FAILS CLOSED and creates nothing when the observe probe exits non-zero', () => {
-  withSandbox([{ stderr: 'gh: could not reach github\n', exit: 1 }], (sandbox) => {
-    const res = runWrapper(prCreateArgv(), sandbox);
-    assert.equal(res.status, PR_TOOL_OBSERVE_EXIT);
-    assert.equal(recordedCalls(sandbox).length, 1, 'a failed observe must not be followed by a create');
-  });
-});
-
-test('e2e: pr-create FAILS CLOSED and creates nothing when the observe output is unparseable', () => {
-  withSandbox([{ stdout: 'not json at all' }], (sandbox) => {
-    const res = runWrapper(prCreateArgv(), sandbox);
-    assert.equal(res.status, PR_TOOL_OBSERVE_EXIT);
-    assert.equal(recordedCalls(sandbox).length, 1);
-  });
-});
-
-test('e2e: pr-create FAILS CLOSED and creates nothing when the observe output is empty', () => {
-  withSandbox([{ stdout: '' }], (sandbox) => {
-    const res = runWrapper(prCreateArgv(), sandbox);
-    assert.equal(res.status, PR_TOOL_OBSERVE_EXIT);
-    assert.equal(recordedCalls(sandbox).length, 1);
-  });
-});
-
-test('e2e: pr-create reports the converge failure and forwards gh stderr', () => {
-  withSandbox([
-    { stdout: '[]' },
-    { stderr: 'gh: pull request creation failed\n', exit: 1 },
-  ], (sandbox) => {
-    const res = runWrapper(prCreateArgv(), sandbox);
-    assert.equal(res.status, PR_TOOL_CONVERGE_EXIT);
-    assert.match(res.stderr, /pull request creation failed/);
-  });
-});
-
-test('e2e: pr-create forwards the WHOLE gh stderr on a converge failure, not just one pipe buffer', () => {
-  const emitted = `${'E'.repeat(400000)}Z`;
-  withSandbox([
-    { stdout: '[]' },
-    { stderr: emitted, exit: 1 },
-  ], (sandbox) => {
-    const res = runWrapper(prCreateArgv(), sandbox);
-    assert.equal(res.status, PR_TOOL_CONVERGE_EXIT);
-    assert.equal(res.stderr.length, emitted.length, 'the forwarded diagnostic must not be cut at the pipe buffer');
-    assert.ok(res.stderr.endsWith('Z'), 'the tail of the gh diagnostic must survive');
-  });
-});
-
-test('e2e: pr-create re-runs the observe probe to recover a url gh did not print parseably', () => {
-  withSandbox([
-    { stdout: '[]' },
-    { stdout: 'Creating pull request...\n' },
-    { stdout: '[{"url":"https://github.com/acme/widgets/pull/43","number":43}]' },
-  ], (sandbox) => {
-    const res = runWrapper(prCreateArgv(), sandbox);
-    assert.equal(res.status, 0, `expected exit 0; stderr=${res.stderr}`);
-    assert.deepEqual(JSON.parse(res.stdout), { action: 'created', url: 'https://github.com/acme/widgets/pull/43', number: 43 });
-    const calls = recordedCalls(sandbox);
-    assert.equal(calls.length, 3);
-    assert.deepEqual(calls[2], calls[0]);
-  });
-});
-
-test('e2e: pr-create rejects a created url whose repo is not the one that was asked for', () => {
-  withSandbox([
-    { stdout: '[]' },
-    { stdout: 'https://github.com/evil/other/pull/9\n' },
-    { stdout: '[]' },
-  ], (sandbox) => {
-    const res = runWrapper(prCreateArgv(), sandbox);
-    assert.notEqual(res.status, 0, 'a url pointing at another repository must not be reported as this PR');
-    assert.equal(res.stdout.trim(), '');
-  });
-});
-
 test('e2e: pr-close closes an OPEN pull request', () => {
   withSandbox([
     { stdout: '{"state":"OPEN","url":"https://github.com/acme/widgets/pull/412"}' },
@@ -803,11 +656,11 @@ for (const [label, step] of COMPARE_READ_FAILURES) {
 const E2E_USAGE_REJECTIONS = Object.freeze([
   ['pr-merge', '--repo', REPO, '--pr', '412'],
   ['merge', '--repo', REPO],
-  prCreateArgv(['--body-file', '/etc/passwd']),
-  prCreateArgvReplacing('--repo', '../..'),
-  prCreateArgvReplacing('--head', 'a..b'),
-  prCreateArgvReplacing('--title', 'MSP-1 ships the thing'),
-  prCreateArgvWithout('--not-verified'),
+  prRenderArgv(['--body-file', '/etc/passwd']),
+  prRenderArgv(['--repo', '../..']),
+  prRenderArgv(['--head', 'a..b']),
+  prRenderArgvReplacing('--title', 'MSP-1 ships the thing'),
+  prRenderArgvWithout('--not-verified'),
   ['compare', '--repo', REPO, '--base', BASE],
 ]);
 
@@ -857,71 +710,129 @@ test('the wrapper reaches spawnSync through exactly one tripwire-gated choke poi
 });
 
 test('parse REJECTS a lowercase --why value, naming the sentence rule', () => {
-  const parsed = failParse(prCreateArgvReplacing('--why', 'lowercase no period'));
+  const parsed = failParse(prRenderArgvReplacing('--why', 'lowercase no period'));
   assert.match(parsed.error, /uppercase letter and end with \. \? or !/);
 });
 
 test('parse ACCEPTS an uppercase --why value ending with a period', () => {
-  const parsed = okParse(prCreateArgvReplacing('--why', 'Uppercase with a period.'));
+  const parsed = okParse(prRenderArgvReplacing('--why', 'Uppercase with a period.'));
   assert.deepEqual(parsed.opts.why, ['Uppercase with a period.']);
 });
 
 test('parse ACCEPTS an accented capital opening a --why value, so the sentence rule is not ascii-only', () => {
   const value = `${String.fromCharCode(201)}migr${String.fromCharCode(233)} values compose a sentence.`;
-  const parsed = okParse(prCreateArgvReplacing('--why', value));
+  const parsed = okParse(prRenderArgvReplacing('--why', value));
   assert.deepEqual(parsed.opts.why, [value]);
 });
 
 test('parse REJECTS an accented lowercase opening a --why value, so the sentence rule still demands uppercase', () => {
-  failParse(prCreateArgvReplacing('--why', `${String.fromCharCode(233)}migr${String.fromCharCode(233)} values compose a sentence.`));
+  failParse(prRenderArgvReplacing('--why', `${String.fromCharCode(233)}migr${String.fromCharCode(233)} values compose a sentence.`));
 });
 
 test('parse REJECTS a digit opening a --why value, so a caseless first character never reads as uppercase', () => {
-  failParse(prCreateArgvReplacing('--why', '8 values now compose a sentence.'));
+  failParse(prRenderArgvReplacing('--why', '8 values now compose a sentence.'));
 });
 
 test('parse REJECTS an uppercase --why value with no terminal punctuation', () => {
-  failParse(prCreateArgvReplacing('--why', 'Uppercase with no period'));
+  failParse(prRenderArgvReplacing('--why', 'Uppercase with no period'));
 });
 
 test('parse ACCEPTS a --why value carrying a receipts line token, bypassing the sentence rule, and it renders at line start', () => {
-  const parsed = okParse(prCreateArgvReplacing('--why', 'receipt-cmd: node --test x.mjs'));
+  const parsed = okParse(prRenderArgvReplacing('--why', 'receipt-cmd: node --test x.mjs'));
   assert.deepEqual(parsed.opts.why, ['receipt-cmd: node --test x.mjs']);
   const body = renderPrCreateBody(parsed.opts);
   assert.match(body, /^receipt-cmd: node --test x\.mjs$/m);
 });
 
 test('parse ACCEPTS a --risk value carrying a receipts line token, bypassing the sentence rule', () => {
-  const parsed = okParse(prCreateArgv(['--risk', 'work-type: chore']));
+  const parsed = okParse(prRenderArgv(['--risk', 'work-type: chore']));
   assert.equal(parsed.opts.risk, 'work-type: chore');
 });
 
 test('parse REJECTS a --what value carrying a receipts line token, naming --why as the flag to use instead', () => {
-  const parsed = failParse(prCreateArgv(['--what', 'test-removal: dropped a stale case']));
+  const parsed = failParse(prRenderArgv(['--what', 'test-removal: dropped a stale case']));
   assert.match(parsed.error, /--why instead/);
 });
 
 test('parse REJECTS a lowercase --what bullet, never exempting --what from the sentence rule', () => {
-  const parsed = failParse(prCreateArgv(['--what', 'lowercase bullet.']));
+  const parsed = failParse(prRenderArgv(['--what', 'lowercase bullet.']));
   assert.match(parsed.error, /uppercase letter and end with \. \? or !/);
 });
 
 test('parse REJECTS the retired --origin flag as unknown', () => {
-  const parsed = failParse(prCreateArgv(['--origin', 'machine']));
+  const parsed = failParse(prRenderArgv(['--origin', 'machine']));
   assert.match(parsed.error, /unknown flag "--origin"/);
 });
 
 test('parse REJECTS the retired --provenance flag as unknown', () => {
-  const parsed = failParse(prCreateArgv(['--provenance', 'agent=x model=y']));
+  const parsed = failParse(prRenderArgv(['--provenance', 'agent=x model=y']));
   assert.match(parsed.error, /unknown flag "--provenance"/);
 });
 
 test('parse REJECTS the retired --depends flag as unknown', () => {
-  const parsed = failParse(prCreateArgv(['--depends', 'a,b']));
+  const parsed = failParse(prRenderArgv(['--depends', 'a,b']));
   assert.match(parsed.error, /unknown flag "--depends"/);
 });
 
 test('parse REJECTS the retired --changed-lines flag as unknown', () => {
-  const parsed = failParse(prCreateArgv(['--changed-lines', '512']));
+  const parsed = failParse(prRenderArgv(['--changed-lines', '512']));
   assert.match(parsed.error, /unknown flag "--changed-lines"/);
+});
+
+const RENDER_EVERY_FLAG = Object.freeze([
+  '--risk', 'A caller still on the retired verb now exits with a usage error.',
+  '--verified', 'node --test .claude/lib/git/tests/pr.test.mjs - 0 fail',
+  '--supersedes', 'https://github.com/acme/widgets/pull/41',
+  '--link', 'closes acme/widgets#12',
+]);
+
+test('pr-render prints one JSON line with the title and the rendered body and spawns nothing', async () => {
+  const format = await import('../pr-format.mjs');
+  const fields = format.checkPrFields({
+    title: TITLE,
+    why: [WHY],
+    what: [WHAT],
+    verified: ['node --test .claude/lib/git/tests/pr.test.mjs - 0 fail'],
+    notVerified: [NOT_VERIFIED],
+    risk: 'A caller still on the retired verb now exits with a usage error.',
+    supersedes: 'https://github.com/acme/widgets/pull/41',
+    links: ['closes acme/widgets#12'],
+  }).fields;
+  assert.notEqual(fields, null, 'the shared rules refused the fields this test renders');
+  withSandbox([{ stdout: '[]' }], (sandbox) => {
+    const res = runWrapper(prRenderArgv(RENDER_EVERY_FLAG), sandbox);
+    assert.equal(res.status, 0, `expected exit 0; stderr=${res.stderr}`);
+    assert.equal(res.stderr, '');
+    assert.ok(res.stdout.endsWith('\n'), 'the one stdout line must end with a newline');
+    const lines = res.stdout.slice(0, -1).split('\n');
+    assert.equal(lines.length, 1, `expected exactly one stdout line, got ${JSON.stringify(res.stdout)}`);
+    assert.deepEqual(JSON.parse(lines[0]), { title: TITLE, body: format.renderPrCreateBody(fields) });
+    assert.deepEqual(recordedCalls(sandbox), [], 'pr-render must spawn no gh call');
+  });
+});
+
+test('pr-render refuses what pr-create refused, and pr-create is gone', async () => {
+  const tool = await import('../pr.mjs');
+  const refusals = [
+    ['a lowercase --why', prRenderArgvReplacing('--why', 'lowercase reason.'), /--why/],
+    ['a 501-character --what', prRenderArgv(['--what', `A${'y'.repeat(PR_VALUE_CAP - 1)}.`]), /--what/],
+    ['nine --what values', prRenderArgv(repeatFlag('--what', PR_MULTI_LIMITS['--what'], 'A bounded change that is different now.')), /--what/],
+    ['a --title of Fix stuff', prRenderArgvReplacing('--title', 'Fix stuff'), /--title/],
+    ['--repo o/r', prRenderArgv(['--repo', 'o/r']), /--repo/],
+    ['the verb pr-create', ['pr-create', ...prRenderArgv().slice(1)], /pr-create/],
+  ];
+  for (const [label, args, named] of refusals) {
+    withSandbox([{ stdout: '[]' }], (sandbox) => {
+      const res = runWrapper(args, sandbox);
+      assert.equal(res.status, tool.PR_TOOL_USAGE_EXIT, `${label}: expected exit ${tool.PR_TOOL_USAGE_EXIT}; stderr=${res.stderr}`);
+      assert.equal(res.stdout, '', `${label}: a refusal must print nothing on stdout`);
+      assert.match(res.stderr, named, `${label}: stderr does not name the flag or verb`);
+      assert.deepEqual(recordedCalls(sandbox), [], `${label}: a refusal must reach no gh call`);
+    });
+  }
+  assert.deepEqual([...tool.PR_TOOL_VERBS], ['pr-render', 'pr-close', 'compare']);
+  const { opts } = tool.parsePrToolArgv(prRenderArgv());
+  for (const stage of ['observe', 'converge', 'read', 'render']) {
+    assert.throws(() => tool.buildGhArgv('pr-render', stage, opts), /refusing to build a gh argv/, `buildGhArgv built an argv for pr-render at ${stage}`);
+  }
 });

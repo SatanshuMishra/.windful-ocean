@@ -80,6 +80,7 @@ for (const [label, pattern] of MERGE_INVOCATION_PATTERNS) {
 }
 
 const PR_TOOL_STAGES = Object.freeze(['observe', 'converge', 'read']);
+const RENDER_ONLY_VERB = 'pr-render';
 
 const ARGV_PROBE_OPTS = Object.freeze({
   repo: 'acme/widgets',
@@ -99,9 +100,14 @@ const MERGE_ARGV_TOKEN_PATTERNS = [/pulls\/[^/]+\/merge/i, /mergePullRequest/i, 
 
 test('argvs from enumerated verb/stage pairs are merge-free', () => {
   assert.ok(PR_TOOL_VERBS.length > 0, 'pr.mjs exports an empty PR_TOOL_VERBS table, so this enumeration has no verb to walk; an empty verb table must fail here rather than report a pass earned over zero verbs and zero argvs');
-  const stagesBuiltByVerb = new Map(PR_TOOL_VERBS.map((verb) => [verb, []]));
+  assert.ok(PR_TOOL_VERBS.includes(RENDER_ONLY_VERB), `pr.mjs no longer exports the verb ${RENDER_ONLY_VERB}, so its exemption from this scan names nothing`);
+  for (const stage of PR_TOOL_STAGES) {
+    assert.throws(() => buildGhArgv(RENDER_ONLY_VERB, stage, ARGV_PROBE_OPTS), /refusing to build a gh argv/, `buildGhArgv built an argv for ${RENDER_ONLY_VERB} at ${stage}; ${RENDER_ONLY_VERB} prints a title and body and must reach no gh call`);
+  }
+  const scannedVerbs = PR_TOOL_VERBS.filter((verb) => verb !== RENDER_ONLY_VERB);
+  const stagesBuiltByVerb = new Map(scannedVerbs.map((verb) => [verb, []]));
   const built = [];
-  for (const verb of PR_TOOL_VERBS) {
+  for (const verb of scannedVerbs) {
     for (const stage of PR_TOOL_STAGES) {
       let argv;
       try {
@@ -122,7 +128,7 @@ test('argvs from enumerated verb/stage pairs are merge-free', () => {
     }
   }
   assert.ok(built.length > 0, `the argv scan built no argv at all from ${PR_TOOL_VERBS.length} exported verb(s) across the stages ${PR_TOOL_STAGES.join(', ')}; every pair hit the unknown-pair refusal, so no argv was inspected and a pass here would guard nothing`);
-  const unreached = PR_TOOL_VERBS.filter((verb) => stagesBuiltByVerb.get(verb).length === 0);
+  const unreached = scannedVerbs.filter((verb) => stagesBuiltByVerb.get(verb).length === 0);
   assert.deepEqual(unreached, [], `these exported verbs built no argv at any enumerated stage: ${unreached.join(', ')}. stage is an internal argument of buildGhArgv that pr.mjs exports nowhere, so PR_TOOL_STAGES here is a local list that nothing keeps in sync with the builder. A verb that builds nothing therefore means either the builder no longer serves that verb, or the verb is reachable only at a stage this list does not name — and in the second case every argv that verb can compose escapes the merge-token assertions above unread. Name the missing stage in PR_TOOL_STAGES`);
 });
 
@@ -131,27 +137,70 @@ const REQUIRED_DENY_ENTRIES = Object.freeze([
   'mcp__github__merge_pull_request',
   'mcp__plugin_github_github__merge_pull_request',
   'Bash(gh pr create:*)',
-  'mcp__github__create_pull_request',
-  'mcp__plugin_github_github__create_pull_request',
   'mcp__github__create_pull_request_with_copilot',
   'mcp__plugin_github_github__create_pull_request_with_copilot',
 ]);
 
-function readTrackedSettingsDeny(path) {
-  let parsed;
+const FORMAT_GATED_CREATE_TOOLS = Object.freeze([
+  'mcp__github__create_pull_request',
+  'mcp__plugin_github_github__create_pull_request',
+]);
+
+const ROUND_ONE_FORMAT_HOOK_MATCHER = FORMAT_GATED_CREATE_TOOLS.join('|');
+
+const FORMAT_HOOK_MATCHER = '^mcp__.+__(create_pull_request|merge_pull_request)$';
+
+const FORMAT_HOOK_HOOKS = Object.freeze([
+  Object.freeze({ type: 'command', command: 'node "$HOME/.claude/hooks/pr-format-gate.mjs" || exit 2', timeout: 10 }),
+]);
+
+function readTrackedSettings(path) {
   try {
-    parsed = JSON.parse(readFileSync(path, 'utf8'));
+    return JSON.parse(readFileSync(path, 'utf8'));
   } catch (error) {
-    assert.fail(`${SETTINGS_LABEL} could not be read or parsed at ${path}: ${error.message}; the deny guarantee cannot be checked, so this test fails closed rather than reporting a pass it did not verify`);
+    return assert.fail(`${SETTINGS_LABEL} could not be read or parsed at ${path}: ${error.message}; the deny guarantee cannot be checked, so this test fails closed rather than reporting a pass it did not verify`);
   }
-  const deny = parsed?.permissions?.deny;
-  assert.ok(Array.isArray(deny), `${SETTINGS_LABEL} at ${path} carries no permissions.deny array, so every PR merge and create surface it is supposed to name is absent`);
-  return deny;
 }
 
-test('the tracked repo deny list still names every PR merge and create surface it is relied on to block', () => {
-  const deny = readTrackedSettingsDeny(SETTINGS_PATH);
+test('the tracked settings deny every merge surface and raw create path, and gate the MCP create tools with the format hook', () => {
+  const settings = readTrackedSettings(SETTINGS_PATH);
+  const deny = settings?.permissions?.deny;
+  assert.ok(Array.isArray(deny), `${SETTINGS_LABEL} at ${SETTINGS_PATH} carries no permissions.deny array, so every PR merge and raw create surface it is supposed to name is absent`);
   for (const entry of REQUIRED_DENY_ENTRIES) {
-    assert.ok(deny.includes(entry), `${SETTINGS_LABEL} permissions.deny is missing ${entry}, an entry .claude/rules/common/git/pull-requests.md declares load-bearing. This test reads exactly one file, ${SETTINGS_PATH}, resolved only from this file's own location with no environment override, so it is always the tracked, diffable, PR-gated repo copy at .claude/settings.json; it makes no claim about the separately installed copy at ~/.claude/settings.json, which this suite never reads. Without the entry, the guarantee that the engine can neither merge nor open a pull request itself no longer holds for that file`);
+    assert.ok(deny.includes(entry), `${SETTINGS_LABEL} permissions.deny is missing ${entry}; .claude/settings.json must deny every merge surface and every create path other than the format-gated MCP create tools. This test reads exactly one file, ${SETTINGS_PATH}, resolved only from this file's own location with no environment override`);
+  }
+  for (const tool of FORMAT_GATED_CREATE_TOOLS) {
+    assert.ok(!deny.includes(tool), `${SETTINGS_LABEL} permissions.deny still lists ${tool}; .claude/settings.json lets it through so the pr-format-gate hook can check its title and body`);
+  }
+  const preToolUse = settings?.hooks?.PreToolUse;
+  assert.ok(Array.isArray(preToolUse), `${SETTINGS_LABEL} carries no hooks.PreToolUse array, so nothing gates the MCP create tools`);
+  const gates = preToolUse.filter((entry) => entry !== null && typeof entry === 'object' && entry.matcher === FORMAT_HOOK_MATCHER);
+  assert.equal(gates.length, 1, `${SETTINGS_LABEL} must register exactly one PreToolUse entry with the matcher ${FORMAT_HOOK_MATCHER}; found ${gates.length}`);
+  assert.deepEqual(gates[0].hooks, FORMAT_HOOK_HOOKS, `${SETTINGS_LABEL} registers the format hook with a hooks array other than the one .claude/settings.json must carry`);
+});
+
+test('round 2: settings gate create and merge tools under any server name', () => {
+  const settings = readTrackedSettings(SETTINGS_PATH);
+  const preToolUse = settings?.hooks?.PreToolUse;
+  assert.ok(Array.isArray(preToolUse), `${SETTINGS_LABEL} carries no hooks.PreToolUse array, so nothing gates the MCP create and merge tools`);
+  const entries = preToolUse.filter((entry) => entry !== null && typeof entry === 'object');
+  const gates = entries.filter((entry) => entry.matcher === FORMAT_HOOK_MATCHER);
+  assert.equal(gates.length, 1, `${SETTINGS_LABEL} must register exactly one PreToolUse entry with the matcher ${FORMAT_HOOK_MATCHER}; found ${gates.length}`);
+  assert.deepEqual(gates[0].hooks, FORMAT_HOOK_HOOKS, `${SETTINGS_LABEL} registers the format hook under ${FORMAT_HOOK_MATCHER} with a hooks array other than the one .claude/settings.json must carry`);
+  const roundOne = entries.filter((entry) => entry.matcher === ROUND_ONE_FORMAT_HOOK_MATCHER);
+  assert.equal(roundOne.length, 0, `${SETTINGS_LABEL} still registers a PreToolUse entry with the round-1 matcher ${ROUND_ONE_FORMAT_HOOK_MATCHER}`);
+  const formatHooks = entries.filter((entry) => Array.isArray(entry.hooks) && entry.hooks.some((hook) => typeof hook?.command === 'string' && hook.command.includes('pr-format-gate.mjs')));
+  assert.equal(formatHooks.length, 1, `${SETTINGS_LABEL} registers the format hook in ${formatHooks.length} PreToolUse entries; exactly one must carry it`);
+  const deny = settings?.permissions?.deny;
+  assert.ok(Array.isArray(deny), `${SETTINGS_LABEL} carries no permissions.deny array`);
+  for (const entry of REQUIRED_DENY_ENTRIES) {
+    assert.ok(deny.includes(entry), `${SETTINGS_LABEL} permissions.deny dropped ${entry}; the any-server gate adds to the settings denies and replaces none of them`);
+  }
+  const matcher = new RegExp(FORMAT_HOOK_MATCHER);
+  for (const tool of ['mcp__github__create_pull_request', 'mcp__plugin_github_github__create_pull_request', 'mcp__acme_github__create_pull_request', 'mcp__github__merge_pull_request', 'mcp__acme_github__merge_pull_request']) {
+    assert.ok(matcher.test(tool), `the matcher ${FORMAT_HOOK_MATCHER} does not match ${tool}`);
+  }
+  for (const tool of ['mcp__github__create_pull_request_with_copilot', 'mcp__github__list_pull_requests', 'create_pull_request']) {
+    assert.ok(!matcher.test(tool), `the matcher ${FORMAT_HOOK_MATCHER} matches ${tool}`);
   }
 });
