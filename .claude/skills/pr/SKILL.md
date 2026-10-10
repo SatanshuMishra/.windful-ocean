@@ -39,7 +39,7 @@ Write for a reviewer who has never seen this code: no file names, no line number
 | `--risk` | at most 1 value | A sentence, or a line beginning with a receipts line token. |
 | `--verified` | 0 to 8 | A check you ran and its result. |
 | `--not-verified` | 0 to 8 | A check you did not run, and why. |
-| `--link` | 0 to 8 | A related URL or reference, such as `closes OWNER/REPO#12`; it may not begin with `[`, which would make it a link reference or footnote definition. |
+| `--link` | 0 to 8 | An issue reference or a URL, and nothing else. An issue reference is an optional `closes`, `fixes`, `resolves` or `refs` in any letter case and a space, an optional `OWNER/REPO`, then `#` and a number, such as `closes OWNER/REPO#12` or `#12`. A URL is an `http` or `https` URL with no whitespace, such as `https://github.com/OWNER/REPO/issues/12`. |
 | `--supersedes` | at most 1 | A GitHub pull-request URL, `https://github.com/OWNER/REPO/pull/N`. |
 
 `--verified` and `--not-verified` together carry at least one value. Every value is at most 500 characters.
@@ -50,7 +50,8 @@ Any value is refused when it:
 
 - holds an HTML tag opener, such as `<` followed by a letter, `/`, `!` or `?`, so `<?` is refused;
 - holds a character reference such as `&#x...;`, `&#...;` or `&name;`, which GitHub decodes into the characters these rules refuse; a bare `&` is accepted;
-- begins with a markdown block character (`` ` ``, `~`, `#`, `>` or `|`) or with `@`;
+- begins with a markdown block character (`` ` ``, `~`, `#`, `>` or `|`) or with `@`; a `--link` issue reference such as `#12` is exempt;
+- holds a backslash, `](`, `![`, `]:` or any `$`, the characters every escape, empty link, image, link definition and math span needs; GitHub renders text between two dollar signs as math, which can hide text, so write a price without the sign, such as 5 dollars;
 - is made of only `=` and `-` characters;
 - holds an invisible or bidirectional character, including Unicode tag characters, variation selectors, Hangul fillers and every other default-ignorable, format, private-use or unassigned character;
 - begins with `Verified:`, `Not verified:` or `Supersedes`;

@@ -179,11 +179,44 @@ test('round 2: the pr skill states the round-2 refusals', () => {
   const skill = read('.claude/skills/pr/SKILL.md');
   const linkRows = skill.split('\n').filter((line) => line.startsWith('| `--link` |'));
   assert.equal(linkRows.length, 1);
-  assert.ok(linkRows[0].includes('may not begin with `[`'), 'the --link row does not name the [ refusal');
+  assert.ok(linkRows[0].includes('An issue reference'), 'the --link row does not name the issue reference shape');
+  assert.ok(linkRows[0].includes('URL with no whitespace'), 'the --link row does not name the URL shape');
   const refusals = skill.slice(skill.indexOf('Any value is refused when it:'));
   for (const term of ['`<?`', 'character reference', '`&#x...;`', '`&name;`', 'tag characters', 'variation selectors', 'flag name']) {
     assert.ok(refusals.includes(term), `the refusal list does not name ${term}`);
   }
+});
+
+test('round 3: the pr skill states the closed grammars', () => {
+  const skill = read('.claude/skills/pr/SKILL.md');
+  const linkRows = skill.split('\n').filter((line) => line.startsWith('| `--link` |'));
+  assert.equal(linkRows.length, 1);
+  for (const term of ['`https`', '`closes`', '`fixes`', '`resolves`', '`refs`', '`OWNER/REPO`', 'closes OWNER/REPO#12']) {
+    assert.ok(linkRows[0].includes(term), `the --link row does not name ${term}`);
+  }
+  assert.match(linkRows[0], /OWNER\/REPO#[0-9]+/);
+  assert.ok(!linkRows[0].includes('may not begin with'), 'the --link row still names the leading [ rule');
+  const refusals = skill.slice(skill.indexOf('Any value is refused when it:'));
+  const inline = refusals.split('\n').filter((line) => line.startsWith('- holds a backslash'));
+  assert.equal(inline.length, 1, 'the refusal list has no single backslash item');
+  for (const term of ['backslash', '`](`', '`![`', '`]:`', 'any `$`', 'two dollar signs', 'math']) {
+    assert.ok(inline[0].includes(term), `the refusal list does not name ${term}`);
+  }
+  const block = refusals.split('\n').filter((line) => line.startsWith('- begins with a markdown block character'));
+  assert.equal(block.length, 1);
+  assert.ok(block[0].includes('`#12`') && block[0].includes('exempt'), 'the block-character item does not exempt a Links issue reference');
+});
+
+test("round 3: the threat model's G3 states the closed grammars", () => {
+  const model = read('docs/security/bash-gate-threat-model.md');
+  const lines = model.split('\n');
+  const g3 = lines.filter((line) => line.startsWith('| G3 |'));
+  assert.equal(g3.length, 1);
+  for (const term of ['closed grammar', '`closes`', '`fixes`', '`resolves`', '`refs`', '`OWNER/REPO`', '`http` or `https` URL with no whitespace', 'backslash', '`](`', '`![`', '`]:`', 'any `$`', 'render no visible text']) {
+    assert.ok(g3[0].includes(term), `G3 does not name ${term}`);
+  }
+  assert.doesNotMatch(g3[0], /leading `?\[/);
+  assert.ok(lines.includes(G1_ROW), 'the G1 row changed');
 });
 
 test("Unchanged: the pipeline rule's Ship section keeps never merging", () => {
