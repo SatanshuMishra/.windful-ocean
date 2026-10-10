@@ -437,3 +437,66 @@ test('checkPullRequest refuses each way a title or body leaves the house format'
   }
   assert.match(source, /import \{[^}]*\bcheckPrFields\b[^}]*\} from '\.\/pr-format\.mjs';/, 'pr.mjs does not import the shared field rules from pr-format.mjs');
 });
+
+test('round 2: hidden-text carriers and flag names are refused, and every problem is named', async () => {
+  const { checkPrFields, checkPullRequest, renderPrCreateBody } = await import('../pr-format.mjs');
+  const base = Object.freeze({
+    title: 'feat(gate): add the format gate',
+    why: ['Pull requests drifted from the house format.'],
+    what: ['The gate refuses an off-format pull request.'],
+    notVerified: ['live create call - not run'],
+  });
+  const at = (code) => String.fromCodePoint(code);
+  const carriers = [
+    ['a Unicode tag character', { what: [`Adds the gate${at(0xe0061)}.`] }],
+    ['a variation selector', { what: [`Adds the gate${at(0xfe0f)}.`] }],
+    ['a supplementary variation selector', { what: [`Adds the gate${at(0xe0100)}.`] }],
+    ['a Mongolian variation selector', { what: [`Adds the gate${at(0x180b)}.`] }],
+    ['a Khmer inherent vowel', { what: [`Adds${at(0x17b4)} the gate.`] }],
+    ['a Hangul filler', { what: [`Adds${at(0x3164)}the gate.`] }],
+    ['a combining grapheme joiner', { what: [`Adds the${at(0x034f)} gate.`] }],
+    ['a format character outside the listed ranges', { what: [`Adds the gate${at(0x1d173)}.`] }],
+    ['a private-use character', { what: [`Adds the gate${at(0xe000)}.`] }],
+    ['an unassigned code point', { what: [`Adds the gate${at(0x0378)}.`] }],
+    ['a numeric character reference', { what: ['Adds the gate&#xE0061;.'] }],
+    ['a named character reference', { what: ['Adds the&ZeroWidthSpace;gate.'] }],
+    ['a processing-instruction opener', { what: ['Adds the gate <?hidden?> today.'] }],
+    ['a processing-instruction opener in a Verified value', { verified: ['the gate <?hidden?> ran'] }],
+    ['a Links value that is a link reference definition', { links: ['[r]: https://example.invalid "hidden"'] }],
+    ['a Links value that is a footnote definition', { links: ['[^1]: hidden'] }],
+    ['a value that is a flag name', { verified: ['--link'] }],
+    ['a value that is a flag name once trimmed', { verified: [' --link'] }],
+  ];
+  for (const [label, override] of carriers) {
+    const checked = checkPrFields({ ...base, ...override });
+    assert.ok(checked.problems.length > 0, `${label} was accepted`);
+  }
+  assert.deepEqual(checkPrFields({ ...base, links: ['https://github.com/o/r/pull/1'] }).problems, []);
+  assert.deepEqual(checkPrFields({ ...base, links: ['closes acme/widgets#12'] }).problems, []);
+  assert.deepEqual(checkPrFields({ ...base, what: ['Adds the gate & its tests.'] }).problems, []);
+  const body = renderPrCreateBody(checkPrFields(base).fields);
+  const broken = body.replace('## Why\n', '## Why\n\n').replace('Pull requests drifted', 'pull requests drifted');
+  const problems = checkPullRequest({ title: 'Fix stuff', body: broken });
+  assert.ok(problems.some((problem) => problem.startsWith('--title')), `the title problem is missing: ${problems.join(' | ')}`);
+  assert.ok(problems.some((problem) => /blank line/i.test(problem)), `the blank-line problem is missing: ${problems.join(' | ')}`);
+  assert.ok(problems.some((problem) => /--why/.test(problem) && /uppercase/.test(problem)), `the sentence problem is missing: ${problems.join(' | ')}`);
+  const empty = checkPullRequest({ title: 'Fix stuff', body: '' });
+  assert.ok(empty.some((problem) => problem.startsWith('--title')), `the title problem is missing beside an empty body: ${empty.join(' | ')}`);
+  const untitled = checkPullRequest({ body: broken });
+  assert.ok(untitled.some((problem) => /blank line/i.test(problem)), `the body problems are missing beside a missing title: ${untitled.join(' | ')}`);
+});
+
+test('round 2: a problem repeated on many distinct lines is reported once with its count', async () => {
+  const { checkPullRequest } = await import('../pr-format.mjs');
+  const count = 32768;
+  const body = Array.from({ length: count }, (_, index) => `stray line ${index} ${'x'.repeat(120)}`).join(LF);
+  const problems = checkPullRequest({ title: 'feat(gate): add the format gate', body });
+  assert.ok(Object.isFrozen(problems), 'the problem array is not frozen');
+  assert.ok(problems.length < 10, `expected fewer than ten problems, got ${problems.length}`);
+  assert.ok(problems.some((problem) => problem.includes(String(count))), `no problem names the count ${count}: ${problems.join(' | ')}`);
+  const quoted = problems.flatMap((problem) => problem.match(/"(?:[^"\\]|\\.)*"/g) ?? []).map((literal) => JSON.parse(literal));
+  assert.ok(quoted.length > 0, 'no problem quotes a line, so the cut is not exercised');
+  for (const line of quoted) {
+    assert.ok([...line].length <= 80, `a problem quotes a line of ${[...line].length} characters: ${JSON.stringify(line)}`);
+  }
+});

@@ -13,6 +13,8 @@ import {
   PR_TITLE_PATTERN,
   PR_TITLE_TYPES,
   PR_VALUE_CAP,
+  PR_MULTI_LIMITS,
+  PR_RENDER_FLAGS,
 } from './pr-format.mjs';
 
 export { inertValue, renderPrCreateBody, PR_TITLE_PATTERN, PR_TITLE_TYPES };
@@ -26,12 +28,13 @@ export const PR_TOOL_VERBS = Object.freeze(['pr-render', 'pr-close', 'compare'])
 
 const NO_INDIRECT_IO = Object.freeze({ readFile: () => null, readStdin: () => null });
 const GH_BINARY = 'gh';
+const isRepeatable = (flag) => Object.hasOwn(PR_MULTI_LIMITS, flag);
 
 export const FLAG_SPEC = Object.freeze({
   'pr-render': Object.freeze({
     required: Object.freeze(['--title', '--why', '--what']),
-    single: Object.freeze(['--title', '--risk', '--supersedes']),
-    multiple: Object.freeze(['--why', '--what', '--verified', '--not-verified', '--link']),
+    single: Object.freeze(PR_RENDER_FLAGS.filter((flag) => !isRepeatable(flag))),
+    multiple: Object.freeze(PR_RENDER_FLAGS.filter(isRepeatable)),
   }),
   'pr-close': Object.freeze({
     required: Object.freeze(['--repo', '--pr']),

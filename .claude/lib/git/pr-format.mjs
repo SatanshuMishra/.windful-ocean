@@ -11,10 +11,13 @@ export const PR_MULTI_LIMITS = Object.freeze({
   '--not-verified': 8,
   '--link': 8,
 });
+export const PR_RENDER_FLAGS = Object.freeze(['--title', '--risk', '--supersedes', '--why', '--what', '--verified', '--not-verified', '--link']);
 
 const CONTROL_CHARS = /[\x00-\x1F\x7F]/g;
-const INVISIBLE_OR_BIDIRECTIONAL = /[\u0080-\u009F\u00AD\u061C\u180E\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF\uFFF9-\uFFFB]/;
-const TAG_OPENER = /<[!\/A-Za-z]/;
+const INVISIBLE_OR_BIDIRECTIONAL = /[\u0080-\u009F\u00AD\u034F\u061C\u115F\u1160\u180E\u200B-\u200F\u2028-\u202F\u2060-\u206F\u3164\uFE00-\uFE0F\uFEFF\uFFA0\uFFF9-\uFFFB\u{E0000}-\u{E007F}\u{E0100}-\u{E01EF}\p{Default_Ignorable_Code_Point}\p{Cf}\p{Co}\p{Cn}]/u;
+const TAG_OPENER = /<[!?\/A-Za-z]/;
+const CHARACTER_REFERENCE = /&(#[0-9]+|#[xX][0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]*);/;
+const LINK_DEFINITION_OPENER = '[';
 const BLOCK_OPENER = /^[`~#>|]/;
 const SETEXT_UNDERLINE = /^[=-]+$/;
 const RESERVED_FIELD_PREFIX = /^(verified|not verified):/i;
@@ -47,6 +50,16 @@ export const RECEIPT_LINE_TOKENS = Object.freeze([
 
 const SENTENCE_TERMINATORS = '.?!';
 const PR_URL_HOST = 'https://github.com/';
+const QUOTE_CAP = 80;
+const QUOTE_CUT_MARK = '...';
+const QUOTED_LINE = /"(?:[^"\\]|\\.)*"/;
+const MERGED_QUOTE_LIMIT = 3;
+
+function quote(value) {
+  const characters = [...value];
+  if (characters.length <= QUOTE_CAP) return JSON.stringify(value);
+  return JSON.stringify(`${characters.slice(0, QUOTE_CAP - QUOTE_CUT_MARK.length).join('')}${QUOTE_CUT_MARK}`);
+}
 
 export function isSentenceShaped(value) {
   if (typeof value !== 'string' || value.length === 0) return false;
@@ -70,6 +83,7 @@ export function inertValue(value, cap) {
   if (stripped.startsWith(FIELD_INDIRECTION_SIGIL)) return null;
   if (INVISIBLE_OR_BIDIRECTIONAL.test(stripped)) return null;
   if (TAG_OPENER.test(stripped)) return null;
+  if (CHARACTER_REFERENCE.test(stripped)) return null;
   if (BLOCK_OPENER.test(stripped)) return null;
   if (SETEXT_UNDERLINE.test(stripped)) return null;
   if (RESERVED_FIELD_PREFIX.test(stripped)) return null;
@@ -131,8 +145,19 @@ const LIST_FIELDS = Object.freeze([
 const REQUIRED_LIST_FLAGS = Object.freeze(['--why', '--what']);
 const SENTENCE_FLAGS = Object.freeze(['--why', '--what', '--risk']);
 
+function fieldValue(raw, cap) {
+  const value = inertValue(raw, cap);
+  if (value === null || PR_RENDER_FLAGS.includes(value)) return null;
+  return value;
+}
+
 function valueProblem(flag, cap) {
-  return `${flag}: a value is empty, over the ${cap}-character cap, or carries something a pull-request document may not carry: a leading field-indirection sigil, an invisible or bidirectional character, an html tag opener, a leading markdown block opener, a setext underline, or a leading Verified:, Not verified: or Supersedes`;
+  return `${flag}: a value is empty, over the ${cap}-character cap, a pr-render flag name, or carries something a pull-request document may not carry: a leading field-indirection sigil, an invisible, bidirectional, format, private-use or unassigned character such as a Unicode tag character or a variation selector, an html tag or processing-instruction opener, a character reference such as &#x...; or &name;, a leading markdown block opener, a setext underline, or a leading Verified:, Not verified: or Supersedes`;
+}
+
+function linkProblem(flag, value) {
+  if (flag !== '--link' || !value.startsWith(LINK_DEFINITION_OPENER)) return null;
+  return `--link: a value may not begin with ${LINK_DEFINITION_OPENER}, since it would read as a link reference or footnote definition, which GitHub hides; received ${quote(value)}`;
 }
 
 function sentenceProblem(flag, value) {
@@ -142,7 +167,7 @@ function sentenceProblem(flag, value) {
     return "--what: a value may not begin with a receipts line token; a bulleted line cannot satisfy the enforcer's line-start grammar. Pass it as --why instead.";
   }
   if (isSentenceShaped(value)) return null;
-  return `${flag}: a value must begin with an uppercase letter and end with . ? or !, so the body reads as sentences; received ${JSON.stringify(value)}`;
+  return `${flag}: a value must begin with an uppercase letter and end with . ? or !, so the body reads as sentences; received ${quote(value)}`;
 }
 
 function canonicalPrUrl(candidate) {
@@ -154,12 +179,12 @@ function canonicalPrUrl(candidate) {
 }
 
 function checkTitle(raw) {
-  const title = inertValue(raw, PR_TITLE_CAP);
+  const title = fieldValue(raw, PR_TITLE_CAP);
   if (title === null) return Object.freeze({ title: null, problem: valueProblem('--title', PR_TITLE_CAP) });
   if (!PR_TITLE_PATTERN.test(title)) {
     return Object.freeze({
       title: null,
-      problem: `--title: ${JSON.stringify(title)} is not a conventional-commits title of the form <type>(<scope>): <lowercase imperative summary>; the types are ${PR_TITLE_TYPES.join(' ')}, the scope is at most 16 lowercase characters, and the whole title is at most ${PR_TITLE_CAP} characters with no trailing period`,
+      problem: `--title: ${quote(title)} is not a conventional-commits title of the form <type>(<scope>): <lowercase imperative summary>; the types are ${PR_TITLE_TYPES.join(' ')}, the scope is at most 16 lowercase characters, and the whole title is at most ${PR_TITLE_CAP} characters with no trailing period`,
     });
   }
   return Object.freeze({ title, problem: null });
@@ -175,14 +200,14 @@ function checkList(raws, flag) {
   if (list.length === 0 && REQUIRED_LIST_FLAGS.includes(flag)) {
     return Object.freeze({ values: Object.freeze([]), problems: Object.freeze([`${flag}: at least one value is required`]) });
   }
-  const values = list.map((raw) => inertValue(raw, PR_VALUE_CAP));
-  const problems = values.map((value) => (value === null ? valueProblem(flag, PR_VALUE_CAP) : sentenceProblem(flag, value)));
+  const values = list.map((raw) => fieldValue(raw, PR_VALUE_CAP));
+  const problems = values.map((value) => (value === null ? valueProblem(flag, PR_VALUE_CAP) : sentenceProblem(flag, value) ?? linkProblem(flag, value)));
   return Object.freeze({ values: Object.freeze(values), problems: Object.freeze(problems.filter((problem) => problem !== null)) });
 }
 
 function checkRisk(raw) {
   if (raw === undefined || raw === null) return Object.freeze({ risk: null, problem: null });
-  const risk = inertValue(raw, PR_VALUE_CAP);
+  const risk = fieldValue(raw, PR_VALUE_CAP);
   if (risk === null) return Object.freeze({ risk: null, problem: valueProblem('--risk', PR_VALUE_CAP) });
   return Object.freeze({ risk, problem: sentenceProblem('--risk', risk) });
 }
@@ -193,24 +218,19 @@ function checkSupersedes(raw) {
   if (supersedes === null) {
     return Object.freeze({
       supersedes: null,
-      problem: `--supersedes: the Supersedes value ${JSON.stringify(raw)} is not a github pull-request url that composes an inert link line within the ${PR_VALUE_CAP}-character cap`,
+      problem: `--supersedes: the Supersedes value ${typeof raw === 'string' ? quote(raw) : JSON.stringify(raw)} is not a github pull-request url that composes an inert link line within the ${PR_VALUE_CAP}-character cap`,
     });
   }
   return Object.freeze({ supersedes, problem: null });
 }
 
-export function checkPrFields(raw) {
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    return Object.freeze({ fields: null, problems: Object.freeze(['fields: expected an object of pull-request fields']) });
-  }
-  const title = checkTitle(raw.title);
+function checkBodyFields(raw) {
   const lists = LIST_FIELDS.map(({ field, flag }) => [field, checkList(raw[field], flag)]);
   const listed = Object.fromEntries(lists.map(([field, checked]) => [field, checked.values]));
   const risk = checkRisk(raw.risk);
   const supersedes = checkSupersedes(raw.supersedes);
   const statements = [raw.verified, raw.notVerified].reduce((count, list) => count + (Array.isArray(list) ? list.length : 0), 0);
   const problems = [
-    title.problem,
     ...lists.flatMap(([, checked]) => checked.problems),
     statements === 0
       ? 'the verification section needs at least one --verified or --not-verified value; a check that was not run is stated as --not-verified "<thing> - not run", never left out'
@@ -221,7 +241,6 @@ export function checkPrFields(raw) {
   if (problems.length > 0) return Object.freeze({ fields: null, problems: Object.freeze(problems) });
   return Object.freeze({
     fields: Object.freeze({
-      title: title.title,
       why: listed.why,
       what: listed.what,
       verified: listed.verified,
@@ -232,6 +251,17 @@ export function checkPrFields(raw) {
     }),
     problems: Object.freeze([]),
   });
+}
+
+export function checkPrFields(raw) {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return Object.freeze({ fields: null, problems: Object.freeze(['fields: expected an object of pull-request fields']) });
+  }
+  const title = checkTitle(raw.title);
+  const body = checkBodyFields(raw);
+  const problems = [title.problem, ...body.problems].filter((problem) => problem !== null);
+  if (problems.length > 0) return Object.freeze({ fields: null, problems: Object.freeze(problems) });
+  return Object.freeze({ fields: Object.freeze({ title: title.title, ...body.fields }), problems: Object.freeze([]) });
 }
 
 function readSections(body) {
@@ -265,13 +295,13 @@ function readSections(body) {
       continue;
     }
     if (line.startsWith('#')) {
-      problems.push(`body: ${JSON.stringify(line)} is not a heading pr-render writes; its headings are ${SECTION_ORDER.join(', ')}`);
+      problems.push(`body: ${quote(line)} is not a heading pr-render writes; its headings are ${SECTION_ORDER.join(', ')}`);
       current = 'body';
       target = [];
       continue;
     }
     if (target === null) {
-      problems.push(`body: the line ${JSON.stringify(line)} sits outside any section`);
+      problems.push(`body: the line ${quote(line)} sits outside any section`);
       continue;
     }
     target.push(line);
@@ -285,7 +315,7 @@ function readPrefixed(lines, heading, prefix) {
   const values = lines.filter((line) => line.startsWith(prefix)).map((line) => line.slice(prefix.length));
   const problems = lines
     .filter((line) => !line.startsWith(prefix))
-    .map((line) => `${heading}: the line ${JSON.stringify(line)} does not begin with ${JSON.stringify(prefix)}`);
+    .map((line) => `${heading}: the line ${quote(line)} does not begin with ${JSON.stringify(prefix)}`);
   return Object.freeze({ values, problems });
 }
 
@@ -300,7 +330,7 @@ function readVerification(lines) {
     } else if (line.startsWith(NOT_VERIFIED_PREFIX)) {
       notVerified.push(line.slice(NOT_VERIFIED_PREFIX.length));
     } else {
-      problems.push(`${VERIFICATION_HEADING}: the line ${JSON.stringify(line)} begins with neither ${JSON.stringify(VERIFIED_PREFIX)} nor ${JSON.stringify(NOT_VERIFIED_PREFIX)}`);
+      problems.push(`${VERIFICATION_HEADING}: the line ${quote(line)} begins with neither ${JSON.stringify(VERIFIED_PREFIX)} nor ${JSON.stringify(NOT_VERIFIED_PREFIX)}`);
     }
   }
   return Object.freeze({ verified, notVerified, problems });
@@ -314,7 +344,7 @@ function readLinks(lines) {
     supersedes: supersedesAt === 0 ? lines[0].slice(SUPERSEDES_PREFIX.length) : null,
     links: rest.values,
     problems: [
-      ...misplaced.map((line) => `${LINKS_HEADING}: the Supersedes line ${JSON.stringify(line)} is not the section's first line, and pr-render writes at most one, first`),
+      ...misplaced.map((line) => `${LINKS_HEADING}: the Supersedes line ${quote(line)} is not the section's first line, and pr-render writes at most one, first`),
       ...rest.problems,
     ],
   });
@@ -350,43 +380,68 @@ function splitBody(body) {
 function titleDrift(title) {
   const cleaned = inertValue(title, PR_TITLE_CAP);
   if (cleaned === null || cleaned === title) return [];
-  return [`--title: the title ${JSON.stringify(title)} carries surrounding whitespace or a control character, so it is not what pr-render prints`];
+  return [`--title: the title ${quote(title)} carries surrounding whitespace or a control character, so it is not what pr-render prints`];
 }
 
 function fieldDrift(raw, cleaned) {
   const lists = LIST_FIELDS.flatMap(({ field, flag, heading }) => raw[field]
     .filter((value, index) => cleaned[field][index] !== value)
-    .map((value) => `${heading} (${flag}): the value ${JSON.stringify(value)} carries surrounding whitespace or a control character, so it is not what pr-render prints`));
+    .map((value) => `${heading} (${flag}): the value ${quote(value)} carries surrounding whitespace or a control character, so it is not what pr-render prints`));
   const risk = raw.risk !== cleaned.risk
-    ? [`${RISK_HEADING} (--risk): the value ${JSON.stringify(raw.risk)} carries surrounding whitespace or a control character, so it is not what pr-render prints`]
+    ? [`${RISK_HEADING} (--risk): the value ${quote(raw.risk)} carries surrounding whitespace or a control character, so it is not what pr-render prints`]
     : [];
   const supersedes = raw.supersedes !== cleaned.supersedes
-    ? [`${LINKS_HEADING} (--supersedes): the Supersedes line names ${JSON.stringify(raw.supersedes)}, not the canonical pull-request url ${cleaned.supersedes}`]
+    ? [`${LINKS_HEADING} (--supersedes): the Supersedes line names ${quote(raw.supersedes)}, not the canonical pull-request url ${cleaned.supersedes}`]
     : [];
   return [...lists, ...risk, ...supersedes];
+}
+
+function mergedProblem(group) {
+  const [first] = group;
+  if (group.length === 1) return first;
+  const others = group
+    .slice(1)
+    .map((problem) => problem.match(QUOTED_LINE))
+    .filter((found) => found !== null)
+    .slice(0, MERGED_QUOTE_LIMIT - 1)
+    .map((found) => found[0]);
+  const among = others.length > 0 ? `, among them ${others.join(' and ')}` : '';
+  return `${first}; the same problem holds on ${group.length} lines in all${among}`;
+}
+
+function mergeProblems(problems) {
+  const groups = new Map();
+  for (const problem of problems) {
+    const key = problem.replace(QUOTED_LINE, '');
+    const group = groups.get(key);
+    if (group === undefined) groups.set(key, [problem]);
+    else group.push(problem);
+  }
+  return [...groups.values()].map(mergedProblem);
+}
+
+function titleProblems(title) {
+  if (typeof title !== 'string') return ['title: missing or not a string'];
+  const titled = checkTitle(title);
+  return [...(titled.problem === null ? [] : [titled.problem]), ...titleDrift(title)];
+}
+
+function bodyProblems(body) {
+  if (typeof body !== 'string') return ['body: missing or not a string'];
+  if (body.length === 0) return [`body: empty; pr-render begins the body with the ${WHAT_HEADING} heading`];
+  const split = splitBody(body);
+  const checked = checkBodyFields(split.fields);
+  const drift = checked.fields === null ? [] : fieldDrift(split.fields, checked.fields);
+  const found = [...split.problems, ...checked.problems, ...drift];
+  if (found.length > 0) return found;
+  if (renderPrCreateBody(checked.fields) !== body) {
+    return ['body: does not re-render byte for byte from its own fields, so it is not what pr-render prints'];
+  }
+  return [];
 }
 
 export function checkPullRequest(pullRequest) {
   const given = pullRequest !== null && typeof pullRequest === 'object' && !Array.isArray(pullRequest) ? pullRequest : {};
   const { title, body } = given;
-  const missing = [
-    typeof title === 'string' ? null : 'title: missing or not a string',
-    typeof body === 'string' ? null : 'body: missing or not a string',
-  ].filter((problem) => problem !== null);
-  if (missing.length > 0) return Object.freeze(missing);
-  if (body.length === 0) return Object.freeze([...titleDrift(title), `body: empty; pr-render begins the body with the ${WHAT_HEADING} heading`]);
-  const split = splitBody(body);
-  if (split.problems.length > 0) {
-    const titled = checkTitle(title);
-    return Object.freeze([...(titled.problem === null ? [] : [titled.problem]), ...titleDrift(title), ...split.problems]);
-  }
-  const raw = Object.freeze({ title, ...split.fields });
-  const checked = checkPrFields(raw);
-  if (checked.problems.length > 0) return Object.freeze([...titleDrift(title), ...checked.problems]);
-  const drift = [...titleDrift(title), ...fieldDrift(raw, checked.fields)];
-  if (drift.length > 0) return Object.freeze(drift);
-  if (renderPrCreateBody(checked.fields) !== body) {
-    return Object.freeze(['body: does not re-render byte for byte from its own fields, so it is not what pr-render prints']);
-  }
-  return Object.freeze([]);
+  return Object.freeze(mergeProblems([...titleProblems(title), ...bodyProblems(body)]));
 }
