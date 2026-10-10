@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   PR_TITLE_PATTERN,
   PR_TITLE_TYPES,
@@ -7,7 +9,6 @@ import {
   PR_VALUE_CAP,
   inertValue,
   renderPrCreateBody,
-  carriesComposedSkeleton,
 } from '../pr-format.mjs';
 import { parsePrToolArgv } from '../pr.mjs';
 
@@ -27,6 +28,9 @@ const NUL = String.fromCharCode(0);
 const BEL = String.fromCharCode(7);
 const LF = String.fromCharCode(10);
 const DEL = String.fromCharCode(127);
+const TAB = String.fromCharCode(9);
+const CR = String.fromCharCode(13);
+const ESC = String.fromCharCode(27);
 
 const ACCEPTED_TITLES = Object.freeze([
   'refactor(pr-tool): centralize pull-request creation',
@@ -154,10 +158,7 @@ function renderArgv(argv) {
 
 function baseArgv(extra = []) {
   return [
-    'pr-create',
-    '--repo', 'acme/widgets',
-    '--head', 'docs/pr-rule-pointer',
-    '--base', 'main',
+    'pr-render',
     '--title', 'docs(rules): point the PR rule at the central tool',
     '--why', 'The rule still described a workflow the gate denies, so it sent people down a path that fails.',
     '--what', 'The pull-request rule now points at the central tool instead of an ad-hoc command.',
@@ -186,10 +187,7 @@ test('the rendered body for worked example A (§4.7, minimal) matches the spec b
 });
 
 const WORKED_EXAMPLE_B_ARGV = Object.freeze([
-  'pr-create',
-  '--repo', 'acme/widgets',
-  '--head', 'refactor/pr-body',
-  '--base', 'main',
+  'pr-render',
   '--title', 'refactor(pr-tool): compose pr bodies from declared fields',
   '--what', 'Pull-request descriptions are now built from declared fields instead of written by hand.',
   '--what', 'The description opens with the change itself, so a reviewer reads what happened first.',
@@ -280,50 +278,162 @@ for (const [label, forged] of FORGERY_ATTEMPTS) {
   });
 }
 
-const COMPOSED_BODY = renderPrCreateBody({
-  what: ['The pull-request rule now points at the central tool instead of an ad-hoc command.'],
+const PR_TOOL_SOURCE = fileURLToPath(new URL('../pr.mjs', import.meta.url));
+
+function renderArgvOf(fields) {
+  return [
+    'pr-render',
+    '--title', fields.title,
+    ...(fields.why ?? []).flatMap((value) => ['--why', value]),
+    ...(fields.what ?? []).flatMap((value) => ['--what', value]),
+    ...(fields.verified ?? []).flatMap((value) => ['--verified', value]),
+    ...(fields.notVerified ?? []).flatMap((value) => ['--not-verified', value]),
+    ...(fields.links ?? []).flatMap((value) => ['--link', value]),
+    ...(fields.risk ? ['--risk', fields.risk] : []),
+    ...(fields.supersedes ? ['--supersedes', fields.supersedes] : []),
+  ];
+}
+
+function eightOf(stem) {
+  return Array.from({ length: 8 }, (_, index) => `${stem} ${index + 1}.`);
+}
+
+const MINIMAL_FIELDS = Object.freeze({
+  title: 'docs(rules): point the PR rule at the central tool',
   why: ['The rule still described a workflow the gate denies, so it sent people down a path that fails.'],
+  what: ['The pull-request rule now points at the central tool instead of an ad-hoc command.'],
   notVerified: ['no automated check covers rule prose - not run'],
 });
 
-test('carriesComposedSkeleton recognises a body this tool actually rendered', () => {
-  assert.equal(carriesComposedSkeleton(COMPOSED_BODY), true);
+const EVERY_FIELD = Object.freeze({
+  title: 'refactor(pr-tool): compose pr bodies from declared fields',
+  what: [
+    'Pull-request descriptions are now built from declared fields instead of written by hand.',
+    'The description opens with the change itself, so a reviewer reads what happened first.',
+  ],
+  why: [
+    'Every path that opened a pull request invented its own format, so no two descriptions could be read the same way.',
+    'receipt-cmd: node --test .claude/lib/git/tests/pr-format.test.mjs',
+  ],
+  risk: 'A pull request opened before this change no longer matches the expected shape.',
+  verified: ['node --test .claude/lib/git/tests/pr-format.test.mjs - 0 fail'],
+  notVerified: ['the enforcer on the fresh branch - not run'],
+  supersedes: 'https://github.com/acme/widgets/pull/41',
+  links: ['closes acme/widgets#12'],
 });
 
-test('carriesComposedSkeleton returns false once ## Why is stripped from a composed body', () => {
-  const withoutWhy = COMPOSED_BODY.split(LF).filter((line) => line !== '## Why').join(LF);
-  assert.equal(carriesComposedSkeleton(withoutWhy), false);
+const EIGHT_OF_EACH = Object.freeze({
+  title: 'feat(pr-tool): carry eight values in every repeatable section',
+  why: eightOf('Reason number'),
+  what: eightOf('Change number'),
+  verified: eightOf('a check that ran, number'),
+  notVerified: eightOf('a check that did not run, number'),
+  links: eightOf('related ticket number'),
+  risk: 'Eight values of every list still render one section each.',
 });
 
-test('carriesComposedSkeleton returns false when a paragraph is prepended above ## What changed', () => {
-  const prepended = `a hand-written preface${LF}${LF}${COMPOSED_BODY}`;
-  assert.equal(carriesComposedSkeleton(prepended), false);
+const RECEIPT_TOKEN_WHY = Object.freeze({
+  ...MINIMAL_FIELDS,
+  why: ['receipt-cmd: node --test .claude/lib/git/tests/pr-format.test.mjs'],
 });
 
-test('carriesComposedSkeleton returns false for a hand-written body carrying no headings at all', () => {
-  assert.equal(carriesComposedSkeleton('Fixed a typo in the README.'), false);
+const PRINTED_FLAG_SETS = Object.freeze([
+  ['the minimal flags', MINIMAL_FIELDS],
+  ['every flag at once', EVERY_FIELD],
+  ['eight values of every repeatable flag', EIGHT_OF_EACH],
+  ['a why value beginning with a receipts line token', RECEIPT_TOKEN_WHY],
+]);
+
+test('checkPullRequest accepts every title and body pr-render prints', async () => {
+  const format = await import('../pr-format.mjs');
+  const tool = await import('../pr.mjs');
+  for (const [label, raw] of PRINTED_FLAG_SETS) {
+    const checked = format.checkPrFields(raw);
+    assert.deepEqual(checked.problems, [], `${label}: the shared rules refused fields pr-render accepts`);
+    const parsed = tool.parsePrToolArgv(renderArgvOf(raw));
+    assert.equal(parsed.ok, true, `${label}: pr-render refused its own flags: ${parsed.error}`);
+    assert.deepEqual(parsed.opts, checked.fields, `${label}: pr-render did not clean its flags through the shared rules`);
+    const title = checked.fields.title;
+    const body = format.renderPrCreateBody(checked.fields);
+    const problems = format.checkPullRequest({ title, body });
+    assert.ok(Array.isArray(problems), `${label}: the check returned no array`);
+    assert.ok(Object.isFrozen(problems), `${label}: the problem array is not frozen`);
+    assert.deepEqual(problems, [], `${label}: the check refused what pr-render printed: ${problems.join(' | ')}`);
+  }
 });
 
-const NON_STRING_BODIES = Object.freeze([null, undefined, 42, {}, []]);
-
-for (const value of NON_STRING_BODIES) {
-  test(`carriesComposedSkeleton returns false for the non-string input ${String(value)}`, () => {
-    assert.equal(carriesComposedSkeleton(value), false);
-  });
-}
-
-test('carriesComposedSkeleton returns false for a pre-existing pull request still carrying the retired trailer sentence', () => {
-  const legacyBody = [
-    '## Why',
-    'The rule still described a workflow the gate denies.',
-    '',
-    '## What',
-    '- pull-requests.md now points at mitosis-git pr-create',
-    '',
-    '## Verification',
-    'Not verified: no automated check covers rule prose - not run',
-    '',
-    'Opened at human direction through the mitosis-git pr-create tool. HUMAN-GATED: a human reviews and lands this pull request.',
-  ].join(LF);
-  assert.equal(carriesComposedSkeleton(legacyBody), false);
+test('checkPullRequest refuses each way a title or body leaves the house format', async () => {
+  const format = await import('../pr-format.mjs');
+  const fields = format.checkPrFields(EVERY_FIELD).fields;
+  const title = fields.title;
+  const body = format.renderPrCreateBody(fields);
+  assert.deepEqual(format.checkPullRequest({ title, body }), [], 'the valid body every mutation starts from must itself be accepted');
+  const riskToken = format.checkPrFields({ ...EVERY_FIELD, risk: 'work-type: chore' }).fields;
+  assert.deepEqual(format.checkPullRequest({ title, body: format.renderPrCreateBody(riskToken) }), [], 'a Risk value beginning with a receipts line token is exempt from the sentence rule');
+  const [w1, w2] = EVERY_FIELD.what;
+  const [y1, y2] = EVERY_FIELD.why;
+  const [v1] = EVERY_FIELD.verified;
+  const [n1] = EVERY_FIELD.notVerified;
+  const risk = EVERY_FIELD.risk;
+  const whatSection = `## What changed\n- ${w1}\n- ${w2}`;
+  const whySection = `## Why\n${y1}\n${y2}`;
+  const swap = (from, to) => {
+    assert.ok(body.includes(from), `the valid body carries no ${JSON.stringify(from)} to mutate`);
+    return body.replace(from, to);
+  };
+  const titleCases = [
+    ['a title with a leading space', ` ${title}`, /title/],
+    ['a title with a trailing space', `${title} `, /title/],
+    ['a title with a trailing newline', `${title}${LF}`, /title/],
+    ['a title with a tab', `${TAB}${title}`, /title/],
+    ['a title that breaks the title pattern', 'Fix stuff', /title/],
+    ['a missing title', undefined, /title/],
+    ['a non-string title', 42, /title/],
+  ];
+  const bodyCases = [
+    ['a missing body', undefined, /body/],
+    ['a non-string body', [body], /body/],
+    ['a body with a trailing newline', `${body}${LF}`, /body.*newline/],
+    ['a blank line inside a section', swap(`${y1}\n${y2}`, `${y1}\n\n${y2}`), /## Why.*blank line/],
+    ['two blank lines between sections', swap('\n\n## Why\n', '\n\n\n## Why\n'), /two blank lines/],
+    ['an unknown heading', swap('\n## Risk\n', '\n## Risks\n'), /## Risks.*not a heading/],
+    ['a section out of order', swap(`${whatSection}\n\n${whySection}`, `${whySection}\n\n${whatSection}`), /## What changed.*out of order/],
+    ['a repeated section', `${body}\n\n## Links\n- closes acme/widgets#13`, /## Links.*more than once/],
+    ['a missing What changed section', swap(`${whatSection}\n\n`, ''), /## What changed.*missing/],
+    ['a missing Why section', swap(`${whySection}\n\n`, ''), /## Why.*missing/],
+    ['a missing Verification section', swap(`## Verification\nVerified: ${v1}\nNot verified: ${n1}\n\n`, ''), /## Verification.*missing/],
+    ['a What changed line without the leading hyphen and space', swap(`- ${w1}`, w1), /## What changed/],
+    ['a value line with a trailing space', swap(`${y1}\n`, `${y1} \n`), /## Why/],
+    ['a value line with a leading tab', swap(`${y1}\n`, `${TAB}${y1}\n`), /## Why/],
+    ['a value line with a carriage return', swap(`${y1}\n`, `${y1}${CR}\n`), /## Why/],
+    ['a value line with an escape character', swap(`${y1}\n`, `${y1}${ESC}\n`), /## Why/],
+    ['a Verified line after a Not verified line', swap(`Verified: ${v1}\nNot verified: ${n1}`, `Not verified: ${n1}\nVerified: ${v1}`), /## Verification.*Verified: line follows/],
+    ['a Risk section of more than one line', swap(`${risk}\n`, `${risk}\nA second risk line.\n`), /## Risk/],
+    ['nine What changed values', swap(`- ${w1}\n- ${w2}\n`, `${Array.from({ length: 9 }, (_, index) => `- Change ${index + 1} is different now.`).join('\n')}\n`), /--what.*ceiling/],
+    ['a value that breaks inertValue', swap(`- ${w1}`, '- See the <details> block.'), /--what/],
+    ['a value over the 500-character cap', swap(`- ${w1}`, `- A${'y'.repeat(PR_VALUE_CAP - 1)}.`), /--what.*500/],
+    ['a What changed value that is not a sentence', swap(`- ${w1}`, '- lowercase bullet.'), /--what.*uppercase/],
+    ['a Why value that is not a sentence', swap(`${y1}\n`, 'lowercase reason.\n'), /--why.*uppercase/],
+    ['a Risk value that is not a sentence', swap(`${risk}\n`, 'lowercase risk.\n'), /--risk.*uppercase/],
+    ['a What changed value beginning with a receipts line token', swap(`- ${w1}`, '- test-removal: dropped a stale case'), /--what.*receipts line token/],
+    ['a Supersedes line that is not the canonical url', swap('pull/41', 'pull/41/files'), /--supersedes/],
+    ['a Supersedes line that is not a github pull-request url', swap('https://github.com/acme/widgets/pull/41', 'https://evil.example.com/acme/widgets/pull/41'), /--supersedes/],
+  ];
+  const cases = [
+    ...titleCases.map(([label, badTitle, names]) => [label, { title: badTitle, body }, names]),
+    ...bodyCases.map(([label, badBody, names]) => [label, { title, body: badBody }, names]),
+  ];
+  for (const [label, pullRequest, names] of cases) {
+    const problems = format.checkPullRequest(pullRequest);
+    assert.ok(Array.isArray(problems), `${label}: the check returned no array`);
+    assert.ok(Object.isFrozen(problems), `${label}: the problem array is not frozen`);
+    assert.ok(problems.length > 0, `${label}: the check accepted it`);
+    for (const problem of problems) assert.equal(typeof problem, 'string', `${label}: a problem is not a string`);
+    assert.match(problems.join(' | '), names, `${label}: no problem names the right field: ${problems.join(' | ')}`);
+  }
+  const source = readFileSync(PR_TOOL_SOURCE, 'utf8');
+  for (const name of ['sentenceCheck', 'canonicalPrUrl', 'collectInertList']) {
+    assert.doesNotMatch(source, new RegExp(`\\b${name}\\b`), `pr.mjs still carries ${name}; the field rules live once, in pr-format.mjs`);
+  }
+  assert.match(source, /import \{[^}]*\bcheckPrFields\b[^}]*\} from '\.\/pr-format\.mjs';/, 'pr.mjs does not import the shared field rules from pr-format.mjs');
 });
