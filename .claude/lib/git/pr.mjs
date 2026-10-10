@@ -15,6 +15,7 @@ import {
   PR_VALUE_CAP,
   PR_MULTI_LIMITS,
   PR_RENDER_FLAGS,
+  PR_VALUE_REFUSALS,
 } from './pr-format.mjs';
 
 export { inertValue, renderPrCreateBody, PR_TITLE_PATTERN, PR_TITLE_TYPES };
@@ -118,7 +119,7 @@ function parsePrClose(single) {
   let comment = null;
   if (single.has('--comment')) {
     comment = inertValue(single.get('--comment'), PR_VALUE_CAP);
-    if (comment === null) return rejection(`pr-tool pr-close: a --comment value is empty, over the ${PR_VALUE_CAP}-character cap, or carries something a pull-request document may not carry: a leading field-indirection sigil, a non-ascii character, an html tag opener, a leading markdown block opener, or a setext underline`);
+    if (comment === null) return rejection(`pr-tool pr-close: a --comment value is empty, over the ${PR_VALUE_CAP}-character cap, or carries ${PR_VALUE_REFUSALS}`);
   }
   return Object.freeze({ ok: true, error: null, verb: 'pr-close', opts: Object.freeze({ repo, pr, comment }) });
 }

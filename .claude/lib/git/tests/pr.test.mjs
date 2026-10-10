@@ -283,6 +283,7 @@ test('parse REJECTS an over-cap body value rather than silently truncating it', 
 const SENTENCE_CHECKED_MULTI = new Set(['--why', '--what']);
 
 function boundedValueFor(flag) {
+  if (flag === '--link') return 'refs #1';
   return SENTENCE_CHECKED_MULTI.has(flag) ? 'A bounded value that satisfies the sentence rule.' : 'a bounded value';
 }
 
