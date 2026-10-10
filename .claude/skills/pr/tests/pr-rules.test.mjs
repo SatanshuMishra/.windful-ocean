@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { FLAG_SPEC } from '../../../lib/git/pr.mjs';
@@ -14,6 +15,10 @@ import {
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url)).replace(/\/$/, '');
 
 const G1_ROW = '| G1 | No pull request in this environment is merged by an agent-issued command; `gh pr merge`, the `gh api .../pulls/<n>/merge` REST call, and the `mergePullRequest` / `enablePullRequestAutomerge` / `enqueuePullRequest` GraphQL mutations are all denied. | Hook deny, sole control (decision 0255). Branch protection is deliberately not deployed: the agent\'s token carries `repo` scope on a repo the owner owns, so it could delete the rule as easily as merge — the "primary control outside the agent\'s reach" this cell previously claimed did not exist. If branch protection is ever enabled, a protection-tampering deny must land in the same change. `settings.json`\'s `Bash(gh pr merge:*)` rule is not a second layer either: prefix matching cannot express a flag between `gh` and its subcommand, so it misses exactly the phrasings the hook had to be widened for (decision 0257). `enqueuePullRequest` added per decision 0258. |';
+
+const ROUND_1_MATCHER = 'mcp__github__create_pull_request|mcp__plugin_github_github__create_pull_request';
+const ROUND_2_MATCHER = '^mcp__.+__(create_pull_request|merge_pull_request)$';
+const NEVER_MERGE = 'Never merge and never mark a pull request ready.';
 
 const PR_LINE = '- Open every pull request through the GitHub MCP `create_pull_request` tool, with the title and body `node ~/.claude/lib/git/pr.mjs pr-render` prints; a hook refuses any other title or body, and ad-hoc `gh pr create` stays denied. Only a human merges. The `pr` skill carries the title grammar and body fields.';
 const PIPELINE_LINE = '- Every request that changes a git repository runs the pipeline autonomously: interphase specs it, mitosis builds it, independent reviewers judge it, and every concern returns to interphase until a round is green, with no round limit and no question to the user. Rule: `~/.claude/rules/common/pipeline.md`.';
@@ -121,7 +126,67 @@ test('the attribution census and the auditor route pull requests to files that e
     .split('\n')
     .filter((line) => line.startsWith('| a pull request |'));
   assert.equal(rows.length, 1);
-  assert.match(rows[0], /`pr` skill/);
+  assert.match(rows[0], /the pr skill/);
   assert.ok(rows[0].includes('create_pull_request'), 'the pull request row does not name create_pull_request');
   assert.ok(!rows[0].includes('pull-requests.md'), 'the pull request row still names pull-requests.md');
+});
+
+function tableCell(text) {
+  return text.replaceAll('|', '\\|');
+}
+
+function pullRequestRow() {
+  const rows = read('.claude/skills/conformance-auditor/reference/binding-rules.md')
+    .split('\n')
+    .filter((line) => line.startsWith('| a pull request |'));
+  assert.equal(rows.length, 1);
+  return rows[0];
+}
+
+test("round 2: the auditor's pull-request row passes the skill-router lint", () => {
+  const lint = spawnSync(
+    process.execPath,
+    [repoPath('scripts/repo/skill-router-lint.mjs'), repoPath('.claude/skills/conformance-auditor')],
+    { encoding: 'utf8' },
+  );
+  assert.equal(lint.status, 0, `the skill-router lint failed: ${lint.stderr}`);
+  const row = pullRequestRow();
+  assert.ok(row.includes('the pr skill'), 'the pull request row does not name the pr skill');
+  assert.ok(row.includes('`.claude/skills/pr/SKILL.md`'), 'the pull request row does not name .claude/skills/pr/SKILL.md');
+  assert.ok(!row.includes('`pr`'), 'the pull request row still backticks the bare name pr');
+});
+
+test('round 2: the threat model records the hook switch-off and the any-server gate', () => {
+  const model = read('docs/security/bash-gate-threat-model.md');
+  const lines = model.split('\n');
+  const residual = sectionOf(model, '## 6. ').split('\n').filter((line) => /^\| \d+ \|/.test(line));
+  const switchOff = residual.filter((line) => line.includes('disableAllHooks'));
+  assert.equal(switchOff.length, 1, 'no single section 6 row names disableAllHooks');
+  for (const term of ['managed settings', 'merge_pull_request', 'create_pull_request']) {
+    assert.ok(switchOff[0].includes(term), `the disableAllHooks row does not name ${term}`);
+  }
+  const g3 = lines.filter((line) => line.startsWith('| G3 |'));
+  assert.equal(g3.length, 1);
+  for (const term of ['any MCP server name', 'any server name', 'merge_pull_request', 'non-goal 3', 'gh auth token', tableCell(ROUND_2_MATCHER)]) {
+    assert.ok(g3[0].includes(term), `G3 does not name ${term}`);
+  }
+  assert.ok(!g3[0].includes(tableCell(ROUND_1_MATCHER)), 'G3 still names the round-1 matcher');
+  assert.ok(!g3[0].includes(ROUND_1_MATCHER), 'G3 still names the round-1 matcher');
+  assert.ok(lines.includes(G1_ROW), 'the G1 row changed');
+});
+
+test('round 2: the pr skill states the round-2 refusals', () => {
+  const skill = read('.claude/skills/pr/SKILL.md');
+  const linkRows = skill.split('\n').filter((line) => line.startsWith('| `--link` |'));
+  assert.equal(linkRows.length, 1);
+  assert.ok(linkRows[0].includes('may not begin with `[`'), 'the --link row does not name the [ refusal');
+  const refusals = skill.slice(skill.indexOf('Any value is refused when it:'));
+  for (const term of ['`<?`', 'character reference', '`&#x...;`', '`&name;`', 'tag characters', 'variation selectors', 'flag name']) {
+    assert.ok(refusals.includes(term), `the refusal list does not name ${term}`);
+  }
+});
+
+test("Unchanged: the pipeline rule's Ship section keeps never merging", () => {
+  const ship = sectionOf(read('.claude/rules/common/pipeline.md'), '## Ship');
+  assert.ok(ship.includes(NEVER_MERGE), 'the Ship section does not hold the never-merge sentence');
 });
