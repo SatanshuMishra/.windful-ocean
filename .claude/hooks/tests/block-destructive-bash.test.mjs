@@ -47,7 +47,7 @@ const MERGE_DENY_REASON =
   'merging a PR is human-gated: gh pr merge and the gh api pulls/*/merge REST endpoint are both blocked; a human merges via the PR after review';
 
 const CREATION_DENY_REASON =
-  'opening a pull request is centralized: every pull request in this environment is created by one tool, in one format. Run this, quoting every value: node "$HOME"/.claude/lib/git/pr.mjs pr-create --repo OWNER/REPO --head HEAD-BRANCH --base BASE-BRANCH --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --what THE BEHAVIOR THAT IS DIFFERENT NOW. --why THE PROBLEM THAT EXISTED BEFORE. --not-verified THING YOU DID NOT CHECK - not run. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. A --why, --what or --risk value starts with a capital letter and ends with a full stop. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: .claude/rules/common/git/pull-requests.md';
+  'opening a pull request goes through the GitHub MCP create_pull_request tool, in one format. Compose the title and body with this, quoting every value: node "$HOME"/.claude/lib/git/pr.mjs pr-render --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --what THE BEHAVIOR THAT IS DIFFERENT NOW. --why THE PROBLEM THAT EXISTED BEFORE. --not-verified THING YOU DID NOT CHECK - not run. Then call create_pull_request with the printed title and body unchanged; a hook refuses any other title or body, and pr-render\'s body replaces any repository pull-request template. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. A --why, --what or --risk value starts with a capital letter and ends with a full stop. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: the pr skill.';
 
 const SUPABASE_DENY_REASON =
   'connecting to a hosted Supabase project is human-gated: the agent authors migration SQL and a human applies it in the dashboard, which keeps the audit trail and the approval in human hands. Local disposable containers (supabase start, supabase db reset, supabase test db) are unrestricted. Rule: .claude/rules/common/no-direct-db-access.md';
@@ -253,12 +253,16 @@ for (const command of g1ReadOnlyGhCommands) {
   });
 }
 
-test('the creation deny reason names every required pr-create flag', () => {
+test('the creation deny reason names every required pr-render flag and the MCP create tool', () => {
   const reason = reasonOf(runHook('gh pr create --fill'));
-  for (const flag of FLAG_SPEC['pr-create'].required) {
+  for (const flag of FLAG_SPEC['pr-render'].required) {
     assert.ok(reason.includes(flag), `deny reason omits ${flag}`);
   }
-  assert.match(reason, /lib\/git\/pr\.mjs pr-create/);
+  assert.equal(reason, CREATION_DENY_REASON);
+  assert.match(reason, /lib\/git\/pr\.mjs pr-render/);
+  assert.match(reason, /create_pull_request/);
+  assert.doesNotMatch(reason, /pr-create/);
+  assert.doesNotMatch(reason, /pull-requests\.md/);
   assert.match(reason, /NEVER write a --verified line for a check you did not run/);
   assert.match(reason, /pull\/new URL printed by git push is not an approved path/);
 });
@@ -277,8 +281,8 @@ const allowCommands = [
   'gh api graphql -f query=\'mutation { updatePullRequestBranch(input: {pullRequestId: "x"}) { clientMutationId } }\'',
   "echo 'high pr create'",
   'gh pr edit 12 -B main',
-  'node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-create --repo o/r --head feature --base main --title "fix(gate): deny raw pull-request creation" --origin machine --provenance "agent=gate model=opus" --why "raw creation bypassed the format" --what "gate denies raw creation" --not-verified "CI - not run"',
-  'node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-create --repo o/r --head feature --base main --title "fix(gate): deny raw pull-request creation" --origin human --why "the gh pr create path is blocked at the gate" --what "gate denies raw creation" --not-verified "CI - not run"',
+  'node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-render --title "fix(gate): deny raw pull-request creation" --origin machine --provenance "agent=gate model=opus" --why "raw creation bypassed the format" --what "gate denies raw creation" --not-verified "CI - not run"',
+  'node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-render --title "fix(gate): deny raw pull-request creation" --origin human --why "the gh pr create path is blocked at the gate" --what "gate denies raw creation" --not-verified "CI - not run"',
   'git -C /repo status',
   'git -C /repo push --force-with-lease origin main',
   'git -C /repo branch -d feature',
@@ -295,7 +299,7 @@ for (const command of allowCommands) {
 }
 
 test('the wrapper loses its own exemption the moment anything is chained onto it', () => {
-  const r = runHook('node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-create --repo o/r --head f --base main --title "fix(gate): x" --origin human --why "w" --what "c" --not-verified "n" && gh pr create --fill');
+  const r = runHook('node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-render --title "fix(gate): x" --origin human --why "w" --what "c" --not-verified "n" && gh pr create --fill');
   assert.equal(decisionOf(r), 'deny');
   assert.equal(reasonOf(r), CREATION_DENY_REASON);
 });
