@@ -223,3 +223,27 @@ test("Unchanged: the pipeline rule's Ship section keeps never merging", () => {
   const ship = sectionOf(read('.claude/rules/common/pipeline.md'), '## Ship');
   assert.ok(ship.includes(NEVER_MERGE), 'the Ship section does not hold the never-merge sentence');
 });
+
+test('round 4: the pr skill states the URL and character rules', () => {
+  const skill = read('.claude/skills/pr/SKILL.md');
+  const linkRows = skill.split('\n').filter((line) => line.startsWith('| `--link` |'));
+  assert.equal(linkRows.length, 1);
+  for (const term of ['query', 'fragment', '`github.com`', '`githubusercontent.com`', 'URL with no whitespace']) {
+    assert.ok(linkRows[0].includes(term), `the --link row does not name ${term}`);
+  }
+  assert.ok(!linkRows[0].includes('https://github.com/OWNER/REPO/issues/12'), 'the --link row still steers to a github.com URL');
+  const refusals = skill.slice(skill.indexOf('Any value is refused when it:'));
+  for (const term of ['`://`', '`www.`', '`github.com/`', '`--supersedes` URL are exempt', '`~`', 'backticks', 'plain space', 'U+2800']) {
+    assert.ok(refusals.includes(term), `the refusal list does not name ${term}`);
+  }
+});
+
+test("round 4: the threat model's G3 states the URL rule", () => {
+  const lines = read('docs/security/bash-gate-threat-model.md').split('\n');
+  const g3 = lines.filter((line) => line.startsWith('| G3 |'));
+  assert.equal(g3.length, 1);
+  for (const term of ['rewrites its own URLs', '`githubusercontent.com`', '`github.com/`', '`~`', 'backticks', 'plain space', 'overlay']) {
+    assert.ok(g3[0].includes(term), `G3 does not name ${term}`);
+  }
+  assert.ok(lines.includes(G1_ROW), 'the G1 row changed');
+});

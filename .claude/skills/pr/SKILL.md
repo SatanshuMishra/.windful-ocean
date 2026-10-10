@@ -39,7 +39,7 @@ Write for a reviewer who has never seen this code: no file names, no line number
 | `--risk` | at most 1 value | A sentence, or a line beginning with a receipts line token. |
 | `--verified` | 0 to 8 | A check you ran and its result. |
 | `--not-verified` | 0 to 8 | A check you did not run, and why. |
-| `--link` | 0 to 8 | An issue reference or a URL, and nothing else. An issue reference is an optional `closes`, `fixes`, `resolves` or `refs` in any letter case and a space, an optional `OWNER/REPO`, then `#` and a number, such as `closes OWNER/REPO#12` or `#12`. A URL is an `http` or `https` URL with no whitespace, such as `https://github.com/OWNER/REPO/issues/12`. |
+| `--link` | 0 to 8 | An issue reference or a URL, and nothing else. An issue reference is an optional `closes`, `fixes`, `resolves` or `refs` in any letter case and a space, an optional `OWNER/REPO`, then `#` and a number, such as `closes OWNER/REPO#12` or `#12`. A URL is an `http` or `https` URL with no whitespace whose host and path hold only letters, digits, `.`, `_`, `-` and `/`, with no `_` in the host, no query, fragment or percent escape, and a host other than `github.com`, `githubusercontent.com` or a subdomain of either, such as `https://example.com/docs/guide`. GitHub rewrites or embeds its own URLs, so write an issue or pull request as an issue reference. |
 | `--supersedes` | at most 1 | A GitHub pull-request URL, `https://github.com/OWNER/REPO/pull/N`. |
 
 `--verified` and `--not-verified` together carry at least one value. Every value is at most 500 characters.
@@ -52,6 +52,9 @@ Any value is refused when it:
 - holds a character reference such as `&#x...;`, `&#...;` or `&name;`, which GitHub decodes into the characters these rules refuse; a bare `&` is accepted;
 - begins with a markdown block character (`` ` ``, `~`, `#`, `>` or `|`) or with `@`; a `--link` issue reference such as `#12` is exempt;
 - holds a backslash, `](`, `![`, `]:` or any `$`, the characters every escape, empty link, image, link definition and math span needs; GitHub renders text between two dollar signs as math, which can hide text, so write a price without the sign, such as 5 dollars;
+- holds `://`, `www.` or `github.com/` in any letter case, since GitHub rewrites its own URLs into short references that drop text; a URL belongs in `--link`, and a `--link` URL and the `--supersedes` URL are exempt;
+- holds a `~`, two backticks in a row or an odd number of backticks, which pair into strikethrough or a code span across lines;
+- holds a space other than the plain space, an enclosing or overlay mark, or a blank-looking symbol such as U+2800;
 - is made of only `=` and `-` characters;
 - holds an invisible or bidirectional character, including Unicode tag characters, variation selectors, Hangul fillers and every other default-ignorable, format, private-use or unassigned character;
 - begins with `Verified:`, `Not verified:` or `Supersedes`;

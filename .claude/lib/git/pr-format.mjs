@@ -19,7 +19,15 @@ const TAG_OPENER = /<[!?\/A-Za-z]/;
 const CHARACTER_REFERENCE = /&(#[0-9]+|#[xX][0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]*);/;
 const INLINE_CONSTRUCT = /\\|\]\(|!\[|\]:|\$/;
 const ISSUE_REFERENCE = /^(?:(?:closes|fixes|resolves|refs) )?(?:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)?#[0-9]+$/i;
-const LINK_URL = /^https?:\/\/\S+$/;
+const LINK_URL = /^https?:\/\/([A-Za-z0-9.-]+)(?:\/[A-Za-z0-9._-]+)*\/?$/;
+const URL_START = /^https?:\/\//i;
+const URL_HOST = /^https?:\/\/([^/?#]*)/i;
+const URL_EXTRA = /[?#%]/;
+const GITHUB_HOST = /(?:^|\.)(?:github\.com|githubusercontent\.com)$/i;
+const URL_TEXT = /:\/\/|www\.|github\.com\//i;
+const BLANK_OR_OVERLAY = /(?! )\p{Zs}|\p{Me}|[\u0334-\u0338\u1CD4\u1CE2-\u1CE8\u20D2\u20D3\u20D8-\u20DA\u20E5\u20E6\u20EA\u20EB\u2800\u{10A39}\u{16AF0}-\u{16AF4}\u{16FE4}\u{1BC9E}\u{1D159}\u{1D167}-\u{1D169}]/u;
+const PAIRING_MARK = /~|``/;
+const BACKTICK = /`/g;
 const BLOCK_OPENER = /^[`~#>|]/;
 const SETEXT_UNDERLINE = /^[=-]+$/;
 const RESERVED_FIELD_PREFIX = /^(verified|not verified):/i;
@@ -59,7 +67,7 @@ const ESCAPED_UNIT = /\\u[0-9A-Fa-f]{4}|\\[\s\S]|[\uD800-\uDBFF][\uDC00-\uDFFF]|
 const ESCAPED_UNIT_MAX = 6;
 const MERGED_QUOTE_LIMIT = 3;
 
-export const PR_VALUE_REFUSALS = 'something a pull-request document may not carry: a leading field-indirection sigil, an invisible, bidirectional, format, private-use or unassigned character such as a Unicode tag character or a variation selector, an html tag or processing-instruction opener, a character reference such as &#x...; or &name;, a backslash, ](, ![, ]: or any $, which open an escape, a link, an image, a definition or math that GitHub renders without its text, a leading markdown block opener, a setext underline, or a leading Verified:, Not verified: or Supersedes';
+export const PR_VALUE_REFUSALS = 'something a pull-request document may not carry: a leading field-indirection sigil, an invisible, bidirectional, format, private-use or unassigned character such as a Unicode tag character or a variation selector, an html tag or processing-instruction opener, a character reference such as &#x...; or &name;, a backslash, ](, ![, ]: or any $, which open an escape, a link, an image, a definition or math that GitHub renders without its text, ://, www. or github.com/, since GitHub rewrites its own urls into short references and a url belongs in --link, a ~ or two backticks in a row or an odd number of backticks, which pair into strikethrough or a code span across lines, a space other than the plain space, an enclosing or overlay mark, or a blank-looking symbol such as U+2800, a leading markdown block opener, a setext underline, or a leading Verified:, Not verified: or Supersedes';
 
 function quote(value) {
   const escaped = JSON.stringify(value);
@@ -99,6 +107,10 @@ export function inertValue(value, cap) {
   if (TAG_OPENER.test(stripped)) return null;
   if (CHARACTER_REFERENCE.test(stripped)) return null;
   if (INLINE_CONSTRUCT.test(stripped)) return null;
+  if (URL_TEXT.test(stripped)) return null;
+  if (BLANK_OR_OVERLAY.test(stripped)) return null;
+  if (PAIRING_MARK.test(stripped)) return null;
+  if ((stripped.match(BACKTICK) ?? []).length % 2 === 1) return null;
   if (BLOCK_OPENER.test(stripped)) return null;
   if (SETEXT_UNDERLINE.test(stripped)) return null;
   if (RESERVED_FIELD_PREFIX.test(stripped)) return null;
@@ -170,18 +182,35 @@ function fieldValue(raw, cap) {
 function linkValue(raw, cap) {
   if (typeof raw !== 'string') return null;
   const stripped = canonicalValue(raw);
-  if (stripped.length <= cap && ISSUE_REFERENCE.test(stripped)) return stripped;
-  if (LINK_URL.test(stripped)) return fieldValue(raw, cap);
-  return null;
+  if (stripped.length > cap) return null;
+  if (ISSUE_REFERENCE.test(stripped)) return stripped;
+  const url = stripped.match(LINK_URL);
+  if (url === null || GITHUB_HOST.test(url[1])) return null;
+  return stripped;
 }
 
-function valueProblem(flag, cap) {
-  return `${flag}: a value is empty, over the ${cap}-character cap, a pr-render flag name, or carries ${PR_VALUE_REFUSALS}`;
+function received(raw) {
+  return typeof raw === 'string' ? quote(raw) : JSON.stringify(raw ?? null);
+}
+
+function valueProblem(flag, cap, raw) {
+  return `${flag}: a value is empty, over the ${cap}-character cap, a pr-render flag name, or carries ${PR_VALUE_REFUSALS}; received ${received(raw)}`;
+}
+
+function urlCause(url, cap) {
+  if (GITHUB_HOST.test(url.match(URL_HOST)[1])) {
+    return 'its host is github.com or githubusercontent.com, whose own urls GitHub rewrites into short references or embeds; write an issue or pull request as OWNER/REPO#N';
+  }
+  if (URL_EXTRA.test(url)) return 'it carries a query, fragment or percent escape, which GitHub can drop from what it shows';
+  if (url.length > cap) return `it is over the ${cap}-character cap`;
+  return 'it is not http(s)://HOST/PATH with a host of letters, digits, . and - and path segments of letters, digits, ., _ and -';
 }
 
 function linkRefusal(flag, cap, raw) {
-  const received = typeof raw === 'string' ? quote(raw) : JSON.stringify(raw);
-  return `${flag}: a value must be either an issue reference of at most ${cap} characters, an optional closes, fixes, resolves or refs and a space, then an optional OWNER/REPO, then # and a number, such as closes OWNER/REPO#12 or #12, or an http or https url with no space in it that carries nothing else ${flag} refuses; received ${received}`;
+  const shape = `a value must be either an issue reference of at most ${cap} characters, an optional closes, fixes, resolves or refs and a space, then an optional OWNER/REPO, then # and a number, such as closes OWNER/REPO#12 or #12, or an http or https url whose host and path hold only letters, digits, ., _, - and /, with no _ in the host, no query, fragment or percent escape, and a host other than github.com and githubusercontent.com`;
+  const url = typeof raw === 'string' ? canonicalValue(raw) : '';
+  if (!URL_START.test(url)) return `${flag}: ${shape}; received ${received(raw)}`;
+  return `${flag}: the url ${received(raw)} is refused because ${urlCause(url, cap)}; ${shape}`;
 }
 
 function sentenceProblem(flag, value) {
@@ -198,20 +227,22 @@ function canonicalPrUrl(candidate) {
   const ref = parsePrRef(candidate);
   if (ref === null || !validateRepoIdentity(ref.ownerRepo)) return null;
   const canonical = `${PR_URL_HOST}${ref.ownerRepo}/pull/${ref.prNumber}`;
-  if (inertValue(canonical, PR_VALUE_CAP - SUPERSEDES_PREFIX.length) === null) return null;
+  if (canonical.length > PR_VALUE_CAP - SUPERSEDES_PREFIX.length) return null;
   return canonical;
+}
+
+function titlePatternProblem(title) {
+  return `--title: ${quote(title)} is not a conventional-commits title of the form <type>(<scope>): <lowercase imperative summary>; the types are ${PR_TITLE_TYPES.join(' ')}, the scope is at most 16 lowercase characters, and the whole title is at most ${PR_TITLE_CAP} characters with no trailing period`;
 }
 
 function checkTitle(raw) {
   const title = fieldValue(raw, PR_TITLE_CAP);
-  if (title === null) return Object.freeze({ title: null, problem: valueProblem('--title', PR_TITLE_CAP) });
-  if (!PR_TITLE_PATTERN.test(title)) {
-    return Object.freeze({
-      title: null,
-      problem: `--title: ${quote(title)} is not a conventional-commits title of the form <type>(<scope>): <lowercase imperative summary>; the types are ${PR_TITLE_TYPES.join(' ')}, the scope is at most 16 lowercase characters, and the whole title is at most ${PR_TITLE_CAP} characters with no trailing period`,
-    });
-  }
-  return Object.freeze({ title, problem: null });
+  const cleaned = typeof raw === 'string' ? canonicalValue(raw) : '';
+  const problems = [
+    ...(title === null ? [valueProblem('--title', PR_TITLE_CAP, raw)] : []),
+    ...(cleaned.length > 0 && !PR_TITLE_PATTERN.test(cleaned) ? [titlePatternProblem(cleaned)] : []),
+  ];
+  return Object.freeze({ title: problems.length === 0 ? title : null, problems: Object.freeze(problems) });
 }
 
 function checkList(raws, entry) {
@@ -227,7 +258,7 @@ function checkList(raws, entry) {
   const values = list.map((raw) => valueOf(raw, PR_VALUE_CAP));
   const valueProblems = values.map((value, index) => {
     if (value !== null) return sentenceProblem(flag, value);
-    return entry.refusal === undefined ? valueProblem(flag, PR_VALUE_CAP) : entry.refusal(flag, PR_VALUE_CAP, list[index]);
+    return entry.refusal === undefined ? valueProblem(flag, PR_VALUE_CAP, list[index]) : entry.refusal(flag, PR_VALUE_CAP, list[index]);
   });
   const problems = [...ceilingProblems, ...valueProblems.filter((problem) => problem !== null)];
   return Object.freeze({ values: Object.freeze(ceilingProblems.length > 0 ? [] : values), problems: Object.freeze(problems) });
@@ -236,7 +267,7 @@ function checkList(raws, entry) {
 function checkRisk(raw) {
   if (raw === undefined || raw === null) return Object.freeze({ risk: null, problem: null });
   const risk = fieldValue(raw, PR_VALUE_CAP);
-  if (risk === null) return Object.freeze({ risk: null, problem: valueProblem('--risk', PR_VALUE_CAP) });
+  if (risk === null) return Object.freeze({ risk: null, problem: valueProblem('--risk', PR_VALUE_CAP, raw) });
   return Object.freeze({ risk, problem: sentenceProblem('--risk', risk) });
 }
 
@@ -287,7 +318,7 @@ export function checkPrFields(raw) {
   }
   const title = checkTitle(raw.title);
   const body = checkBodyFields(raw);
-  const problems = [title.problem, ...body.problems].filter((problem) => problem !== null);
+  const problems = [...title.problems, ...body.problems];
   if (problems.length > 0) return Object.freeze({ fields: null, problems: Object.freeze(problems) });
   return Object.freeze({ fields: Object.freeze({ title: title.title, ...body.fields }), problems: Object.freeze([]) });
 }
@@ -326,7 +357,7 @@ function segmentProblems(lines, segment, firstAt) {
       const problem = blankLineProblem(lines, at + 1 + offset, current);
       return problem === null ? [] : [problem];
     }
-    return heading === null ? [`body: the line ${quote(line)} sits outside any section`] : [];
+    return SECTION_ORDER.includes(heading) ? [] : [`body: the line ${quote(line)} sits outside any section`];
   });
   return [...(heading === null ? [] : headingProblems(lines, at, firstAt)), ...lineProblems];
 }
@@ -341,9 +372,12 @@ function readSections(body) {
   const sections = Object.freeze(new Map(segments
     .filter(({ at }) => at !== -1 && firstAt.get(lines[at]) === at)
     .map(({ at, held }) => [lines[at], Object.freeze(held.filter((line) => line !== ''))])));
+  const repeats = Object.freeze(segments
+    .filter(({ at }) => at !== -1 && SECTION_ORDER.includes(lines[at]) && firstAt.get(lines[at]) !== at)
+    .map(({ at, held }) => Object.freeze([lines[at], Object.freeze(held.filter((line) => line !== ''))])));
   const missing = REQUIRED_HEADINGS.filter((heading) => !sections.has(heading)).map((heading) => `${heading}: the required section is missing`);
   const empty = [...sections].filter(([, held]) => held.length === 0).map(([heading]) => `${heading}: the section holds no line`);
-  return Object.freeze({ sections, problems: Object.freeze([...problems, ...missing, ...empty]) });
+  return Object.freeze({ sections, repeats, problems: Object.freeze([...problems, ...missing, ...empty]) });
 }
 
 function readPrefixed(lines, heading, prefix) {
@@ -390,6 +424,28 @@ function readRisk(lines) {
   return Object.freeze({ risk: lines.length === 1 ? lines[0] : null, problems: [] });
 }
 
+const LIST_ENTRY = Object.freeze(Object.fromEntries(LIST_FIELDS.map((entry) => [entry.field, entry])));
+
+function listProblems(field, values) {
+  return values.length === 0 ? [] : checkList(values, LIST_ENTRY[field]).problems;
+}
+
+function heldValueProblems(heading, lines) {
+  if (heading === WHY_HEADING) return listProblems('why', lines);
+  if (heading === RISK_HEADING) return lines.map((line) => checkRisk(line).problem).filter((problem) => problem !== null);
+  if (heading === WHAT_HEADING) {
+    const what = readPrefixed(lines, WHAT_HEADING, BULLET);
+    return [...what.problems, ...listProblems('what', what.values)];
+  }
+  if (heading === VERIFICATION_HEADING) {
+    const verification = readVerification(lines);
+    return [...verification.problems, ...listProblems('verified', verification.verified), ...listProblems('notVerified', verification.notVerified)];
+  }
+  const links = readLinks(lines);
+  const supersedes = links.supersedes === null ? null : checkSupersedes(links.supersedes).problem;
+  return [...links.problems, ...listProblems('links', links.links), ...(supersedes === null ? [] : [supersedes])];
+}
+
 function splitBody(body) {
   const read = readSections(body);
   const held = (heading) => read.sections.get(heading) ?? [];
@@ -407,7 +463,15 @@ function splitBody(body) {
       supersedes: links.supersedes,
       links: Object.freeze(links.links),
     }),
-    problems: Object.freeze([...read.problems, ...what.problems, ...verification.problems, ...links.problems, ...risk.problems]),
+    problems: Object.freeze([
+      ...read.problems,
+      ...what.problems,
+      ...verification.problems,
+      ...links.problems,
+      ...risk.problems,
+      ...((read.sections.get(RISK_HEADING) ?? []).length > 1 ? heldValueProblems(RISK_HEADING, read.sections.get(RISK_HEADING)) : []),
+      ...read.repeats.flatMap(([heading, lines]) => heldValueProblems(heading, lines)),
+    ]),
   });
 }
 
@@ -454,8 +518,7 @@ function mergeProblems(problems) {
 
 function titleProblems(title) {
   if (typeof title !== 'string') return ['title: missing or not a string'];
-  const titled = checkTitle(title);
-  return [...(titled.problem === null ? [] : [titled.problem]), ...titleDrift(title)];
+  return [...checkTitle(title).problems, ...titleDrift(title)];
 }
 
 function bodyProblems(body) {
