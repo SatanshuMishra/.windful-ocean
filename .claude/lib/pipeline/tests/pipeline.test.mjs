@@ -420,6 +420,30 @@ test('verdict asks a repeated kind to be closed as a whole and moves it to known
     known_risk: [],
     previous_blockers: 2,
   });
+
+  recordRound(dir, ledger, 'alpha', 'rejected-before', 1,
+    [finding('C1', 'code-reviewer', 'MEDIUM')],
+    [verdict('C1', 'rejected', 'loose parsing', { test: 'bar' })]);
+  recordRound(dir, ledger, 'alpha', 'rejected-before', 2,
+    [finding('C1', 'code-reviewer', 'HIGH')],
+    [verdict('C1', 'confirmed', 'loose parsing')]);
+  const rejectedBefore = verdictOf(ledger, 'alpha', 'rejected-before', 2);
+  assert.deepEqual(rejectedBefore.close_as_whole, []);
+  assert.deepEqual(rejectedBefore.known_risk, []);
+  assert.deepEqual(rejectedBefore.blockers.map((blocker) => [blocker.id, blocker.kind]), [['C1', 'loose parsing']]);
+
+  recordRound(dir, ledger, 'alpha', 'fixed-before', 1,
+    [finding('C1', 'code-reviewer', 'HIGH'), finding('C2', 'code-reviewer', 'HIGH')],
+    [verdict('C1', 'confirmed', 'hidden text'), verdict('C2', 'confirmed', 'loose parsing')]);
+  recordRound(dir, ledger, 'alpha', 'fixed-before', 2, [], [verdict('P1', 'fixed', null), verdict('P2', 'open', null)]);
+  recordRound(dir, ledger, 'alpha', 'fixed-before', 3,
+    [finding('C1', 'code-reviewer', 'HIGH')],
+    [verdict('P1', 'open', null), verdict('C1', 'confirmed', 'hidden text')]);
+  const fixedBefore = verdictOf(ledger, 'alpha', 'fixed-before', 3);
+  assert.deepEqual(fixedBefore.close_as_whole, ['hidden text']);
+  assert.deepEqual(fixedBefore.known_risk, ['loose parsing']);
+  assert.deepEqual(fixedBefore.blockers.map((blocker) => [blocker.id, blocker.kind]), [['C1', 'hidden text']]);
+  assert.equal(fixedBefore.outcome, 'stop');
 });
 
 test('verdict, comment and promote refuse an unreadable or invalid ledger', () => {
@@ -640,6 +664,22 @@ test('verdict hard-fails when a confirmed auditor CRITICAL stays open or a CRITI
     [finding('C1', 'code-reviewer', 'CRITICAL')],
     [verdict('P1', 'fixed', null), verdict('C1', 'rejected', 'data loss', { test: 'introduced' })]);
   assert.equal(verdictOf(ledger, 'alpha', 'earlier-twin', 2).outcome, 'hard-failure');
+
+  recordRound(dir, ledger, 'alpha', 'known-risk-cleared', 1,
+    [finding('C1', 'code-reviewer', 'HIGH'), finding('C2', 'code-reviewer', 'HIGH'), finding('C3', 'code-reviewer', 'HIGH')],
+    [verdict('C1', 'confirmed', 'hidden text'), verdict('C2', 'confirmed', 'unbounded input'), verdict('C3', 'confirmed', 'stale cache')]);
+  recordRound(dir, ledger, 'alpha', 'known-risk-cleared', 2, [],
+    [verdict('P1', 'open', null), verdict('P2', 'open', null), verdict('P3', 'fixed', null)]);
+  recordRound(dir, ledger, 'alpha', 'known-risk-cleared', 3,
+    [finding('C1', 'code-reviewer', 'HIGH')],
+    [verdict('P1', 'open', null), verdict('P2', 'open', null), verdict('C1', 'confirmed', 'loose parsing')]);
+  assert.equal(verdictOf(ledger, 'alpha', 'known-risk-cleared', 3).outcome, 'loop');
+  recordRound(dir, ledger, 'alpha', 'known-risk-cleared', 4,
+    [finding('C1', 'code-reviewer', 'CRITICAL')],
+    [verdict('P1', 'fixed', null), verdict('P2', 'fixed', null), verdict('P3', 'open', null), verdict('C1', 'confirmed', 'data loss')]);
+  const cleared = verdictOf(ledger, 'alpha', 'known-risk-cleared', 4);
+  assert.equal(cleared.previous_blockers, 1);
+  assert.equal(cleared.outcome, 'hard-failure');
 });
 
 test('findings take a boolean security flag that record keeps on every ledger line and every reader requires', () => {
