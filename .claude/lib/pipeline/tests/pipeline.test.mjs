@@ -25,6 +25,7 @@ function finding(id, source, severity, overrides = {}) {
     id,
     source,
     severity,
+    security: false,
     location: `lib/${id.toLowerCase()}.mjs:1`,
     summary: `Finding ${id} summary.`,
     reproduction: `node lib/${id.toLowerCase()}.mjs`,
@@ -152,22 +153,30 @@ test('candidates lists the carried blockers and every MEDIUM-or-worse reviewer f
   const outTwo = join(dir, 'round-2.candidates.md');
   const second = runTool(['candidates', '--findings', writeJson(dir, 'two.json', [finding('C1', 'code-reviewer', 'HIGH', { summary: 'A new defect.' })]), '--ledger', ledger, '--run', 'alpha', '--msp', 'core', '--round', '2', '--out', outTwo]);
   assert.equal(second.status, 0, second.stderr);
-  assert.equal(second.stdout, '{"candidates":2}\n');
-  const linesTwo = readFileSync(outTwo, 'utf8').split('\n');
+  assert.equal(second.stdout, '{"candidates":3}\n');
+  const markdownTwo = readFileSync(outTwo, 'utf8');
+  const linesTwo = markdownTwo.split('\n');
   assert.equal(linesTwo[0], '# Candidate blockers: core, round 2');
   const carriedAt = linesTwo.indexOf('## Carried blockers');
   const newAt = linesTwo.indexOf('## New candidates');
   assert.ok(carriedAt > 0 && newAt > carriedAt);
   const numberedTwo = linesTwo.filter((line) => /^[0-9]+\. /.test(line));
-  assert.equal(numberedTwo.length, 2);
+  assert.equal(numberedTwo.length, 3);
   assert.ok(numberedTwo[0].startsWith('1. P1, '));
   assert.ok(numberedTwo[0].includes('hidden text'));
   assert.ok(numberedTwo[0].includes('code-reviewer'));
   assert.ok(numberedTwo[0].includes('Finding C1 summary.'));
   assert.ok(linesTwo.indexOf(numberedTwo[0]) > carriedAt && linesTwo.indexOf(numberedTwo[0]) < newAt);
-  assert.ok(numberedTwo[1].startsWith('2. C1, '));
-  assert.ok(numberedTwo[1].includes('A new defect.'));
-  assert.ok(linesTwo.indexOf(numberedTwo[1]) > newAt);
+  assert.ok(numberedTwo[1].startsWith('2. P2, '));
+  assert.ok(numberedTwo[1].includes('unmet criterion'));
+  assert.ok(numberedTwo[1].includes('conformance-auditor'));
+  assert.ok(numberedTwo[1].includes('Finding A1 summary.'));
+  assert.ok(linesTwo.indexOf(numberedTwo[1]) > carriedAt && linesTwo.indexOf(numberedTwo[1]) < newAt);
+  assert.ok(numberedTwo[2].startsWith('3. C1, '));
+  assert.ok(numberedTwo[2].includes('A new defect.'));
+  assert.ok(linesTwo.indexOf(numberedTwo[2]) > newAt);
+  assert.equal(markdownTwo.includes('Finding U1 summary.'), false);
+  assert.equal(markdownTwo.includes('failing test'), false);
 
   const unknownKey = { ...finding('C1', 'code-reviewer', 'HIGH'), extra: 'x' };
   const malformed = [
@@ -176,6 +185,7 @@ test('candidates lists the carried blockers and every MEDIUM-or-worse reviewer f
     { label: 'unknown key', findings: [unknownKey], names: ['finding 0', 'extra'] },
     { label: 'blocker severity', findings: [finding('C1', 'code-reviewer', 'BLOCKER')], names: ['finding 0', 'severity'] },
     { label: 'line feed', findings: [finding('C1', 'code-reviewer', 'HIGH', { summary: 'one\ntwo' })], names: ['finding 0', 'summary'] },
+    { label: 'security yes', findings: [finding('C1', 'code-reviewer', 'HIGH', { security: 'yes' })], names: ['finding 0', 'security'] },
     { label: 'not an array', findings: { id: 'C1' }, names: ['array'] },
   ];
   for (const bad of malformed) {
@@ -217,7 +227,7 @@ test('record writes one ledger line per finding and carried blocker with its fin
   const linesOne = ledgerLines(ledger);
   assert.equal(linesOne.length, 7);
   assert.deepEqual(linesOne[0], { type: 'round', run: 'alpha', round: 1, msp: 'core', findings: 6 });
-  assert.deepEqual(Object.keys(linesOne[1]), ['type', 'run', 'round', 'msp', 'id', 'source', 'severity', 'location', 'summary', 'verdict', 'test', 'kind', 'evidence']);
+  assert.deepEqual(Object.keys(linesOne[1]), ['type', 'run', 'round', 'msp', 'id', 'source', 'severity', 'security', 'location', 'summary', 'verdict', 'test', 'kind', 'evidence']);
   assert.deepEqual(linesOne.slice(1).map((line) => [line.id, line.verdict, line.test, line.kind]), [
     ['C1', 'confirmed', null, 'hidden text'],
     ['S1', 'rejected', 'introduced', 'unbounded input'],
@@ -227,7 +237,7 @@ test('record writes one ledger line per finding and carried blocker with its fin
     ['U2', 'advisory', null, null],
   ]);
   assert.deepEqual(linesOne[1], {
-    type: 'finding', run: 'alpha', round: 1, msp: 'core', id: 'C1', source: 'code-reviewer', severity: 'HIGH',
+    type: 'finding', run: 'alpha', round: 1, msp: 'core', id: 'C1', source: 'code-reviewer', severity: 'HIGH', security: false,
     location: 'lib/c1.mjs:1', summary: 'Finding C1 summary.', verdict: 'confirmed', test: null, kind: 'hidden text', evidence: 'Evidence for C1.',
   });
   assert.equal(linesOne[3].evidence, '');
@@ -242,7 +252,7 @@ test('record writes one ledger line per finding and carried blocker with its fin
   assert.deepEqual(linesTwo, [
     { type: 'round', run: 'alpha', round: 2, msp: 'core', findings: 1 },
     {
-      type: 'finding', run: 'alpha', round: 2, msp: 'core', id: 'P1', source: 'code-reviewer', severity: 'HIGH',
+      type: 'finding', run: 'alpha', round: 2, msp: 'core', id: 'P1', source: 'code-reviewer', severity: 'HIGH', security: false,
       location: 'lib/c1.mjs:1', summary: 'Finding C1 summary.', verdict: 'confirmed', test: null, kind: 'hidden text', evidence: 'Still present at the head.',
     },
   ]);
@@ -331,6 +341,18 @@ test('verdict computes green, loop, stop and hard-failure from the ledger', () =
   const early = verdictOf(ledger, 'alpha', 'early-critical', 1);
   assert.equal(early.outcome, 'loop');
   assert.deepEqual(early.blockers.map((blocker) => blocker.id), ['C1']);
+
+  recordRound(dir, ledger, 'alpha', 'counted', 1, [finding('C1', 'code-reviewer', 'HIGH')], [verdict('C1', 'confirmed', 'hidden text')]);
+  recordRound(dir, ledger, 'alpha', 'counted', 2, [], [verdict('P1', 'open', null)]);
+  recordRound(dir, ledger, 'alpha', 'counted', 3, [finding('C2', 'code-reviewer', 'HIGH')], [verdict('P1', 'open', null), verdict('C2', 'confirmed', 'loose parsing')]);
+  const countedThree = verdictOf(ledger, 'alpha', 'counted', 3);
+  assert.deepEqual(countedThree.known_risk, ['hidden text']);
+  assert.deepEqual(countedThree.blockers.map((blocker) => [blocker.id, blocker.kind]), [['C2', 'loose parsing']]);
+  recordRound(dir, ledger, 'alpha', 'counted', 4, [], [verdict('P1', 'open', null), verdict('P2', 'open', null)]);
+  const countedFour = verdictOf(ledger, 'alpha', 'counted', 4);
+  assert.equal(countedFour.previous_blockers, 1);
+  assert.deepEqual(countedFour.blockers.map((blocker) => [blocker.id, blocker.kind]), [['P2', 'loose parsing']]);
+  assert.equal(countedFour.outcome, 'stop');
 });
 
 test('verdict asks a repeated kind to be closed as a whole and moves it to known risk on its third round', () => {
@@ -372,6 +394,21 @@ test('verdict asks a repeated kind to be closed as a whole and moves it to known
   assert.deepEqual(suite.blockers.map((blocker) => [blocker.id, blocker.kind]), [['U1', 'failing test']]);
   assert.deepEqual(suite.close_as_whole, []);
   assert.deepEqual(suite.known_risk, []);
+
+  recordRound(dir, ledger, 'alpha', 'repeat-findings', 1,
+    [finding('C1', 'code-reviewer', 'HIGH'), finding('C2', 'code-reviewer', 'HIGH')],
+    [verdict('C1', 'confirmed', 'hidden text'), verdict('C2', 'confirmed', 'hidden text')]);
+  recordRound(dir, ledger, 'alpha', 'repeat-findings', 2,
+    [finding('C3', 'code-reviewer', 'HIGH', { summary: 'Hidden text in a third value.' })],
+    [verdict('P1', 'fixed', null), verdict('P2', 'fixed', null), verdict('C3', 'confirmed', 'hidden text')]);
+  assert.deepEqual(verdictOf(ledger, 'alpha', 'repeat-findings', 2), {
+    outcome: 'loop',
+    round: 2,
+    blockers: [{ id: 'C3', severity: 'HIGH', kind: 'hidden text', location: 'lib/c3.mjs:1', summary: 'Hidden text in a third value.' }],
+    close_as_whole: ['hidden text'],
+    known_risk: [],
+    previous_blockers: 2,
+  });
 });
 
 test('verdict, comment and promote refuse an unreadable or invalid ledger', () => {
@@ -379,7 +416,7 @@ test('verdict, comment and promote refuse an unreadable or invalid ledger', () =
   const roundLine = (findings) => JSON.stringify({ type: 'round', run: 'alpha', round: 1, msp: 'core', findings });
   const findingLine = (overrides) => {
     const base = {
-      type: 'finding', run: 'alpha', round: 1, msp: 'core', id: 'C1', source: 'code-reviewer', severity: 'HIGH',
+      type: 'finding', run: 'alpha', round: 1, msp: 'core', id: 'C1', source: 'code-reviewer', severity: 'HIGH', security: false,
       location: 'lib/c1.mjs:1', summary: 'Finding C1 summary.', verdict: 'confirmed', test: null, kind: 'hidden text', evidence: 'Seen.',
     };
     return JSON.stringify({ ...base, ...overrides });
@@ -390,6 +427,9 @@ test('verdict, comment and promote refuse an unreadable or invalid ledger', () =
     { label: 'not JSON', path: join(dir, 'not-json.jsonl'), text: `${roundLine(2)}\n${findingLine({})}\n{not json\n`, names: ['line 3'] },
     { label: 'verdict maybe', path: join(dir, 'maybe.jsonl'), text: `${roundLine(1)}\n${findingLine({ verdict: 'maybe' })}\n`, names: ['line 2'] },
     { label: 'kind missing', path: join(dir, 'no-kind.jsonl'), text: `${roundLine(1)}\n${withoutKind}\n`, names: ['line 2'] },
+    { label: 'short round', path: join(dir, 'short.jsonl'), text: `${roundLine(2)}\n${findingLine({})}\n`, names: ['line 3'] },
+    { label: 'no line feed', path: join(dir, 'no-line-feed.jsonl'), text: `${roundLine(1)}\n${findingLine({})}`, names: ['line 2'] },
+    { label: 'test on confirmed', path: join(dir, 'test-on-confirmed.jsonl'), text: `${roundLine(1)}\n${findingLine({ test: 'bar' })}\n`, names: ['line 2'] },
   ];
   for (const ledger of ledgers) {
     if (ledger.text !== null) writeFileSync(ledger.path, ledger.text);
@@ -509,4 +549,192 @@ test('promote adds a kind rejected as outside the bar in two runs, once', () => 
   assert.equal(kept.status, 0, kept.stderr);
   assert.equal(kept.stdout, '{"added":["style nit"]}\n');
   assert.equal(readFileSync(handWritten, 'utf8'), `${owned}- style nit: rejected as outside the review bar in runs alpha, beta.\n`);
+});
+
+test('verdict hard-fails when a confirmed auditor CRITICAL stays open or a CRITICAL is rejected on the bar or introduced test', () => {
+  const dir = scratch();
+  const ledger = join(dir, 'findings.jsonl');
+
+  recordRound(dir, ledger, 'alpha', 'audited', 1,
+    [finding('A1', 'conformance-auditor', 'CRITICAL')],
+    [verdict('A1', 'confirmed', 'data loss')]);
+  const unanswered = runTool(recordArgs(dir, ledger, 'alpha', 'audited', 2, [], []));
+  assert.equal(unanswered.status, 2, 'round 2 must carry the confirmed auditor CRITICAL as P1 and refuse a round that leaves it unanswered');
+  assert.ok(unanswered.stderr.includes('P1'), unanswered.stderr);
+  recordRound(dir, ledger, 'alpha', 'audited', 2, [], [verdict('P1', 'open', null)]);
+  const audited = verdictOf(ledger, 'alpha', 'audited', 2);
+  assert.deepEqual(audited.blockers.map((blocker) => [blocker.id, blocker.severity]), [['P1', 'CRITICAL']]);
+  assert.equal(audited.previous_blockers, 1);
+  assert.equal(audited.outcome, 'hard-failure');
+
+  recordRound(dir, ledger, 'alpha', 'repeated', 1,
+    [finding('C1', 'code-reviewer', 'MEDIUM'), finding('S1', 'security-reviewer', 'CRITICAL')],
+    [verdict('C1', 'rejected', 'owner check', { test: 'bar' }), verdict('S1', 'rejected', 'owner check', { test: 'introduced' })]);
+  const repeated = verdictOf(ledger, 'alpha', 'repeated', 1);
+  assert.deepEqual(repeated.blockers, []);
+  assert.equal(repeated.outcome, 'hard-failure');
+
+  recordRound(dir, ledger, 'alpha', 'outside-bar', 1,
+    [finding('C1', 'code-reviewer', 'CRITICAL')],
+    [verdict('C1', 'rejected', 'data loss', { test: 'bar' })]);
+  assert.equal(verdictOf(ledger, 'alpha', 'outside-bar', 1).outcome, 'hard-failure');
+
+  recordRound(dir, ledger, 'alpha', 'earlier', 1,
+    [finding('C1', 'code-reviewer', 'CRITICAL'), finding('C2', 'code-reviewer', 'HIGH')],
+    [verdict('C1', 'rejected', 'data loss', { test: 'introduced' }), verdict('C2', 'confirmed', 'loose parsing')]);
+  assert.equal(verdictOf(ledger, 'alpha', 'earlier', 1).outcome, 'hard-failure');
+  recordRound(dir, ledger, 'alpha', 'earlier', 2, [], [verdict('P1', 'fixed', null)]);
+  assert.equal(verdictOf(ledger, 'alpha', 'earlier', 2).outcome, 'hard-failure');
+
+  recordRound(dir, ledger, 'alpha', 'twin', 1,
+    [finding('S1', 'security-reviewer', 'CRITICAL'), finding('C1', 'code-reviewer', 'CRITICAL')],
+    [verdict('S1', 'confirmed', 'data loss'), verdict('C1', 'rejected', 'data loss', { test: 'introduced' })]);
+  recordRound(dir, ledger, 'alpha', 'twin', 2, [], [verdict('P1', 'fixed', null)]);
+  assert.equal(verdictOf(ledger, 'alpha', 'twin', 2).outcome, 'green');
+
+  recordRound(dir, ledger, 'alpha', 'unrelated', 1,
+    [finding('S1', 'security-reviewer', 'CRITICAL'), finding('C1', 'code-reviewer', 'CRITICAL')],
+    [verdict('S1', 'confirmed', 'data loss'), verdict('C1', 'rejected', 'secret exposure', { test: 'introduced' })]);
+  recordRound(dir, ledger, 'alpha', 'unrelated', 2, [], [verdict('P1', 'fixed', null)]);
+  assert.equal(verdictOf(ledger, 'alpha', 'unrelated', 2).outcome, 'hard-failure');
+
+  recordRound(dir, ledger, 'alpha', 'unreproduced', 1,
+    [finding('C1', 'code-reviewer', 'CRITICAL')],
+    [verdict('C1', 'rejected', 'data loss', { test: 'reproduced' })]);
+  assert.equal(verdictOf(ledger, 'alpha', 'unreproduced', 1).outcome, 'green');
+});
+
+test('findings take a boolean security flag that record keeps on every ledger line and every reader requires', () => {
+  const dir = scratch();
+  const ledger = join(dir, 'findings.jsonl');
+  const lineKeys = ['type', 'run', 'round', 'msp', 'id', 'source', 'severity', 'security', 'location', 'summary', 'verdict', 'test', 'kind', 'evidence'];
+  const unflagged = Object.fromEntries(Object.entries(finding('C3', 'code-reviewer', 'LOW')).filter(([key]) => key !== 'security'));
+  assert.equal(Object.hasOwn(unflagged, 'security'), false);
+  recordRound(dir, ledger, 'alpha', 'core', 1,
+    [finding('C1', 'code-reviewer', 'HIGH', { security: true }), finding('C2', 'code-reviewer', 'LOW', { security: false }), unflagged],
+    [verdict('C1', 'confirmed', 'hidden text')]);
+  const linesOne = ledgerLines(ledger);
+  assert.equal(linesOne.length, 4);
+  for (const line of linesOne.slice(1)) assert.deepEqual(Object.keys(line), lineKeys);
+  assert.deepEqual(linesOne.slice(1).map((line) => [line.id, line.verdict, line.security]), [
+    ['C1', 'confirmed', true],
+    ['C2', 'advisory', false],
+    ['C3', 'advisory', true],
+  ]);
+
+  const flaggedYes = writeJson(dir, 'yes.json', [finding('C4', 'code-reviewer', 'HIGH', { security: 'yes' })]);
+  const outYes = join(dir, 'yes.md');
+  const before = readFileSync(ledger);
+  const refusals = [
+    runTool(['candidates', '--findings', flaggedYes, '--ledger', ledger, '--run', 'alpha', '--msp', 'core', '--round', '2', '--out', outYes]),
+    runTool(['record', '--ledger', ledger, '--run', 'alpha', '--round', '2', '--msp', 'core', '--findings', flaggedYes,
+      '--verdicts', writeJson(dir, 'yes.verdicts.json', [verdict('P1', 'open', null), verdict('C4', 'confirmed', 'stale cache')])]),
+  ];
+  for (const result of refusals) {
+    assert.equal(result.status, 2, result.stderr);
+    assert.equal(result.stdout, '');
+    assert.ok(result.stderr.includes(flaggedYes), result.stderr);
+    assert.ok(result.stderr.includes('finding 0'), result.stderr);
+    assert.ok(result.stderr.includes('security'), result.stderr);
+  }
+  assert.equal(existsSync(outYes), false);
+  assert.deepEqual(readFileSync(ledger), before);
+
+  recordRound(dir, ledger, 'alpha', 'core', 2, [], [verdict('P1', 'open', null)]);
+  const linesTwo = ledgerLines(ledger).slice(4);
+  assert.equal(linesTwo.length, 2);
+  assert.deepEqual(Object.keys(linesTwo[1]), lineKeys);
+  assert.deepEqual([linesTwo[1].id, linesTwo[1].source, linesTwo[1].verdict, linesTwo[1].security], ['P1', 'code-reviewer', 'confirmed', true]);
+
+  const roundLine = JSON.stringify({ type: 'round', run: 'alpha', round: 1, msp: 'core', findings: 1 });
+  const line = {
+    type: 'finding', run: 'alpha', round: 1, msp: 'core', id: 'C1', source: 'code-reviewer', severity: 'HIGH', security: false,
+    location: 'lib/c1.mjs:1', summary: 'Finding C1 summary.', verdict: 'confirmed', test: null, kind: 'hidden text', evidence: 'Seen.',
+  };
+  const valid = join(dir, 'valid.jsonl');
+  writeFileSync(valid, `${roundLine}\n${JSON.stringify(line)}\n`);
+  assert.equal(verdictOf(valid, 'alpha', 'core', 1).outcome, 'loop');
+  const ledgers = [
+    { label: 'security missing', path: join(dir, 'security-missing.jsonl'), line: JSON.stringify(Object.fromEntries(Object.entries(line).filter(([key]) => key !== 'security'))) },
+    { label: 'security text', path: join(dir, 'security-text.jsonl'), line: JSON.stringify({ ...line, security: 'false' }) },
+  ];
+  for (const bad of ledgers) {
+    writeFileSync(bad.path, `${roundLine}\n${bad.line}\n`);
+    const doNotFlag = join(dir, `${bad.label.replace(/ /g, '-')}.do-not-flag.md`);
+    const calls = [
+      ['verdict', '--ledger', bad.path, '--run', 'alpha', '--msp', 'core', '--round', '1'],
+      ['comment', '--ledger', bad.path, '--run', 'alpha', '--msp', 'core'],
+      ['promote', '--ledger', bad.path, '--do-not-flag', doNotFlag],
+    ];
+    for (const call of calls) {
+      const result = runTool(call);
+      assert.equal(result.status, 2, `${call[0]} on ${bad.label} exited ${result.status}`);
+      assert.equal(result.stdout, '');
+      assert.ok(result.stderr.includes(bad.path), `${call[0]} on ${bad.label} gave ${result.stderr}`);
+      assert.ok(result.stderr.includes('line 2'), `${call[0]} on ${bad.label} gave ${result.stderr}`);
+      assert.ok(result.stderr.includes('security'), `${call[0]} on ${bad.label} gave ${result.stderr}`);
+    }
+    assert.equal(existsSync(doNotFlag), false);
+  }
+});
+
+test('comment withholds every security finding, whoever reported it', () => {
+  const dir = scratch();
+  const ledger = join(dir, 'findings.jsonl');
+  recordRound(dir, ledger, 'alpha', 'core', 1,
+    [
+      finding('S1', 'security-reviewer', 'HIGH', { summary: 'Session token written to the debug log.' }),
+      finding('C1', 'code-reviewer', 'HIGH', { security: true, summary: 'Upload name joined onto the storage root.' }),
+      finding('C2', 'code-reviewer', 'HIGH', { summary: 'Cache entry never expires.' }),
+    ],
+    [verdict('S1', 'confirmed', 'token leak'), verdict('C1', 'confirmed', 'path traversal'), verdict('C2', 'confirmed', 'stale cache')]);
+  recordRound(dir, ledger, 'alpha', 'core', 2, [], [verdict('P1', 'open', null), verdict('P2', 'open', null), verdict('P3', 'open', null)]);
+  recordRound(dir, ledger, 'alpha', 'core', 3,
+    [
+      finding('C3', 'code-reviewer', 'HIGH', { location: 'lib/parse.mjs:10', summary: 'Parser accepts a trailing comma.' }),
+      finding('C4', 'code-reviewer', 'HIGH', { security: true, summary: 'Login follows any return address.' }),
+      finding('S2', 'security-reviewer', 'HIGH', { security: false, summary: 'Request body is read without a size limit.' }),
+      finding('A1', 'conformance-auditor', 'LOW', { security: true, summary: 'Criterion on key rotation is untested.' }),
+      finding('C5', 'code-reviewer', 'LOW', { location: 'lib/notes.mjs:3', summary: 'Variable name is unclear.' }),
+    ],
+    [
+      verdict('P1', 'open', null), verdict('P2', 'open', null), verdict('P3', 'open', null),
+      verdict('C3', 'confirmed', 'loose parsing'), verdict('C4', 'confirmed', 'open redirect'), verdict('S2', 'confirmed', 'unbounded input'),
+    ]);
+  const stopped = verdictOf(ledger, 'alpha', 'core', 3);
+  assert.equal(stopped.outcome, 'stop');
+  assert.deepEqual(stopped.known_risk, ['path traversal', 'stale cache', 'token leak']);
+  assert.deepEqual(stopped.blockers.map((blocker) => blocker.id), ['C3', 'C4', 'S2']);
+
+  const result = runTool(['comment', '--ledger', ledger, '--run', 'alpha', '--msp', 'core']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.equal(result.stdout, [
+    'Pipeline review notes.',
+    '',
+    '### Unresolved blockers',
+    '- HIGH lib/parse.mjs:10 - Parser accepts a trailing comma.',
+    '- 2 security findings are named in the final report only.',
+    '',
+    '### Known risk',
+    '- stale cache (3 confirmed findings)',
+    '- 2 security findings are named in the final report only.',
+    '',
+    '### Advisory',
+    '- LOW lib/notes.mjs:3 - Variable name is unclear.',
+    '- 1 security findings are named in the final report only.',
+    '',
+  ].join('\n'));
+  const withheld = [
+    'Session token written to the debug log.',
+    'Upload name joined onto the storage root.',
+    'Login follows any return address.',
+    'Request body is read without a size limit.',
+    'Criterion on key rotation is untested.',
+    'token leak',
+    'path traversal',
+    'open redirect',
+    'unbounded input',
+  ];
+  for (const text of withheld) assert.equal(result.stdout.includes(text), false, `comment shows ${text}`);
 });

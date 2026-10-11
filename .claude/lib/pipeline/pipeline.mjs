@@ -27,15 +27,15 @@ export const MEASURED_KINDS = Object.freeze({ suite: 'failing test', mitosis: 'm
 export const COMMENT_SECTION_CAP = 20;
 
 const BLOCKING_SEVERITIES = Object.freeze(['CRITICAL', 'HIGH', 'MEDIUM']);
-const CARRIED_SOURCES = Object.freeze(['code-reviewer', 'security-reviewer']);
 const SECURITY_SOURCE = 'security-reviewer';
 const CANDIDATE_VERDICTS = Object.freeze(['confirmed', 'rejected']);
 const CARRIED_VERDICTS = Object.freeze({ open: 'confirmed', fixed: 'fixed' });
 
-const FINDING_KEYS = Object.freeze(['id', 'source', 'severity', 'location', 'summary', 'reproduction', 'fix']);
+const FINDING_KEYS = Object.freeze(['id', 'source', 'severity', 'security', 'location', 'summary', 'reproduction', 'fix']);
+const OPTIONAL_FINDING_KEYS = Object.freeze(['security']);
 const VERDICT_KEYS = Object.freeze(['id', 'verdict', 'test', 'kind', 'evidence']);
 const ROUND_LINE_KEYS = Object.freeze(['type', 'run', 'round', 'msp', 'findings']);
-const FINDING_LINE_KEYS = Object.freeze(['type', 'run', 'round', 'msp', 'id', 'source', 'severity', 'location', 'summary', 'verdict', 'test', 'kind', 'evidence']);
+const FINDING_LINE_KEYS = Object.freeze(['type', 'run', 'round', 'msp', 'id', 'source', 'severity', 'security', 'location', 'summary', 'verdict', 'test', 'kind', 'evidence']);
 const VERDICT_OUTPUT_KEYS = Object.freeze(['outcome', 'round', 'blockers', 'close_as_whole', 'known_risk', 'previous_blockers']);
 
 const PLACEHOLDER = /\{\{([a-z_]+)\}\}/g;
@@ -159,11 +159,11 @@ function checkText(prefix, key, value, { min, max }) {
   return accept(value);
 }
 
-function checkExactKeys(prefix, entry, keys) {
+function checkExactKeys(prefix, entry, keys, optional = Object.freeze([])) {
   if (!isPlainObject(entry)) return refuse(`${prefix} is not an object`);
   const extra = Object.keys(entry).find((key) => !keys.includes(key));
   if (extra !== undefined) return refuse(`${prefix} key ${extra}: is not one of ${keys.join(', ')}`);
-  const missing = keys.find((key) => !Object.hasOwn(entry, key));
+  const missing = keys.find((key) => !optional.includes(key) && !Object.hasOwn(entry, key));
   if (missing !== undefined) return refuse(`${prefix} key ${missing}: is missing`);
   return accept(entry);
 }
@@ -174,6 +174,7 @@ function checkFindingFields(prefix, entry, idPattern) {
     typeof entry.id === 'string' && !idPattern.test(entry.id) ? refuse(`${prefix} key id: ${quoted(entry.id)} is not one capital letter followed by one to three digits`) : accept(entry),
     FINDING_SOURCES.includes(entry.source) ? accept(entry) : refuse(`${prefix} key source: ${quoted(entry.source)} is not one of ${FINDING_SOURCES.join(', ')}`),
     SEVERITIES.includes(entry.severity) ? accept(entry) : refuse(`${prefix} key severity: ${quoted(entry.severity)} is not one of ${SEVERITIES.join(', ')}`),
+    !Object.hasOwn(entry, 'security') || typeof entry.security === 'boolean' ? accept(entry) : refuse(`${prefix} key security: ${quoted(entry.security)} is not true or false`),
     checkText(prefix, 'location', entry.location, { min: 0, max: LOCATION_CAP }),
     checkText(prefix, 'summary', entry.summary, { min: 1, max: SUMMARY_CAP }),
   ]);
@@ -191,7 +192,7 @@ export function parseFindings(text, label) {
   for (const [index, entry] of data.entries()) {
     const prefix = `findings file ${label} finding ${index}`;
     const refusal = firstRefusal([
-      checkExactKeys(prefix, entry, FINDING_KEYS),
+      checkExactKeys(prefix, entry, FINDING_KEYS, OPTIONAL_FINDING_KEYS),
       ...(isPlainObject(entry) ? [
         checkFindingFields(prefix, entry, FINDING_ID),
         checkText(prefix, 'reproduction', entry.reproduction, { min: 0, max: LONG_TEXT_CAP }),
@@ -203,7 +204,7 @@ export function parseFindings(text, label) {
     if (seen.has(entry.id)) return refuse(`${prefix} key id: ${entry.id} repeats finding ${seen.get(entry.id)}`);
     seen = new Map([...seen, [entry.id, index]]);
   }
-  return accept(Object.freeze(data.map((entry) => Object.freeze({ ...entry }))));
+  return accept(Object.freeze(data.map((entry) => Object.freeze({ ...entry, security: entry.security ?? true }))));
 }
 
 function checkLedgerScope(prefix, entry) {
@@ -301,16 +302,25 @@ function scopedFindings(records, run, msp) {
   return records.filter((entry) => entry.type === 'finding' && entry.run === run && entry.msp === msp);
 }
 
+function isMeasured(finding) {
+  return Object.hasOwn(MEASURED_KINDS, finding.source);
+}
+
+function isSecurityFinding(entry) {
+  return entry.security === true || entry.source === SECURITY_SOURCE;
+}
+
 export function carriedBlockers({ records, run, msp, round, ledgerLabel }) {
   if (round === 1) return accept(Object.freeze([]));
   const previous = round - 1;
   if (!hasRound(records, run, msp, previous)) return refuse(`ledger ${ledgerLabel} holds no round ${previous} for run ${run} and msp ${msp}`);
   const carried = scopedFindings(records, run, msp)
-    .filter((entry) => entry.round === previous && entry.verdict === 'confirmed' && CARRIED_SOURCES.includes(entry.source))
+    .filter((entry) => entry.round === previous && entry.verdict === 'confirmed' && !isMeasured(entry))
     .map((entry, index) => Object.freeze({
       id: `${CARRIED_ID_PREFIX}${index + 1}`,
       source: entry.source,
       severity: entry.severity,
+      security: entry.security,
       location: entry.location,
       summary: entry.summary,
       kind: entry.kind,
@@ -319,7 +329,7 @@ export function carriedBlockers({ records, run, msp, round, ledgerLabel }) {
 }
 
 function isCandidate(finding) {
-  return BLOCKING_SEVERITIES.includes(finding.severity) && !Object.hasOwn(MEASURED_KINDS, finding.source);
+  return BLOCKING_SEVERITIES.includes(finding.severity) && !isMeasured(finding);
 }
 
 export function buildCandidates({ findings, carried, msp, round }) {
@@ -392,6 +402,7 @@ function findingLine(scope, fields) {
     id: fields.id,
     source: fields.source,
     severity: fields.severity,
+    security: fields.security,
     location: fields.location,
     summary: fields.summary,
     verdict: fields.verdict,
@@ -406,7 +417,7 @@ function settledFinding(scope, finding, verdicts) {
     const verdict = verdicts.get(finding.id);
     return findingLine(scope, { ...finding, verdict: verdict.verdict, test: verdict.test, kind: verdict.kind, evidence: verdict.evidence });
   }
-  if (BLOCKING_SEVERITIES.includes(finding.severity) && Object.hasOwn(MEASURED_KINDS, finding.source)) {
+  if (BLOCKING_SEVERITIES.includes(finding.severity) && isMeasured(finding)) {
     return findingLine(scope, { ...finding, verdict: 'confirmed', test: null, kind: MEASURED_KINDS[finding.source], evidence: finding.reproduction || finding.summary });
   }
   return findingLine(scope, { ...finding, verdict: 'advisory', test: null, kind: null, evidence: '' });
@@ -428,7 +439,7 @@ export function buildRecord({ records, run, msp, round, findings, carried, verdi
 function assessRound(scoped, round) {
   const confirmed = scoped.filter((entry) => entry.round === round && entry.verdict === 'confirmed');
   const priorRounds = (kind) => new Set(scoped.filter((entry) => entry.round < round && entry.verdict === 'confirmed' && entry.kind === kind).map((entry) => entry.round)).size;
-  const classed = confirmed.map((entry) => Object.freeze({ entry, prior: Object.hasOwn(MEASURED_KINDS, entry.source) ? 0 : priorRounds(entry.kind) }));
+  const classed = confirmed.map((entry) => Object.freeze({ entry, prior: isMeasured(entry) ? 0 : priorRounds(entry.kind) }));
   return Object.freeze({
     confirmed,
     blockers: Object.freeze(classed.filter((item) => item.prior < 2).map((item) => item.entry)),
@@ -437,7 +448,14 @@ function assessRound(scoped, round) {
   });
 }
 
-function outcomeOf(round, current, previous) {
+function rejectsCriticalWrongly(scoped, round) {
+  const confirmsCriticalKind = (entry) => scoped.some((other) => other.round === entry.round && other.severity === 'CRITICAL' && other.verdict === 'confirmed' && other.kind === entry.kind);
+  return scoped.some((entry) => entry.round <= round && entry.severity === 'CRITICAL' && entry.verdict === 'rejected'
+    && (entry.test === 'bar' || (entry.test === 'introduced' && !confirmsCriticalKind(entry))));
+}
+
+function outcomeOf(round, current, previous, criticalRejected) {
+  if (criticalRejected) return 'hard-failure';
   const ends = current.blockers.length === 0 || (round > 1 && current.blockers.length >= previous.blockers.length);
   const unshippable = current.confirmed.some((entry) => entry.severity === 'CRITICAL') || current.blockers.some((entry) => entry.source === 'mitosis');
   if (ends && unshippable) return 'hard-failure';
@@ -453,7 +471,7 @@ function evaluate({ records, run, msp, round, ledgerLabel }) {
   const scoped = scopedFindings(records, run, msp);
   const current = assessRound(scoped, round);
   const previous = round > 1 ? assessRound(scoped, round - 1) : null;
-  return accept(Object.freeze({ scoped, current, previous, outcome: outcomeOf(round, current, previous) }));
+  return accept(Object.freeze({ scoped, current, previous, outcome: outcomeOf(round, current, previous, rejectsCriticalWrongly(scoped, round)) }));
 }
 
 export function computeVerdict({ records, run, msp, round, ledgerLabel }) {
@@ -496,14 +514,14 @@ export function renderComment({ records, run, msp, ledgerLabel }) {
   if (!evaluated.ok) return evaluated;
   const { scoped, current, outcome } = evaluated.value;
   const blockers = outcome === 'stop' ? current.blockers : [];
-  const securityKind = (kind) => scoped.some((entry) => entry.kind === kind && entry.source === SECURITY_SOURCE);
+  const securityKind = (kind) => scoped.some((entry) => entry.kind === kind && isSecurityFinding(entry));
   const confirmedCount = (kind) => scoped.filter((entry) => entry.verdict === 'confirmed' && entry.kind === kind).length;
   const advisory = scoped.filter((entry) => entry.verdict === 'advisory' || entry.verdict === 'rejected');
   const sections = [
     commentSection(
       '### Unresolved blockers',
-      blockers.filter((entry) => entry.source !== SECURITY_SOURCE).map(findingItem),
-      blockers.filter((entry) => entry.source === SECURITY_SOURCE).length,
+      blockers.filter((entry) => !isSecurityFinding(entry)).map(findingItem),
+      blockers.filter(isSecurityFinding).length,
     ),
     commentSection(
       '### Known risk',
@@ -515,8 +533,8 @@ export function renderComment({ records, run, msp, ledgerLabel }) {
     ),
     commentSection(
       '### Advisory',
-      advisory.filter((entry) => entry.source !== SECURITY_SOURCE).map(findingItem),
-      advisory.filter((entry) => entry.source === SECURITY_SOURCE).length,
+      advisory.filter((entry) => !isSecurityFinding(entry)).map(findingItem),
+      advisory.filter(isSecurityFinding).length,
     ),
   ].filter((section) => section !== null);
   if (sections.length === 0) return accept('');
