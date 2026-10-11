@@ -353,6 +353,17 @@ test('verdict computes green, loop, stop and hard-failure from the ledger', () =
   assert.equal(countedFour.previous_blockers, 1);
   assert.deepEqual(countedFour.blockers.map((blocker) => [blocker.id, blocker.kind]), [['P2', 'loose parsing']]);
   assert.equal(countedFour.outcome, 'stop');
+
+  recordRound(dir, ledger, 'alpha', 'shrinking', 1, [finding('C1', 'code-reviewer', 'HIGH')], [verdict('C1', 'confirmed', 'hidden text')]);
+  recordRound(dir, ledger, 'alpha', 'shrinking', 2, [], [verdict('P1', 'open', null)]);
+  recordRound(dir, ledger, 'alpha', 'shrinking', 3,
+    [finding('C1', 'code-reviewer', 'HIGH')],
+    [verdict('P1', 'open', null), verdict('C1', 'confirmed', 'loose parsing')]);
+  recordRound(dir, ledger, 'alpha', 'shrinking', 4, [], [verdict('P1', 'fixed', null), verdict('P2', 'open', null)]);
+  const shrinking = verdictOf(ledger, 'alpha', 'shrinking', 4);
+  assert.equal(shrinking.previous_blockers, 1);
+  assert.deepEqual(shrinking.blockers.map((blocker) => blocker.kind), ['loose parsing']);
+  assert.equal(shrinking.outcome, 'stop');
 });
 
 test('verdict asks a repeated kind to be closed as a whole and moves it to known risk on its third round', () => {
@@ -602,6 +613,33 @@ test('verdict hard-fails when a confirmed auditor CRITICAL stays open or a CRITI
     [finding('C1', 'code-reviewer', 'CRITICAL')],
     [verdict('C1', 'rejected', 'data loss', { test: 'reproduced' })]);
   assert.equal(verdictOf(ledger, 'alpha', 'unreproduced', 1).outcome, 'green');
+
+  recordRound(dir, ledger, 'alpha', 'not-critical', 1,
+    [finding('C1', 'code-reviewer', 'HIGH')],
+    [verdict('C1', 'rejected', 'loose parsing', { test: 'bar' })]);
+  assert.equal(verdictOf(ledger, 'alpha', 'not-critical', 1).outcome, 'green');
+
+  recordRound(dir, ledger, 'alpha', 'later-round', 1,
+    [finding('C1', 'code-reviewer', 'HIGH')],
+    [verdict('C1', 'confirmed', 'loose parsing')]);
+  recordRound(dir, ledger, 'alpha', 'later-round', 2,
+    [finding('C2', 'code-reviewer', 'CRITICAL')],
+    [verdict('P1', 'open', null), verdict('C2', 'rejected', 'data loss', { test: 'bar' })]);
+  assert.equal(verdictOf(ledger, 'alpha', 'later-round', 1).outcome, 'loop');
+  assert.equal(verdictOf(ledger, 'alpha', 'later-round', 2).outcome, 'hard-failure');
+
+  recordRound(dir, ledger, 'alpha', 'weaker-twin', 1,
+    [finding('C1', 'code-reviewer', 'MEDIUM'), finding('S1', 'security-reviewer', 'CRITICAL')],
+    [verdict('C1', 'confirmed', 'owner check'), verdict('S1', 'rejected', 'owner check', { test: 'introduced' })]);
+  assert.equal(verdictOf(ledger, 'alpha', 'weaker-twin', 1).outcome, 'hard-failure');
+
+  recordRound(dir, ledger, 'alpha', 'earlier-twin', 1,
+    [finding('S1', 'security-reviewer', 'CRITICAL')],
+    [verdict('S1', 'confirmed', 'data loss')]);
+  recordRound(dir, ledger, 'alpha', 'earlier-twin', 2,
+    [finding('C1', 'code-reviewer', 'CRITICAL')],
+    [verdict('P1', 'fixed', null), verdict('C1', 'rejected', 'data loss', { test: 'introduced' })]);
+  assert.equal(verdictOf(ledger, 'alpha', 'earlier-twin', 2).outcome, 'hard-failure');
 });
 
 test('findings take a boolean security flag that record keeps on every ledger line and every reader requires', () => {
@@ -737,4 +775,29 @@ test('comment withholds every security finding, whoever reported it', () => {
     'unbounded input',
   ];
   for (const text of withheld) assert.equal(result.stdout.includes(text), false, `comment shows ${text}`);
+
+  recordRound(dir, ledger, 'alpha', 'rejected-security', 1,
+    [finding('C1', 'code-reviewer', 'HIGH', { summary: 'Cache never expires.' })],
+    [verdict('C1', 'confirmed', 'stale cache')]);
+  recordRound(dir, ledger, 'alpha', 'rejected-security', 2,
+    [finding('S1', 'security-reviewer', 'HIGH', { summary: 'Cached token outlives its session.' })],
+    [verdict('P1', 'open', null), verdict('S1', 'rejected', 'stale cache', { test: 'introduced' })]);
+  recordRound(dir, ledger, 'alpha', 'rejected-security', 3, [], [verdict('P1', 'open', null)]);
+  const verdictThree = verdictOf(ledger, 'alpha', 'rejected-security', 3);
+  assert.deepEqual(verdictThree.known_risk, ['stale cache']);
+  assert.equal(verdictThree.outcome, 'green');
+  const rejectedComment = runTool(['comment', '--ledger', ledger, '--run', 'alpha', '--msp', 'rejected-security']);
+  assert.equal(rejectedComment.status, 0, rejectedComment.stderr);
+  assert.equal(rejectedComment.stdout, [
+    'Pipeline review notes.',
+    '',
+    '### Known risk',
+    '- 1 security findings are named in the final report only.',
+    '',
+    '### Advisory',
+    '- 1 security findings are named in the final report only.',
+    '',
+  ].join('\n'));
+  assert.equal(rejectedComment.stdout.includes('stale cache'), false);
+  assert.equal(rejectedComment.stdout.includes('Cached token'), false);
 });
