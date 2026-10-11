@@ -16,11 +16,16 @@ const ROUND_SENTENCES = Object.freeze([
   'Everything else is advisory: it goes to the final report and the pull request\'s comment, never to a fix round.',
 ]);
 
+const SECURITY_SENTENCE = 'A finding that describes a vulnerability, a weakness someone could exploit, or a secret or credential is a security finding, whoever reports it, and the pull request\'s comment never shows its text.';
+
+const REPEAT_KIND_SENTENCE = 'A candidate rejected as a repeat takes the kind of the item it repeats.';
+
 const REPORT_SENTENCES = Object.freeze([
   'A finding already in an earlier round\'s findings file is not reported again; the validator re-checks earlier blockers.',
   'Every finding is rated with the Severity section, and the validator decides with What blocks whether it blocks.',
   'A kind listed in the do-not-flag file is not reported unless it is CRITICAL or breaks an acceptance criterion or requirement of the spec.',
   'A secret or credential is never quoted: name the file and line that hold it.',
+  SECURITY_SENTENCE,
 ]);
 
 const REVIEWER_PLACEHOLDERS = Object.freeze([
@@ -44,7 +49,7 @@ const REVIEWERS = Object.freeze({
   'conformance-auditor.md': Object.freeze({ source: 'conformance-auditor', letter: 'A' }),
 });
 
-const FINDING_KEYS = Object.freeze(['id', 'source', 'severity', 'location', 'summary', 'reproduction', 'fix']);
+const FINDING_KEYS = Object.freeze(['id', 'source', 'severity', 'security', 'location', 'summary', 'reproduction', 'fix']);
 const VERDICT_KEYS = Object.freeze(['id', 'verdict', 'test', 'kind', 'evidence']);
 
 function sections(text) {
@@ -153,4 +158,56 @@ test('each brief template holds exactly its placeholders and the fixed instructi
   VERDICT_KEYS.forEach((key) => assert.ok(validator.includes(`\`${key}\``), `validator.md must name the JSON key ${key}`));
   ['open', 'fixed', 'confirmed', 'rejected', 'bar', 'introduced', 'reproduced', 'carried', 'network', '2000']
     .forEach((word) => assertWord(validator, word, 'validator.md'));
+});
+
+test('the review bar and the validator brief state the repeat rule and every pass of the introduced test', () => {
+  const bar = sections(readFileSync(REVIEW_BAR, 'utf8'));
+  const validator = sections(readFileSync(`${BRIEFS_DIR}/validator.md`, 'utf8'));
+
+  const introduced = bar['## What blocks'].split('\n').filter((line) => line.startsWith('2. Introduced:'));
+  assert.equal(introduced.length, 1, 'What blocks must hold one Introduced item');
+  assertInOrder(introduced[0], [
+    'carried blocker', 'marks open', 'numbered before it', 'confirms', 'the same as or higher', 'judged on its own',
+    'CRITICAL', 'NOT MET', 'unmet requirement', 'round 1', 'round 2',
+  ], 'the Introduced item');
+
+  assertInOrder(validator['## Obligations'], [
+    'marks open', 'confirms', 'the same as or higher', 'judged on its own', 'CRITICAL', 'NOT MET acceptance criterion',
+    'unmet requirement', '{{base}}', '{{previous_head}}',
+  ], 'the Obligations section of validator.md');
+
+  assert.ok(bar['## Kinds'].includes(REPEAT_KIND_SENTENCE), `the Kinds section of review-bar.md must hold: ${REPEAT_KIND_SENTENCE}`);
+  assert.ok(validator['## Kinds'].includes(REPEAT_KIND_SENTENCE), `the Kinds section of validator.md must hold: ${REPEAT_KIND_SENTENCE}`);
+});
+
+test('every reviewer brief defines the security flag and the review bar defines a security finding', () => {
+  const bar = sections(readFileSync(REVIEW_BAR, 'utf8'));
+  assert.ok(bar['## What a reviewer reports'].includes(SECURITY_SENTENCE), `What a reviewer reports must hold: ${SECURITY_SENTENCE}`);
+
+  const bullets = Object.freeze(Object.fromEntries(Object.keys(REVIEWERS).map((name) => {
+    const last = sections(readFileSync(`${BRIEFS_DIR}/${name}`, 'utf8'))['## Last block'];
+    assert.ok(last !== undefined, `${name} must hold a Last block section`);
+
+    const from = last.indexOf('exactly the keys');
+    assert.ok(from >= 0, `${name} must name exactly the keys in its Last block`);
+    const end = last.indexOf('.', from);
+    const keySentence = last.slice(from, end < 0 ? last.length : end);
+    const keys = [...keySentence.matchAll(/`([^`]+)`/g)].map((match) => match[1]);
+    assert.deepEqual(keys, FINDING_KEYS, `${name} must name the eight keys in order in its Last block's key sentence`);
+
+    assert.ok(
+      last.includes('Every value except `security` is a string on one line'),
+      `${name} must say every value except security is a string on one line`,
+    );
+
+    const lines = last.split('\n').filter((line) => line.startsWith('- `security`:'));
+    assert.equal(lines.length, 1, `${name} must hold one bullet beginning - \`security\`:`);
+    return [name, lines[0]];
+  })));
+
+  ['code-reviewer.md', 'conformance-auditor.md'].forEach((name) => {
+    assert.ok(bullets[name].includes('security finding'), `the security bullet of ${name} must name a security finding`);
+    assertWord(bullets[name], 'false', `the security bullet of ${name}`);
+  });
+  assert.ok(bullets['security-reviewer.md'].includes('always true'), 'the security bullet of security-reviewer.md must say always true');
 });

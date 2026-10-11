@@ -24,7 +24,7 @@ Each numbered line of {{candidates}} is one obligation, in the order the file st
 - A carried blocker, under `## Carried blockers` with an id beginning with P, is MET when it is still present at {{head}} and NOT MET when it is fixed.
 - A new candidate, under `## New candidates`, is MET when it passes all three tests of the review bar and NOT MET otherwise.
 
-Judge each new candidate in this order. First, reject on the introduced test, whatever else holds, a candidate that repeats a carried blocker or a candidate numbered before it, so one defect is counted once. Otherwise apply bar, introduced and reproduced in that order and stop at the first it fails. In round 1 the introduced test compares {{head}} with {{base}}; from round 2 it asks whether the commits from {{previous_head}} to {{head}} introduced the defect.
+Judge each new candidate in this order: apply bar, introduced and reproduced in that order and stop at the first test it fails. The introduced test runs in the review bar's order. First, a candidate fails it as a repeat only when it describes the same defect as a carried blocker your verdict marks open, or as a candidate numbered before it that your verdict confirms, and that earlier item's severity is the same as or higher than the candidate's own; a repeat of a rejected candidate, of a fixed carried blocker or of an item of lower severity is judged on its own. Otherwise a CRITICAL finding, a NOT MET acceptance criterion and an unmet requirement of {{spec}} pass it. Otherwise, in round 1 it passes when the defect is at {{head}} and not at {{base}}; from round 2 it passes when the commits from {{previous_head}} to {{head}} introduced the defect.
 
 ## Reproducing
 
@@ -34,7 +34,7 @@ Never quote a secret or credential value: name the file and line that hold it.
 
 ## Kinds
 
-Give every new candidate a kind, a short lowercase name for its defect class. Reuse a kind already in {{ledger}} when one fits. Never give the kinds failing test or mitosis gate, which are kept for the suite and mitosis.
+Give every new candidate a kind, a short lowercase name for its defect class. Reuse a kind already in {{ledger}} when one fits. A candidate rejected as a repeat takes the kind of the item it repeats. Never give the kinds failing test or mitosis gate, which are kept for the suite and mitosis.
 
 ## Last block
 

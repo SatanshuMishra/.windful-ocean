@@ -38,11 +38,12 @@ End your findings with the BLOCKING line. Every command that must exit 0 before 
 
 ## Last block
 
-After the BLOCKING line, end your reply with one JSON array as its last block. It is empty, `[]`, when you have no finding, and otherwise holds one object per finding with exactly the keys `id`, `source`, `severity`, `location`, `summary`, `reproduction` and `fix`. Every value is a string on one line.
+After the BLOCKING line, end your reply with one JSON array as its last block. It is empty, `[]`, when you have no finding, and otherwise holds one object per finding with exactly the keys `id`, `source`, `severity`, `security`, `location`, `summary`, `reproduction` and `fix`. Every value except `security` is a string on one line; `security` is true or false.
 
 - `id`: the letter C followed by one to three digits, numbered from 1 (C1, C2 and so on), unique in the array.
 - `source`: `code-reviewer`.
 - `severity`: `CRITICAL`, `HIGH`, `MEDIUM` or `LOW`.
+- `security`: true when the finding is a security finding as the review bar defines it, and false otherwise.
 - `location`: the file and line, at most 200 characters.
 - `summary`: what is wrong and why it matters, 1 to 500 characters.
 - `reproduction`: the command or input that shows it, at most 2000 characters.
