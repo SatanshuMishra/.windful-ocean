@@ -130,6 +130,44 @@ test("the pipeline rule sizes review, renders fixed briefs, validates findings a
   }
 });
 
+test('the rule gives every finding the main conversation adds a security flag and carries every non-measured confirmed finding', () => {
+  const rule = read(RULE_PATH);
+  const stage3 = sectionOf(rule, '## Stage 3: review');
+  const validate = sectionOf(rule, '## Validate');
+
+  const keys = ['id', 'source', 'severity', 'security', 'location', 'summary', 'reproduction', 'fix'];
+  const keyList = `${keys.slice(0, -1).map((key) => `\`${key}\``).join(', ')} and \`${keys.at(-1)}\``;
+  assert.ok(
+    stage3.includes(`exactly the keys ${keyList}`),
+    'Stage 3 does not name the eight keys in order',
+  );
+  assert.ok(
+    stage3.includes('`security` true or false'),
+    'Stage 3 does not say security is true or false',
+  );
+  assert.ok(
+    stage3.includes(
+      'Each suite and mitosis finding the main conversation adds takes `security` true when it is a security finding as the review bar defines it, such as a failing test of a security control, and false otherwise.',
+    ),
+    'Stage 3 does not say how suite and mitosis findings take security',
+  );
+
+  assert.ok(
+    validate.includes(
+      "It carries the previous round's confirmed findings, other than suite and mitosis findings, as P ids and prints the candidate count.",
+    ),
+    'Validate does not state the carried set',
+  );
+  assert.ok(
+    !validate.includes('confirmed reviewer blockers'),
+    'Validate still says confirmed reviewer blockers',
+  );
+  assert.ok(
+    !rule.includes('confirmed reviewer blockers'),
+    'pipeline.md still says confirmed reviewer blockers',
+  );
+});
+
 test('CLAUDE.md states the new endings and every brief the rule names renders', () => {
   const claude = read('.claude/CLAUDE.md');
   const lines = claude.split('\n');
