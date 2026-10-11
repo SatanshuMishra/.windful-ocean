@@ -21,7 +21,7 @@ const ROUND_2_MATCHER = '^mcp__.+__(create_pull_request|merge_pull_request)$';
 const NEVER_MERGE = 'Never merge and never mark a pull request ready.';
 
 const PR_LINE = '- Open every pull request through the GitHub MCP `create_pull_request` tool, with the title and body `node ~/.claude/lib/git/pr.mjs pr-render` prints; a hook refuses any other title or body, and ad-hoc `gh pr create` stays denied. Only a human merges. The `pr` skill carries the title grammar and body fields.';
-const PIPELINE_LINE = '- Every request that changes a git repository runs the pipeline autonomously: interphase specs it, mitosis builds it, independent reviewers judge it, and every concern returns to interphase until a round is green, with no round limit and no question to the user. Rule: `~/.claude/rules/common/pipeline.md`.';
+const PIPELINE_LINE = '- Every request that changes a git repository runs the pipeline autonomously: interphase specs it, mitosis builds it, independent reviewers judge it, and every confirmed blocker returns to interphase until a round is green, a round makes no progress or a hard failure stops it, with no round limit and no question to the user. Rule: `~/.claude/rules/common/pipeline.md`.';
 
 function repoPath(relativePath) {
   return `${REPO_ROOT}/${relativePath}`;
@@ -115,7 +115,7 @@ test("the pipeline rule ships through mitosis's pushed state and the MCP create 
   assert.ok(!rule.includes('pr_adapter'), 'pipeline.md still names pr_adapter');
   assert.ok(!rule.includes('pr/<msp>.json'), 'pipeline.md still names pr/<msp>.json');
   assert.ok(sectionOf(rule, '## Green').includes('The one exception is an `inert` verdict'));
-  assert.ok(sectionOf(rule, '## Stop').includes('The loop ends only at green or at a hard failure'));
+  assert.ok(sectionOf(rule, '## Stop').includes('The loop ends at green, at a stop verdict, or at a hard failure.'));
 });
 
 test('the attribution census and the auditor route pull requests to files that exist', () => {
