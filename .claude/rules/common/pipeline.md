@@ -1,6 +1,6 @@
 # Request Pipeline
 
-Every request to create, change or fix something in a git repository runs three stages: interphase writes the spec and its Steps, mitosis builds them, and independent reviewers judge the build. Every concern the reviewers raise goes back to interphase, and the loop repeats until a round is green. The pipeline runs autonomously: no stage asks the user anything, and the loop has no round limit.
+Every request to create, change or fix something in a git repository runs three stages: interphase writes the spec and its Steps, mitosis builds them, and independent reviewers judge the build. Every confirmed blocker goes back to interphase, and the loop repeats until a round is green, a round makes no progress or a hard failure stops it. The pipeline runs autonomously: no stage asks the user anything, and the loop has no round limit.
 
 ## When it does not apply
 
@@ -30,45 +30,62 @@ Every request to create, change or fix something in a git repository runs three 
 
 ## Stage 3: review
 
-For every MSP the run held, with `<base>` and `<branch>` from the JSON result, run all of these in that MSP's worktree, every MSP at once:
+Rounds count per MSP: an MSP's round `<n>` is its nth review. Every round, fix rounds included, reviews the original run's MSP: its label as `--msp`, its worktree, its `<base>` and `<branch>` from the original run's JSON result, and the original run's spec and decisions file. Run all of this in each MSP's worktree, for every MSP still in the loop at once:
 
-- `code-reviewer` on `<base>...<branch>`, with the spec and the decisions file as its standards.
-- `conformance-auditor` on the same range, with the spec as its standard, judging the acceptance criteria the MSP's Steps name in `spec_ref`.
-- `security-reviewer` on the same range when the diff touches auth, input handling, data access, secrets or an external integration.
-- The project's full test suite, its one-line result kept at `<home>/suite-<msp>.txt`.
+- An MSP mitosis did not commit gets one `<home>/run.zsh --resume`; still not committed, it is a hard failure.
+- An MSP mitosis reports `unchanged` in its round 1 is not reviewed: its findings file and its verdicts file each hold the empty JSON array `[]`, and it goes straight to Validate.
+- Write `git diff <base>...<branch>`, run in the worktree, to `<home>/review/round-<n>/<msp>.diff`.
+- Run `code-reviewer` on every MSP; `conformance-auditor` unless the original spec's header holds the line `Lane: brief.`; `security-reviewer`, at any size, when the diff touches auth, input handling, data access, secrets or an external integration; and the project's full test suite every round, its one-line result kept at `<home>/suite-<msp>.txt`.
+- Render every brief with `node ~/.claude/lib/pipeline/pipeline.mjs brief --template ~/.claude/lib/pipeline/briefs/<agent>.md` and one `--set <name>=<value>` per placeholder, and pass its output as the agent's whole prompt, unchanged and with nothing added. The templates are `~/.claude/lib/pipeline/briefs/code-reviewer.md`, `~/.claude/lib/pipeline/briefs/security-reviewer.md`, `~/.claude/lib/pipeline/briefs/conformance-auditor.md` and `~/.claude/lib/pipeline/briefs/validator.md`; the tool fills `review_bar` itself.
+- The values: `range` is `<base>...<branch>`; `worktree` the MSP's worktree; `base` and `head` the commits `<base>` and `<branch>` point at; `round` the MSP's round number; `previous_head` the head reviewed in the MSP's previous round and `earlier_findings` a comma-separated list of the earlier rounds' `<home>/review/round-<n>/<msp>.md` files, both `none` in round 1; `spec` and `decisions` the original run's files; `criteria` the acceptance criterion numbers the MSP's Steps name in `spec_ref`, comma-separated with no spaces; `diff` the round's `.diff` file; `ledger` `~/.mitosis/<repo>/findings.jsonl`; `candidates` the round's candidates file; and `do_not_flag` `~/.mitosis/<repo>/do-not-flag.md`, or `none` when it does not exist.
+- Collect into `<home>/review/round-<n>/<msp>.findings.json` one JSON array: each reviewer's last JSON array; for each suite failure, a finding with source `suite` and an id `U<n>`, HIGH when it does not fail the same way on the base and LOW when it does; and for each gate verdict other than `pass` or `not-applicable`, apart from the inert exception in Green, and each reconcile finding, a HIGH finding with source `mitosis` and an id `M<n>`. Each suite and mitosis finding the main conversation adds takes `security` true when it is a security finding as the review bar defines it, such as a failing test of a security control, and false otherwise.
+- Every finding the main conversation adds meets the tool's field rules: exactly the keys `id`, `source`, `severity`, `security`, `location`, `summary`, `reproduction` and `fix`, with `security` true or false; an id of one capital letter followed by one to three digits, unique in the file; a location of at most 200 characters; a summary of 1 to 500 characters; a reproduction and a fix of at most 2000 characters each; and every value on one line.
+- Keep `<home>/review/round-<n>/<msp>.md` as the round's readable record: every finding with its source, severity, `file:line` and problem.
 
-Write every concern of the round to `<home>/review/round-<n>/<msp>.md`: reviewer findings, auditor verdicts, failing BLOCKING commands, mitosis attention items and suite failures, each with its source, severity, `file:line` and problem.
+## Validate
+
+For every MSP in the round, with `<slug>` always the original run's slug and `<msp>` the original run's MSP label, fix rounds included:
+
+- Run `node ~/.claude/lib/pipeline/pipeline.mjs candidates --findings <home>/review/round-<n>/<msp>.findings.json --ledger ~/.mitosis/<repo>/findings.jsonl --run <slug> --msp <msp> --round <n> --out <home>/review/round-<n>/<msp>.candidates.md`. It carries the previous round's confirmed findings, other than suite and mitosis findings, as P ids and prints the candidate count.
+- When the count is above zero, dispatch one fresh `conformance-auditor` with the brief rendered from `~/.claude/lib/pipeline/briefs/validator.md` as its whole prompt, and save its last JSON array as `<home>/review/round-<n>/<msp>.verdicts.json`. When the count is zero, that file holds `[]`.
+- Run `node ~/.claude/lib/pipeline/pipeline.mjs record --ledger ~/.mitosis/<repo>/findings.jsonl --run <slug> --round <n> --msp <msp> --findings <home>/review/round-<n>/<msp>.findings.json --verdicts <home>/review/round-<n>/<msp>.verdicts.json`. It confirms suite and mitosis findings of MEDIUM or worse without validation.
+- When a reviewer's or the validator's output ends without a JSON array, or `candidates` or `record` refuses that array, dispatch that agent once more with the same brief. A second failure is a hard failure.
+- Run `node ~/.claude/lib/pipeline/pipeline.mjs verdict --ledger ~/.mitosis/<repo>/findings.jsonl --run <slug> --msp <msp> --round <n>` and save its line as `<home>/review/round-<n>/<msp>.verdict.json`. Its outcome, `green`, `loop`, `stop` or `hard-failure`, is the verdict on the round in `<home>/rounds.md`.
 
 ## Green
 
 A round is green when all of these hold:
 
 - The JSON result of every mitosis run in the round reports exit code 0: every MSP `committed` or `unchanged`, every gate verdict `pass` or `not-applicable`, reconcile clean. The one exception is an `inert` verdict on a test that proves a criterion titled `Unchanged:`, or a bug template's unchanged-behaviour check: that test passes without the work by design, so it counts as `pass` here and goes to the final report as an unchanged-behaviour check.
-- No reviewer reports a CRITICAL, HIGH or MEDIUM finding, and no auditor verdict is NOT MET.
-- Every BLOCKING command a reviewer names exits 0.
+- The MSP's `pipeline.mjs verdict` prints the outcome `green`.
 - The full suite passes on every MSP branch, apart from failures that fail the same way on its base without the work; those go to the final report and never into the loop.
 
-LOW findings never reopen the loop; they go to the user in the final report.
+Advisory findings, every finding the verdict does not list as a blocker, never reopen the loop; they go to the pull-request comment and the final report.
 
 ## Loop back
 
-- For each MSP with a concern, start a new interphase run. Its request names the round's findings file and every earlier round's findings file for that MSP; the original spec and decisions file as binding; the MSP's branch and worktree as where the code under review lives and where probes run, with `--repo <worktree>`; the MSP's write-set as the files a fix changes; and ends `Work autonomously.`
+- For each MSP whose outcome is `loop`, start a new interphase run. Its request names that round's saved `<home>/review/round-<n>/<msp>.verdict.json` as the only concerns to fix; every earlier fix spec of the MSP as the fixes already tried; the original spec and decisions file as binding; the MSP's branch and worktree as where the code under review lives and where probes run, with `--repo <worktree>`; the MSP's write-set as the files a fix changes; and ends `Work autonomously.` It names no findings file.
+- The request requires each kind in the verdict's `close_as_whole` to be closed as a whole, by an allowlist or one general rule, never instance by instance.
 - A fix that needs a file another MSP owns belongs to that MSP's fix run. A fix that needs a file no MSP owns takes it, and its pull request names that file under risk.
 - Run the interphase runs one after another, then build every fix spec as in stage 2, with the MSP's branch as `--feature-branch` and its own run home.
-- Merge each fix run's branches into the MSP's branch in the MSP's worktree, then merge that branch into every MSP stacked on it, in stack order. Review again from stage 3, always the MSP's whole range, never the fix alone.
-- There is no round limit. A concern that returns is never answered the same way twice: the findings history in each request shows interphase every fix already tried.
+- Merge each fix run's branches into the MSP's branch in the MSP's worktree, then merge that branch into every MSP stacked on it, in stack order. Review again from Stage 3 as the MSP's next round, with the previous round's head as `previous_head`.
+- An MSP whose outcome is `green` or `stop` is reviewed no further. An MSP whose outcome is `stop` ships with its blockers listed as Unresolved.
+- When any MSP's outcome is `hard-failure`, stop the whole run.
+- There is no round limit: a round that makes no progress ends the loop for its MSP with the outcome `stop`.
 
 ## Ship
 
-Once a round is green:
+Once every MSP's latest outcome is `green` or `stop`:
 
+- Before `SHIP=1`, for each MSP run `node ~/.claude/lib/pipeline/pipeline.mjs comment --ledger ~/.mitosis/<repo>/findings.jsonl --run <slug> --msp <msp>` and save its text, empty when it prints nothing, with the Write tool as `<home>/review/<msp>.comment.md`, so the configuration's secret scanner checks it. Then run `node ~/.claude/lib/pipeline/pipeline.mjs promote --ledger ~/.mitosis/<repo>/findings.jsonl --do-not-flag ~/.mitosis/<repo>/do-not-flag.md` once. An exit 2 from either, or a blocked write, is a hard failure.
 - Run `SHIP=1 <home>/run.zsh --resume` on the original run; it gates and reconciles every MSP again and ends each one `pushed`. Reconcile findings that name only files a fix round took outside the write-set are expected; list them in the report.
 - Read each MSP's title, body, branch and base from mitosis's JSON result.
 - For each pushed MSP, in stack order, call the GitHub MCP `create_pull_request` tool with the owner and repository from `origin`, that branch as head, that base, the title and body exactly as mitosis wrote them, and `draft` true. When the base is a feature branch missing from the remote and every commit on it is already on the remote's default branch, use the remote's default branch as the base; otherwise push the feature branch first, so each pull request shows only its own work.
 - Assign each pull request to the signed-in user: `get_me` for the login, then `issue_write` with that login as assignee.
-- A refusal by the format hook is a ship failure. mitosis's title and body are never edited.
-- Report the pull requests in stack order, the rounds it took, the reviews that ran, every top risk interphase listed, every LOW finding and every unproven criterion. Never merge and never mark a pull request ready.
+- After assigning it, post the MSP's saved `<msp>.comment.md`, when it is not empty, on that pull request with the GitHub MCP `add_issue_comment` tool, its text unchanged.
+- A refusal by the format hook is a ship failure. mitosis's title and body are never edited; the review notes go in the comment.
+- Report the pull requests in stack order, the rounds it took, the reviews that ran, every top risk interphase listed, every MSP's Unresolved blockers, the known-risk kinds, every advisory finding with the security findings the comment left out, the validator's rejections by test, every do-not-flag addition `promote` printed, and every unproven criterion. Never merge and never mark a pull request ready.
 
 ## Stop
 
-The loop ends only at green or at a hard failure. Report and stop on a mitosis refusal, an interphase guard difference, or a ship failure. Never work around one.
+The loop ends at green, at a stop verdict, or at a hard failure. Each of these is a hard failure that comes before any push and pushes nothing: a `hard-failure` verdict, an exit 2 from `pipeline.mjs` that remains after Validate's one retry, an MSP still not committed after its one `--resume`, and a blocked comment write. Report and stop on any of them, on a mitosis refusal, an interphase guard difference, or a ship failure. Never work around one.
