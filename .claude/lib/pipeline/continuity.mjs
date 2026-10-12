@@ -667,7 +667,7 @@ export function lexCommand(command) {
   const parts = texts
     .map((text, index) => Object.freeze({ text: text.trim(), body: bodies[index] }))
     .filter((part) => part.text !== '' || part.body !== '');
-  return Object.freeze({ parts: Object.freeze(parts), open: quote !== null || pending.length > 0 || unclosed });
+  return Object.freeze({ parts: Object.freeze(parts), open: quote !== null || pending.length > 0 || unclosed || stack.length > 0 });
 }
 
 export function splitWords(part) {

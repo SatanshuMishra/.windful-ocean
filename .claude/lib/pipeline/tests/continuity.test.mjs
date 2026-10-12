@@ -1156,3 +1156,42 @@ test('continuity: a redirection glued to a word is read as the shell reads it', 
     }
   });
 });
+
+test('continuity: a construct left open makes a run.zsh command one the gate cannot read', () => {
+  withHome((home) => {
+    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
+    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
+    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
+    const commented = (prefix) => `${prefix}\ncat ${runHome}/rounds.md # it's next\n${run} --resume\nSHIP=1 ${run} --resume\ncat ${runHome}/rounds.md # it's done`;
+    const unfollowed = [
+      "x='a(b'; echo ${x%%[(]*}",
+      'name=${line%%[(]*}',
+      'echo ${(s:(:)x}',
+      'echo ${(s.(.)x}',
+      'n="$(grep -c "foo(" notes.txt)"',
+      "n=\"$(grep -c '${' notes.txt)\"",
+      `n="$(cat <<'EOF'\n\${\nEOF\n)"`,
+      'n="$(echo "(")"',
+    ];
+    handleEvent(resume(home));
+    const holdAfresh = () => {
+      handleEvent(resume(home, OTHER_THREAD));
+      handleEvent(resume(home));
+    };
+    for (const prefix of unfollowed) {
+      holdAfresh();
+      recordBoundary(home);
+      const before = readFileSync(statePath(SESSION), 'utf8');
+      const refused = gate(commented(prefix));
+      assert.ok(denied(refused), prefix);
+      assert.match(reason(refused), /cannot read/, prefix);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, prefix);
+      const single = gate(`${prefix}\n${run} --resume`);
+      assert.ok(denied(single), prefix);
+      assert.match(reason(single), /cannot read/, prefix);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, prefix);
+      assert.equal(gate(`${prefix}\ncat notes.txt # it's next\necho done`), null, prefix);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, prefix);
+    }
+  });
+});
