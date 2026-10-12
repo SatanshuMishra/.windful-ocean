@@ -21,7 +21,9 @@ const READERS = new Set([
 const RUNNERS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'mksh', 'fish', 'eval', 'source', '.', 'exec', 'xargs', 'parallel', 'env', 'command', 'builtin', 'nice', 'timeout', 'sudo']);
 const GRAMMAR = new Set(['!', '{', '}', '[[', 'case', 'coproc', 'do', 'done', 'elif', 'else', 'end', 'esac', 'fi', 'for', 'foreach', 'function', 'if', 'repeat', 'select', 'then', 'until', 'while']);
 const COMMAND_STRING_FLAG = /^-[A-Za-z]*c[A-Za-z]*$/;
-const REDIRECTION = /^(?:\d*|&)[<>][<>&|-]*$/;
+const REDIRECTION = /^(?:\d*|&|\{[A-Za-z_][A-Za-z0-9_]*\})[<>][<>&|!-]*$/;
+const COMMENT_AFTER = new Set([' ', '\t', '\n', '\r', '\f', '\v', ';', '&', '|', '(', ')']);
+const DELIMITER_END = /[\s;&|<>()'"]/;
 const SUBSTITUTION = /\$\(|\x60|<\(|>\(/;
 const RUN_ZSH = /run\.zsh/g;
 const VARIABLE_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
@@ -403,47 +405,142 @@ export function runHomesInText(command, home = homeDirectory()) {
   return [...new Set(found)];
 }
 
-export function splitCommand(command) {
-  const parts = [];
+function heredocAt(command, index) {
+  let cursor = index + 2;
+  const strip = command[cursor] === '-';
+  if (strip) cursor += 1;
+  while (command[cursor] === ' ' || command[cursor] === '\t') cursor += 1;
+  const opener = command[cursor];
+  if (opener === '\'' || opener === '"') {
+    const close = command.indexOf(opener, cursor + 1);
+    if (close === -1) return null;
+    return Object.freeze({ delimiter: command.slice(cursor + 1, close), strip, end: close + 1 });
+  }
+  const start = opener === '\\' ? cursor + 1 : cursor;
+  let end = start;
+  while (end < command.length && !DELIMITER_END.test(command[end])) end += 1;
+  return end === start ? null : Object.freeze({ delimiter: command.slice(start, end), strip, end });
+}
+
+function heredocBody(command, start, heredoc) {
+  const lines = [];
+  let position = start;
+  while (position < command.length) {
+    const newline = command.indexOf('\n', position);
+    const lineEnd = newline === -1 ? command.length : newline;
+    const line = command.slice(position, lineEnd);
+    const next = newline === -1 ? command.length : newline + 1;
+    if ((heredoc.strip ? line.replace(/^\t+/, '') : line) === heredoc.delimiter) {
+      return Object.freeze({ body: lines.join('\n'), next, closed: true });
+    }
+    lines.push(line);
+    position = next;
+  }
+  return Object.freeze({ body: lines.join('\n'), next: command.length, closed: false });
+}
+
+export function lexCommand(command) {
+  const texts = [];
+  const bodies = [];
+  const pending = [];
   let current = '';
   let quote = null;
+  let last = null;
+  let dollar = false;
+  let unclosed = false;
+  const endPart = () => {
+    texts.push(current);
+    bodies.push('');
+    current = '';
+  };
   for (let index = 0; index < command.length; index += 1) {
     const char = command[index];
     const next = command[index + 1];
     const previous = command[index - 1];
-    if (quote !== null) {
+    const heredoc = quote === null && char === '<' && next === '<' && command[index + 2] !== '<' && previous !== '<' ? heredocAt(command, index) : null;
+    if (quote === '\'') {
       current += char;
-      if (char === '\\' && quote === '"' && next !== undefined) {
+      if (char === '\'') quote = null;
+      last = char;
+    } else if (quote === '$\'') {
+      current += char;
+      if (char === '\\' && next !== undefined) {
         current += next;
         index += 1;
-      } else if (char === quote) {
+      } else if (char === '\'') {
         quote = null;
       }
+      last = char;
+    } else if (quote === '"') {
+      if (char === '\\' && next === '\n') {
+        index += 1;
+      } else if (char === '\\' && next !== undefined) {
+        current += char + next;
+        index += 1;
+      } else {
+        current += char;
+        if (char === '"') quote = null;
+      }
+      last = char;
+    } else if (char === '\\' && next === '\n') {
+      index += 1;
     } else if (char === '\\' && next !== undefined) {
       current += char + next;
       index += 1;
+      last = '\\';
+      dollar = false;
+    } else if (char === '#' && (last === null || COMMENT_AFTER.has(last))) {
+      const newline = command.indexOf('\n', index);
+      index = (newline === -1 ? command.length : newline) - 1;
+    } else if (char === '\'' && dollar) {
+      quote = '$\'';
+      current += char;
+      last = char;
     } else if (char === '\'' || char === '"') {
       quote = char;
       current += char;
+      last = char;
+    } else if (heredoc !== null) {
+      current += command.slice(index, heredoc.end);
+      pending.push(Object.freeze({ delimiter: heredoc.delimiter, strip: heredoc.strip, part: texts.length }));
+      index = heredoc.end - 1;
+      last = command[index];
+    } else if (char === '\n' && pending.length > 0) {
+      endPart();
+      let position = index + 1;
+      while (pending.length > 0 && !unclosed) {
+        const waiting = pending.shift();
+        const read = heredocBody(command, position, waiting);
+        if (read.body !== '') bodies[waiting.part] = bodies[waiting.part] === '' ? read.body : `${bodies[waiting.part]}\n${read.body}`;
+        unclosed = !read.closed;
+        position = read.next;
+      }
+      index = position - 1;
+      last = '\n';
     } else if (char === '\n' || char === ';') {
-      parts.push(current);
-      current = '';
+      endPart();
+      last = char;
     } else if ((char === '&' && next === '&') || (char === '|' && next === '|')) {
-      parts.push(current);
-      current = '';
+      endPart();
       index += 1;
+      last = char;
     } else if (char === '|') {
-      parts.push(current);
-      current = '';
+      endPart();
+      last = char;
     } else if (char === '&' && previous !== '>' && previous !== '<' && next !== '>') {
-      parts.push(current);
-      current = '';
+      endPart();
+      last = char;
     } else {
       current += char;
+      last = char;
     }
+    dollar = quote === null && char === '$' && last === '$';
   }
-  parts.push(current);
-  return parts.map((part) => part.trim()).filter((part) => part !== '');
+  endPart();
+  const parts = texts
+    .map((text, index) => Object.freeze({ text: text.trim(), body: bodies[index] }))
+    .filter((part) => part.text !== '' || part.body !== '');
+  return Object.freeze({ parts: Object.freeze(parts), open: quote !== null || pending.length > 0 || unclosed });
 }
 
 export function splitWords(part) {
@@ -451,28 +548,34 @@ export function splitWords(part) {
   let current = '';
   let started = false;
   let quote = null;
+  let dollar = false;
   for (let index = 0; index < part.length; index += 1) {
     const char = part[index];
+    const escaping = quote === '"' || quote === '$\'';
     if (quote !== null) {
       current += char;
-      if (char === '\\' && quote === '"' && part[index + 1] !== undefined) {
+      if (char === '\\' && escaping && part[index + 1] !== undefined) {
         current += part[index + 1];
         index += 1;
-      } else if (char === quote) {
+      } else if (char === (quote === '$\'' ? '\'' : quote)) {
         quote = null;
       }
+      dollar = false;
     } else if (/\s/.test(char)) {
       if (started) words.push(current);
       current = '';
       started = false;
+      dollar = false;
     } else {
       started = true;
       current += char;
-      if (char === '\'' || char === '"') quote = char;
+      if (char === '\'' && dollar) quote = '$\'';
+      else if (char === '\'' || char === '"') quote = char;
       else if (char === '\\' && part[index + 1] !== undefined) {
         current += part[index + 1];
         index += 1;
       }
+      dollar = char === '$';
     }
   }
   if (started) words.push(current);
@@ -596,13 +699,13 @@ function unwrap(words) {
 }
 
 function readPart(scan, part, home, mitosisText) {
-  const rawWords = splitWords(part);
+  const rawWords = splitWords(part.text);
   const leading = rawWords.findIndex((word) => !ASSIGNMENT.test(word));
   const assignmentCount = leading === -1 ? rawWords.length : leading;
   const assigned = assignedFrom(rawWords.slice(0, assignmentCount), scan.variables, home);
-  const text = knownText(part, assigned, home);
+  const text = knownText(part.body === '' ? part.text : `${part.text}\n${part.body}`, assigned, home);
   const mentions = (text.match(RUN_ZSH) ?? []).length;
-  const substitution = SUBSTITUTION.test(part) || rawWords.some((word) => word.startsWith('=('));
+  const substitution = SUBSTITUTION.test(part.text) || SUBSTITUTION.test(part.body) || rawWords.some((word) => word.startsWith('=('));
   const concerns =
     isUnderMitosis(scan.cwd, home) || mitosisText.test(text) || rawWords.some((word) => wordConcernsMitosis(word, assigned, scan.cwd, home));
   const plain = Object.freeze({ variables: assigned, cwd: scan.cwd, run: null, verdict: null, mentions, concerns, accounts: !substitution, grammar: false, runner: false });
@@ -621,7 +724,7 @@ function readPart(scan, part, home, mitosisText) {
   const namesRunZsh = program !== null && !substitution && !unwrapped.handedString && (program.endsWith('/run.zsh') || (program === 'run.zsh' && unwrapped.shell));
   const target = namesRunZsh ? resolvePath(program, scan.cwd) : null;
   const runHome = target !== null && basename(target) === 'run.zsh' && isRunHome(dirname(target), home) ? dirname(target) : null;
-  const run = runHome === null ? null : Object.freeze({ home: runHome, planOnly: planOnlyFrom(commandWords.slice(unwrapped.index + 1)), part });
+  const run = runHome === null ? null : Object.freeze({ home: runHome, planOnly: planOnlyFrom(commandWords.slice(unwrapped.index + 1)), part: part.text });
   const verdict = verdictHome(expanded, home);
   const first = commandWords[0];
   const grammar =
@@ -636,8 +739,9 @@ export function analyzeCommand(command, options = {}) {
   if (typeof command !== 'string') return Object.freeze({ runs: Object.freeze([]), verdicts: Object.freeze([]), unreadable: false });
   const cwd = typeof options.cwd === 'string' && isAbsolute(options.cwd) ? options.cwd : null;
   const mitosisText = mitosisTextPattern(home);
-  const initial = Object.freeze({ variables: Object.freeze({}), cwd, runs: [], verdicts: [], mentions: 0, concerns: false, troubled: false });
-  const final = splitCommand(command).reduce((scan, part) => {
+  const lexed = lexCommand(command);
+  const initial = Object.freeze({ variables: Object.freeze({}), cwd, runs: [], verdicts: [], mentions: 0, concerns: false, troubled: lexed.open });
+  const final = lexed.parts.reduce((scan, part) => {
     const read = readPart(scan, part, home, mitosisText);
     return {
       variables: read.variables,
@@ -703,10 +807,11 @@ const UNREADABLE_RUN_REASON =
 const MANY_RUNS_REASON =
   'Pipeline run gate: this command can start more than one run that is not --plan-only, and each needs its own recorded boundary. Run them in separate commands, recording the boundary before each.';
 
-function subagentRunGate(runs, unreadable, stateResult) {
+function subagentRunGate(runs, stateResult) {
   const state = stateResult.state;
+  if (runs.length === 0) return nothing(state);
   const held = stateResult.status === 'present' && state !== null && state.thread_id !== null;
-  if (held && !unreadable && runs.every((run) => run.planOnly)) return nothing(state);
+  if (held && runs.every((run) => run.planOnly)) return nothing(state);
   return Object.freeze({ state, output: deny(SUBAGENT_RUN_REASON) });
 }
 
@@ -716,13 +821,15 @@ export function runGate(event, stateResult, context = {}) {
   const home = context.home ?? homeDirectory();
   const { runs, unreadable } = analyzeCommand(command, { home, cwd: event.cwd });
   if (runs.length === 0 && !unreadable) return nothing(stateResult.state);
-  if (hasAgent(event)) return subagentRunGate(runs, unreadable, stateResult);
+  if (hasAgent(event)) return subagentRunGate(runs, stateResult);
   if (stateResult.status === 'invalid') return Object.freeze({ state: null, output: couldNotDecide('the session id is not usable as a pipeline state key') });
   if (stateResult.status === 'unreadable') {
     return Object.freeze({ state: null, output: couldNotDecide(`the session's pipeline state at ${stateResult.path} cannot be read`) });
   }
   const state = stateResult.state;
-  if (state === null || state.thread_id === null) return Object.freeze({ state, output: deny(noThreadReason('Pipeline run gate')) });
+  if (state === null || state.thread_id === null) {
+    return runs.length === 0 ? nothing(state) : Object.freeze({ state, output: deny(noThreadReason('Pipeline run gate')) });
+  }
   if (unreadable) return Object.freeze({ state, output: deny(UNREADABLE_RUN_REASON) });
   if (runs.every((run) => run.planOnly)) return nothing(state);
   if (runs.filter((run) => !run.planOnly).length >= 2) return Object.freeze({ state, output: deny(MANY_RUNS_REASON) });
