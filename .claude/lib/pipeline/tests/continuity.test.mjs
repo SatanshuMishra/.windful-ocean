@@ -882,9 +882,8 @@ test('continuity: a run.zsh command the gate cannot read is refused', () => {
       ...['sh', 'bash', 'zsh', 'dash', 'ksh', 'mksh', 'fish', 'eval', 'source', '.', 'exec', 'xargs', 'parallel', 'env', 'command', 'builtin', 'nice', 'timeout', 'sudo'].map((runner) => `echo "${run} --resume" | ${runner}`),
       ...['!', '{', '}', '[[', 'case', 'coproc', 'do', 'done', 'elif', 'else', 'end', 'esac', 'fi', 'for', 'foreach', 'function', 'if', 'repeat', 'select', 'then', 'until', 'while'].map((word) => `${run} --resume; ${word} x`),
     ];
-    const unheld = gate(unreadable[0]);
-    assert.ok(denied(unheld));
-    assert.match(reason(unheld), /resume_thread/);
+    assert.equal(gate(unreadable[0]), null);
+    assert.equal(existsSync(statePath(SESSION)), false);
     handleEvent(resume(home));
     const holdAfresh = () => {
       handleEvent(resume(home, OTHER_THREAD));
@@ -941,15 +940,258 @@ test('continuity: a run.zsh command the gate cannot read is refused', () => {
     const held = readFileSync(statePath(SESSION), 'utf8');
     const subagent = { agent_id: 'agent-reviewer-9', agent_type: 'code-reviewer' };
     for (const command of [`{ ${run} --resume; }`, `{ ${run} --plan-only; }`, `python3 -c 'print(1)' ${run}`]) {
-      const refused = handleEvent(bash(home, 'PreToolUse', command, subagent));
-      assert.ok(denied(refused), command);
-      assert.match(reason(refused), /main conversation/, command);
-      assert.doesNotMatch(reason(refused), /resume_thread/, command);
+      assert.equal(handleEvent(bash(home, 'PreToolUse', command, subagent)), null, command);
       assert.equal(readFileSync(statePath(SESSION), 'utf8'), held, command);
     }
     writeFileSync(statePath(SESSION), '{"version":1, broken');
     const undecided = gate(`{ ${run} --resume; }`);
     assert.ok(denied(undecided));
     assert.match(reason(undecided), /could not decide/);
+  });
+});
+
+test('continuity: a comment, a quoted string or a heredoc never hides a run', () => {
+  withHome((home) => {
+    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
+    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
+    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
+    const unheld = gate(`cat ${runHome}/rounds.md  # what's next\n${run} --resume`);
+    assert.ok(denied(unheld));
+    assert.match(reason(unheld), /resume_thread/);
+    handleEvent(resume(home));
+    const holdAfresh = () => {
+      handleEvent(resume(home, OTHER_THREAD));
+      handleEvent(resume(home));
+    };
+    holdAfresh();
+    const planThenBuild = gate(`${run} --plan-only  # then it's the build\n${run} --resume`);
+    assert.ok(denied(planThenBuild));
+    assert.match(reason(planThenBuild), /record_decision/);
+    const chained = [
+      `# it's the build\n${run} --resume\nSHIP=1 ${run} --resume`,
+      `${run} --resume\n# it's next\nSHIP=1 ${run} --resume`,
+      `${run} --resume  # MSP's first\nSHIP=1 ${run} --resume`,
+      `${run} --resume  # say "hi\nSHIP=1 ${run} --resume`,
+      `cat ${runHome}/rounds.md # don't\n${run} --resume\ncat ${runHome}/CHARTER.md # can't\n${run} --resume`,
+      `echo $'it\\'s'\n${run} --resume\nSHIP=1 ${run} --resume`,
+      `cat > ${runHome}/notes.md <<'EOF'\nit's done\nEOF\n${run} --resume\nSHIP=1 ${run} --resume`,
+      `cat > ${runHome}/a.md <<'EOF'\nit's\nEOF\n${run} --resume\ncat > ${runHome}/b.md <<-EOF\n\tit's\n\tEOF\n${run} --resume`,
+    ];
+    for (const command of chained) {
+      holdAfresh();
+      recordBoundary(home);
+      const before = readFileSync(statePath(SESSION), 'utf8');
+      const refused = gate(command);
+      assert.ok(denied(refused), command);
+      assert.match(reason(refused), /each needs its own recorded boundary/, command);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, command);
+    }
+    for (const command of [`${run} --resume 'never closed`, `cat > ${runHome}/notes.md <<'EOF'\n${run} --resume`, `zsh <<'EOF'\n${run} --resume\nEOF`, `cat > ${runHome}/notes.md <<EOF\n$(${run} --resume)\nEOF`]) {
+      holdAfresh();
+      recordBoundary(home);
+      const before = readFileSync(statePath(SESSION), 'utf8');
+      const refused = gate(command);
+      assert.ok(denied(refused), command);
+      assert.match(reason(refused), /cannot read/, command);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, command);
+    }
+    holdAfresh();
+    recordBoundary(home);
+    const written = readFileSync(statePath(SESSION), 'utf8');
+    assert.equal(gate(`cat > ${runHome}/notes.md <<'EOF'\n${run} --resume and SHIP=1 ${run} --resume\nEOF`), null);
+    assert.equal(gate(`echo "# it's ${run}"`), null);
+    assert.equal(readFileSync(statePath(SESSION), 'utf8'), written);
+    for (const operator of ['>!', '>>!', '&>!', '{fd}>']) {
+      holdAfresh();
+      const refused = gate(`${run} --resume ${operator} --plan-only`);
+      assert.ok(denied(refused), operator);
+      assert.match(reason(refused), /record_decision/, operator);
+    }
+    holdAfresh();
+    recordBoundary(home);
+    assert.equal(gate(`SHIP=1 \\\n  ${run} --resume`), null);
+    assert.equal(state().decision_recorded, false);
+  });
+});
+
+test('continuity: only a main conversation holding a thread is refused a command the gate cannot read', () => {
+  withHome((home) => {
+    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
+    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
+    const reads = [
+      `find ${join(home, '.mitosis', '.windful-ocean')} -name run.zsh`,
+      `awk NR==1 ${runHome}/run.zsh`,
+      `for f in run.zsh CHARTER.md; do cat ${runHome}/$f; done`,
+      `[[ -x ${runHome}/run.zsh ]]`,
+    ];
+    const subagent = { agent_id: 'agent-reviewer-9', agent_type: 'code-reviewer' };
+    for (const command of reads) {
+      assert.equal(handleEvent(bash(home, 'PreToolUse', command)), null, command);
+      assert.equal(handleEvent(bash(home, 'PreToolUse', command, subagent)), null, command);
+    }
+    assert.equal(existsSync(statePath(SESSION)), false);
+    handleEvent(resume(home));
+    handleEvent(logbook(home, 'close_thread', { thread_id: THREAD }));
+    const released = readFileSync(statePath(SESSION), 'utf8');
+    for (const command of reads) {
+      assert.equal(handleEvent(bash(home, 'PreToolUse', command)), null, command);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), released, command);
+    }
+    handleEvent(resume(home));
+    recordBoundary(home);
+    const held = readFileSync(statePath(SESSION), 'utf8');
+    for (const command of reads) {
+      assert.equal(handleEvent(bash(home, 'PreToolUse', command, subagent)), null, command);
+      const refused = handleEvent(bash(home, 'PreToolUse', command));
+      assert.ok(denied(refused), command);
+      assert.match(reason(refused), /cannot read/, command);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), held, command);
+    }
+    const plain = handleEvent(bash(home, 'PreToolUse', `${run} --resume`, subagent));
+    assert.ok(denied(plain));
+    assert.match(reason(plain), /main conversation/);
+    assert.equal(readFileSync(statePath(SESSION), 'utf8'), held);
+  });
+});
+
+test('continuity: a # the shell does not read as a comment never hides a run', () => {
+  withHome((home) => {
+    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
+    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
+    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
+    const kept = ['echo $(echo a)#b', 'echo `true #`', 'ls (#i)x', 'ls (a #b)', 'echo ${(#)x}', 'echo ${x:-a #b}', 'echo ${x:-"}" #b}', "echo ${x:-'}' #b}", 'echo ${x:-$(echo a) #b}', 'echo ${x:-{a} #b}', 'echo ${x:-{a #b}}', 'echo ${x}#b', 'echo $(( #x ))', 'echo $[ #x ]', 'echo a\r#b', 'echo a\f#b', 'echo a\v#b'];
+    for (const prefix of kept) {
+      const unheld = gate(`${prefix}; ${run} --resume`);
+      assert.ok(denied(unheld), prefix);
+      assert.match(reason(unheld), /resume_thread/, prefix);
+    }
+    assert.equal(existsSync(statePath(SESSION)), false);
+    handleEvent(resume(home));
+    const holdAfresh = () => {
+      handleEvent(resume(home, OTHER_THREAD));
+      handleEvent(resume(home));
+    };
+    for (const prefix of kept) {
+      holdAfresh();
+      recordBoundary(home);
+      const before = readFileSync(statePath(SESSION), 'utf8');
+      const refused = gate(`${prefix}; ${run} --resume; SHIP=1 ${run} --resume`);
+      assert.ok(denied(refused), prefix);
+      assert.match(reason(refused), /each needs its own recorded boundary/, prefix);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, prefix);
+      assert.equal(gate(`${prefix}; ${run} --resume`), null, prefix);
+      assert.equal(state().decision_recorded, false, prefix);
+    }
+    for (const [command, refusal] of [
+      [`echo $(true # it's\n)\n${run} --resume\nSHIP=1 ${run} --resume`, /cannot read/],
+      [`echo \${x:-$(f() { echo a; }; f) #b}; ${run} --resume`, /cannot read/],
+      [`(( #x )); ${run} --resume`, /cannot read/],
+      [`ls ((#i)a|b); ${run} --resume`, /cannot read/],
+      [`ls (a|(#i)b); ${run} --resume`, /cannot read/],
+      [`cat ${runHome}/rounds.md\t# it's next\n${run} --resume\nSHIP=1 ${run} --resume`, /each needs its own recorded boundary/],
+    ]) {
+      holdAfresh();
+      recordBoundary(home);
+      const refused = gate(command);
+      assert.ok(denied(refused), command);
+      assert.match(reason(refused), refusal, command);
+    }
+    holdAfresh();
+    recordBoundary(home);
+    assert.equal(gate(`cat ${runHome}/rounds.md|# it's ${run} --resume\n${run} --resume`), null);
+    assert.equal(state().decision_recorded, false);
+    const subagent = { agent_id: 'agent-reviewer-9', agent_type: 'code-reviewer' };
+    const held = readFileSync(statePath(SESSION), 'utf8');
+    for (const command of [
+      `echo \`date # it's\`\n${run} --resume`,
+      `(# it's\n${run} --resume\n)`,
+      `echo $(# it's\n${run} --resume\n)`,
+      `(cd ${runHome})# it's\n${run} --resume`,
+      `{# it's\n${run} --resume; }`,
+      `x=(# it's\na b)\n${run} --resume`,
+      `case a in a)# it's\n${run} --resume;; esac`,
+      `! (true)# it's\n${run} --resume`,
+      `cat <(# it's\n${run} --resume\n)`,
+      `cat =(# it's\n${run} --resume\n)`,
+      `x=(a b)# it's\n${run} --resume`,
+      `x=(a # it's\nb)\n${run} --resume`,
+      `n=1; ((n++))# it's\n${run} --resume`,
+      `echo \${x:-$(echo a # it's\n)}\n${run} --resume`,
+      `echo \${x:-\`echo a # it's\`}\n${run} --resume`,
+      `echo $(( $(echo 1 # it's\n) + 1 ))\n${run} --resume`,
+    ]) {
+      const refused = handleEvent(bash(home, 'PreToolUse', command, subagent));
+      assert.ok(denied(refused), command);
+      assert.match(reason(refused), /main conversation/, command);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), held, command);
+    }
+  });
+});
+
+test('continuity: a redirection glued to a word is read as the shell reads it', () => {
+  withHome((home) => {
+    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
+    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
+    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
+    handleEvent(resume(home));
+    const held = readFileSync(statePath(SESSION), 'utf8');
+    for (const operator of ['>', '>>', '>!', '>>!', '>|', '&>', '&>!', '&>>', '2>', '{fd}>', '<', '<<<']) {
+      const refused = gate(`SHIP=1 ${run} --resume${operator} --plan-only`);
+      assert.ok(denied(refused), operator);
+      assert.match(reason(refused), /record_decision/, operator);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), held, operator);
+    }
+    for (const command of [`${run} --plan-only>${runHome}/plan.log`, `${run} --resume>&2 --plan-only`, `${run} --resume 2>&1 --plan-only`, `${run} >&- --plan-only`]) {
+      assert.equal(gate(command), null, command);
+    }
+    const subagent = { agent_id: 'agent-reviewer-9', agent_type: 'code-reviewer' };
+    for (const command of [`SHIP=1>/dev/null ${run} --resume`, `>${runHome}/build.log ${run} --resume`, `>|${runHome}/build.log ${run} --resume`, `2>&1 ${run}`]) {
+      const refused = handleEvent(bash(home, 'PreToolUse', command, subagent));
+      assert.ok(denied(refused), command);
+      assert.match(reason(refused), /main conversation/, command);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), held, command);
+      const main = gate(command);
+      assert.ok(denied(main), command);
+      assert.match(reason(main), /record_decision/, command);
+    }
+  });
+});
+
+test('continuity: a construct left open makes a run.zsh command one the gate cannot read', () => {
+  withHome((home) => {
+    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
+    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
+    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
+    const commented = (prefix) => `${prefix}\ncat ${runHome}/rounds.md # it's next\n${run} --resume\nSHIP=1 ${run} --resume\ncat ${runHome}/rounds.md # it's done`;
+    const unfollowed = [
+      "x='a(b'; echo ${x%%[(]*}",
+      'name=${line%%[(]*}',
+      'echo ${(s:(:)x}',
+      'echo ${(s.(.)x}',
+      'n="$(grep -c "foo(" notes.txt)"',
+      "n=\"$(grep -c '${' notes.txt)\"",
+      `n="$(cat <<'EOF'\n\${\nEOF\n)"`,
+      'n="$(echo "(")"',
+    ];
+    handleEvent(resume(home));
+    const holdAfresh = () => {
+      handleEvent(resume(home, OTHER_THREAD));
+      handleEvent(resume(home));
+    };
+    for (const prefix of unfollowed) {
+      holdAfresh();
+      recordBoundary(home);
+      const before = readFileSync(statePath(SESSION), 'utf8');
+      const refused = gate(commented(prefix));
+      assert.ok(denied(refused), prefix);
+      assert.match(reason(refused), /cannot read/, prefix);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, prefix);
+      const single = gate(`${prefix}\n${run} --resume`);
+      assert.ok(denied(single), prefix);
+      assert.match(reason(single), /cannot read/, prefix);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, prefix);
+      assert.equal(gate(`${prefix}\ncat notes.txt # it's next\necho done`), null, prefix);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, prefix);
+    }
   });
 });
