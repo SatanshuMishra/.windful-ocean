@@ -17,3 +17,9 @@
 No file in this configuration describes what Claude Code can or cannot do. Not its turn lifetime, not whether subagents survive, not what is delivered when, not what a tool returns. The harness describes itself at runtime, accurately, for free, and it updates without telling this repository.
 
 Configuration states preferences, constraints, and facts about this project that the harness cannot know. Nothing else.
+
+# Compact instructions
+
+When summarizing a conversation, keep verbatim the latest `Pipeline anchor:` line, the logbook thread id, every run home path, and the slug, MSP and round in progress.
+
+After a summary, read the `# Logbook:` and `# Pipeline:` briefings before acting.
