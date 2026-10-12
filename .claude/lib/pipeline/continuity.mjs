@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -21,7 +21,10 @@ const TAIL_RESERVE = 48;
 const REASONS_FROM = Object.freeze([15, 0, 0]);
 const SEGMENT = String.raw`[^/\s'"\x60;&|]+`;
 const PATH_END = String.raw`(?=[/\s'"\x60;&|]|$)`;
-const PATH_START = String.raw`(?<![^\s'"\x60=;&|(:])`;
+const PATH_START = String.raw`(?<![^\s'"\x60=;&|(:<>])`;
+const ROOT_REFUSAL_FIELD = /(?<!\w)field: option_reasons$/;
+const UNRECOGNISED_KEYS = /unrecogni[sz]ed[ _]key/i;
+const OPTION_REASONS_WORD = /(?<![\w.])option_reasons(?![\w[]|\.\w)/;
 
 export function homeDirectory() {
   return homedir();
@@ -181,15 +184,17 @@ function firstText(blocks) {
   return first !== null && typeof first === 'object' && typeof first.text === 'string' ? first.text : '';
 }
 
+function decodedResponse(response) {
+  if (typeof response !== 'string') return response;
+  try {
+    return JSON.parse(response);
+  } catch {
+    return response;
+  }
+}
+
 export function toolResponseParts(response) {
-  const decoded = (() => {
-    if (typeof response !== 'string') return response;
-    try {
-      return JSON.parse(response);
-    } catch {
-      return response;
-    }
-  })();
+  const decoded = decodedResponse(response);
   if (typeof decoded === 'string') return Object.freeze({ structured: null, text: decoded });
   if (Array.isArray(decoded)) return Object.freeze({ structured: null, text: firstText(decoded) });
   if (decoded === null || typeof decoded !== 'object') return Object.freeze({ structured: null, text: '' });
@@ -275,8 +280,21 @@ function decisionStandard(threadId, demandReasons) {
   return `record_decision for thread ${threadId} with a non-empty title, context and outcome, at least two non-empty options${reasons} counts toward the boundary`;
 }
 
+function isLogbookRefusalText(text) {
+  const lines = text.split(/\r?\n/);
+  const field = lines.findIndex((line) => line.startsWith('field: '));
+  return field !== -1 && lines.slice(field + 1).some((line) => line.startsWith('accepted: '));
+}
+
+function isRefusedResult(response) {
+  const decoded = decodedResponse(response);
+  const flagged = decoded !== null && typeof decoded === 'object' && !Array.isArray(decoded) && decoded.isError === true;
+  return flagged || isLogbookRefusalText(toolResponseParts(response).text);
+}
+
 export function onRecordDecision(event, state, context = {}) {
   if (state === null || hasAgent(event)) return nothing(state);
+  if (isRefusedResult(event.tool_response)) return onRecordDecisionFailure(event, state);
   const input = toolInput(event);
   const carriesReasons = input.option_reasons !== undefined;
   const learned = carriesReasons && !state.reasons_accepted ? { ...state, reasons_accepted: true } : state;
@@ -292,18 +310,25 @@ export function onRecordDecision(event, state, context = {}) {
   return Object.freeze({ state: { ...learned, decision_recorded: true, latest_anchor: anchor }, output: postContext(anchor) });
 }
 
-function errorText(event) {
-  const candidates = [event.error, event.tool_response, event.message];
-  return candidates
-    .map((value) => (typeof value === 'string' ? value : value === undefined || value === null ? '' : JSON.stringify(value)))
-    .join('\n');
+function refusalTexts(event) {
+  return [event.error, event.tool_response, event.message].flatMap((value) => {
+    const decoded = toolResponseParts(value).text;
+    return typeof value === 'string' && value !== decoded ? [value, decoded] : [decoded];
+  });
+}
+
+function refusesOptionReasons(event) {
+  if (toolInput(event).option_reasons === undefined) return false;
+  return refusalTexts(event).some((text) => {
+    const lines = text.split(/\r?\n/);
+    const rootRefusal = lines.some((line) => ROOT_REFUSAL_FIELD.test(line)) && lines.includes('accepted: object');
+    return rootRefusal || (UNRECOGNISED_KEYS.test(text) && OPTION_REASONS_WORD.test(text));
+  });
 }
 
 export function onRecordDecisionFailure(event, state) {
   if (state === null || hasAgent(event) || state.reasons_refused) return nothing(state);
-  if (toolInput(event).option_reasons === undefined) return nothing(state);
-  const text = errorText(event);
-  return text.includes('option_reasons') && /unrecogni[sz]ed/i.test(text) ? nothing({ ...state, reasons_refused: true }) : nothing(state);
+  return refusesOptionReasons(event) ? nothing({ ...state, reasons_refused: true }) : nothing(state);
 }
 
 export function onUpdateThread(event, state) {
@@ -490,11 +515,7 @@ function verdictHome(words, home) {
   const run = optionValue(rest, '--run');
   if (ledger === null || run === null || !isAbsolute(ledger) || run === '' || run.includes('/') || run === '.' || run === '..') return Object.freeze({ home: null });
   const directory = join(dirname(resolve(ledger)), run);
-  try {
-    return Object.freeze({ home: statSync(directory).isDirectory() ? directory : null });
-  } catch {
-    return Object.freeze({ home: null });
-  }
+  return Object.freeze({ home: isRunHome(directory, home) ? directory : null });
 }
 
 export function analyzeCommand(command, options = {}) {
@@ -583,6 +604,7 @@ function noThreadReason(subject) {
 }
 
 export function runGate(event, stateResult, context = {}) {
+  if (hasAgent(event)) return nothing(stateResult.state);
   const command = bashCommand(event);
   if (command === null) return nothing(stateResult.state);
   const home = context.home ?? homeDirectory();
@@ -618,6 +640,7 @@ export function isPipelineInterphaseCall(event) {
 }
 
 export function interphaseGate(event, stateResult) {
+  if (hasAgent(event)) return nothing(stateResult.state);
   if (!isPipelineInterphaseCall(event)) return nothing(stateResult.state);
   if (stateResult.status === 'unreadable') return nothing(null);
   if (stateResult.status === 'invalid') return Object.freeze({ state: null, output: deny(noThreadReason('Pipeline interphase gate')) });
