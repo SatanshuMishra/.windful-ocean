@@ -9,6 +9,14 @@ Every request to create, change or fix something in a git repository runs three 
 - The session is itself part of a pipeline. A prompt that begins `Lane <n> of MSP`, a system prompt that names the session a mitosis Worker, and any agent a stage below dispatches each do their own task directly and never start a pipeline.
 - The request points at an interphase package whose record says `handed-off`: start at stage 2.
 
+## Continuity: logbook
+
+- Before stage 1, or before stage 2 when the request starts there, open a logbook thread for the request with `open_thread`, or pick up an existing one, and resume it with `resume_thread`, so the session holds it; a hook refuses the pipeline's interphase call, and every `run.zsh`, until it does.
+- Each run home's `CHARTER.md` lists the spec, the decisions file and the record on lines starting `- Spec:`, `- Decisions:` and `- Record:`.
+- At each boundary, namely interphase's hand-off, the result of each mitosis run, each round's verdict and the ship, record before the next mitosis run: `record_decision` for the held thread with the boundary named in its title, at least two options, `option_reasons` with one reason per option (when the running logbook accepts it), and the outcome; then `update_thread` with the next step as an action and `next_step_records` naming the records it needs. A hook refuses the next `run.zsh`, other than `--plan-only`, until both are recorded.
+- After a compaction, read the `# Logbook:` and `# Pipeline:` briefings before acting; when either is missing, call `resume_thread` on the held thread with `full_briefing`, which keeps the boundary already recorded, and read `<home>/rounds.md`.
+- When the pipeline ends, `park_thread` with the next step, or `close_thread` when every pull request is open and the definition of done holds.
+
 ## Stage 1: interphase
 
 - Classify the request with interphase's Phase 2 rules, say the pathway in one sentence, and invoke `interphase:feature`, `interphase:bug`, `interphase:prototype` or `interphase:project` with the request followed by `Work autonomously.` `/interphase` is the user's to type; each pathway skill reroutes itself when its own classification differs.

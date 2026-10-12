@@ -221,3 +221,61 @@ test("the pipeline rule pins each run's graph in its run home", () => {
     'Loop back no longer builds each fix spec in its own run home',
   );
 });
+
+test('the pipeline rule records to logbook at every boundary', () => {
+  const rule = read(RULE_PATH);
+  assert.equal(sectionOf(rule, '## When it does not apply'), WHEN_IT_DOES_NOT_APPLY);
+  assert.equal(sectionOf(rule, '## Stage 1: interphase'), STAGE_1);
+  assert.equal(sectionOf(rule, '## Stage 2: mitosis'), STAGE_2);
+
+  const headings = rule.split('\n').filter((line) => line.startsWith('## '));
+  const continuityAt = headings.indexOf('## Continuity: logbook');
+  assert.notEqual(continuityAt, -1, 'pipeline.md has no ## Continuity: logbook section');
+  assert.equal(headings[continuityAt - 1], '## When it does not apply', 'Continuity does not follow When it does not apply');
+  assert.equal(headings[continuityAt + 1], '## Stage 1: interphase', 'Continuity does not come before Stage 1');
+
+  const continuity = sectionOf(rule, '## Continuity: logbook');
+  assertNames(continuity, 'Continuity', [
+    'open_thread',
+    'resume_thread',
+    'record_decision',
+    'option_reasons',
+    'update_thread',
+    'next_step_records',
+    'park_thread',
+    'close_thread',
+    'run.zsh',
+    '# Pipeline:',
+    '# Logbook:',
+    'CHARTER.md',
+    '- Spec:',
+    '- Decisions:',
+    '- Record:',
+    "interphase's hand-off",
+    'each mitosis run',
+    "each round's verdict",
+    'the ship',
+    'before stage 2 when the request starts there',
+  ]);
+});
+
+test('CLAUDE.md tells compaction what to keep', () => {
+  const claude = read('.claude/CLAUDE.md');
+  const headings = claude.split('\n').filter((line) => line.startsWith('# '));
+  assert.equal(headings.at(-1), '# Compact instructions', 'the last section of CLAUDE.md is not # Compact instructions');
+
+  const section = claude.slice(claude.lastIndexOf('# Compact instructions'));
+  assertNames(section, 'Compact instructions', [
+    'Pipeline anchor:',
+    'thread id',
+    'run home',
+    'slug',
+    'MSP',
+    'round',
+    '# Logbook:',
+    '# Pipeline:',
+  ]);
+  for (const word of ['fires', 'hook', 'harness', 'Claude Code']) {
+    assert.ok(!section.toLowerCase().includes(word.toLowerCase()), `Compact instructions contains ${word}`);
+  }
+});
