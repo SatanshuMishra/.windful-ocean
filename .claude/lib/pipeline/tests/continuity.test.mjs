@@ -1053,3 +1053,106 @@ test('continuity: only a main conversation holding a thread is refused a command
     assert.equal(readFileSync(statePath(SESSION), 'utf8'), held);
   });
 });
+
+test('continuity: a # the shell does not read as a comment never hides a run', () => {
+  withHome((home) => {
+    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
+    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
+    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
+    const kept = ['echo $(echo a)#b', 'echo `true #`', 'ls (#i)x', 'ls (a #b)', 'echo ${(#)x}', 'echo ${x:-a #b}', 'echo ${x:-"}" #b}', "echo ${x:-'}' #b}", 'echo ${x:-$(echo a) #b}', 'echo ${x:-{a} #b}', 'echo ${x:-{a #b}}', 'echo ${x}#b', 'echo $(( #x ))', 'echo $[ #x ]', 'echo a\r#b', 'echo a\f#b', 'echo a\v#b'];
+    for (const prefix of kept) {
+      const unheld = gate(`${prefix}; ${run} --resume`);
+      assert.ok(denied(unheld), prefix);
+      assert.match(reason(unheld), /resume_thread/, prefix);
+    }
+    assert.equal(existsSync(statePath(SESSION)), false);
+    handleEvent(resume(home));
+    const holdAfresh = () => {
+      handleEvent(resume(home, OTHER_THREAD));
+      handleEvent(resume(home));
+    };
+    for (const prefix of kept) {
+      holdAfresh();
+      recordBoundary(home);
+      const before = readFileSync(statePath(SESSION), 'utf8');
+      const refused = gate(`${prefix}; ${run} --resume; SHIP=1 ${run} --resume`);
+      assert.ok(denied(refused), prefix);
+      assert.match(reason(refused), /each needs its own recorded boundary/, prefix);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, prefix);
+      assert.equal(gate(`${prefix}; ${run} --resume`), null, prefix);
+      assert.equal(state().decision_recorded, false, prefix);
+    }
+    for (const [command, refusal] of [
+      [`echo $(true # it's\n)\n${run} --resume\nSHIP=1 ${run} --resume`, /cannot read/],
+      [`echo \${x:-$(f() { echo a; }; f) #b}; ${run} --resume`, /cannot read/],
+      [`(( #x )); ${run} --resume`, /cannot read/],
+      [`ls ((#i)a|b); ${run} --resume`, /cannot read/],
+      [`ls (a|(#i)b); ${run} --resume`, /cannot read/],
+      [`cat ${runHome}/rounds.md\t# it's next\n${run} --resume\nSHIP=1 ${run} --resume`, /each needs its own recorded boundary/],
+    ]) {
+      holdAfresh();
+      recordBoundary(home);
+      const refused = gate(command);
+      assert.ok(denied(refused), command);
+      assert.match(reason(refused), refusal, command);
+    }
+    holdAfresh();
+    recordBoundary(home);
+    assert.equal(gate(`cat ${runHome}/rounds.md|# it's ${run} --resume\n${run} --resume`), null);
+    assert.equal(state().decision_recorded, false);
+    const subagent = { agent_id: 'agent-reviewer-9', agent_type: 'code-reviewer' };
+    const held = readFileSync(statePath(SESSION), 'utf8');
+    for (const command of [
+      `echo \`date # it's\`\n${run} --resume`,
+      `(# it's\n${run} --resume\n)`,
+      `echo $(# it's\n${run} --resume\n)`,
+      `(cd ${runHome})# it's\n${run} --resume`,
+      `{# it's\n${run} --resume; }`,
+      `x=(# it's\na b)\n${run} --resume`,
+      `case a in a)# it's\n${run} --resume;; esac`,
+      `! (true)# it's\n${run} --resume`,
+      `cat <(# it's\n${run} --resume\n)`,
+      `cat =(# it's\n${run} --resume\n)`,
+      `x=(a b)# it's\n${run} --resume`,
+      `x=(a # it's\nb)\n${run} --resume`,
+      `n=1; ((n++))# it's\n${run} --resume`,
+      `echo \${x:-$(echo a # it's\n)}\n${run} --resume`,
+      `echo \${x:-\`echo a # it's\`}\n${run} --resume`,
+      `echo $(( $(echo 1 # it's\n) + 1 ))\n${run} --resume`,
+    ]) {
+      const refused = handleEvent(bash(home, 'PreToolUse', command, subagent));
+      assert.ok(denied(refused), command);
+      assert.match(reason(refused), /main conversation/, command);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), held, command);
+    }
+  });
+});
+
+test('continuity: a redirection glued to a word is read as the shell reads it', () => {
+  withHome((home) => {
+    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
+    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
+    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
+    handleEvent(resume(home));
+    const held = readFileSync(statePath(SESSION), 'utf8');
+    for (const operator of ['>', '>>', '>!', '>>!', '>|', '&>', '&>!', '&>>', '2>', '{fd}>', '<', '<<<']) {
+      const refused = gate(`SHIP=1 ${run} --resume${operator} --plan-only`);
+      assert.ok(denied(refused), operator);
+      assert.match(reason(refused), /record_decision/, operator);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), held, operator);
+    }
+    for (const command of [`${run} --plan-only>${runHome}/plan.log`, `${run} --resume>&2 --plan-only`, `${run} --resume 2>&1 --plan-only`, `${run} >&- --plan-only`]) {
+      assert.equal(gate(command), null, command);
+    }
+    const subagent = { agent_id: 'agent-reviewer-9', agent_type: 'code-reviewer' };
+    for (const command of [`SHIP=1>/dev/null ${run} --resume`, `>${runHome}/build.log ${run} --resume`, `>|${runHome}/build.log ${run} --resume`, `2>&1 ${run}`]) {
+      const refused = handleEvent(bash(home, 'PreToolUse', command, subagent));
+      assert.ok(denied(refused), command);
+      assert.match(reason(refused), /main conversation/, command);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), held, command);
+      const main = gate(command);
+      assert.ok(denied(main), command);
+      assert.match(reason(main), /record_decision/, command);
+    }
+  });
+});
