@@ -241,7 +241,8 @@ test('pipeline-continuity: an unreadable run-gate payload refuses', () => {
     assertDeny(spawnHook(home, beforeCommand), ['could not decide', 'resume_thread']);
     const noCommand = { ...base('session-cut', home), hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: {} };
     assertDeny(fire(home, noCommand), ['could not decide', 'resume_thread']);
-    assert.equal(fire(home, { ...noCommand, agent_id: 'sub-1' }), '');
+    const subagentReason = assertDeny(fire(home, { ...noCommand, agent_id: 'sub-1' }), ['could not decide', 'main conversation']);
+    assert.ok(!/resume_thread|open_thread/.test(subagentReason), `a subagent is not sent to open_thread or resume_thread: ${subagentReason}`);
     [
       '',
       '{"session_id":"session-cut"',
@@ -267,5 +268,38 @@ test('pipeline-continuity: unreadable payloads of other bindings fail open', () 
       JSON.stringify({ ...base('session-open', home), hook_event_name: 'PostToolUseFailure', tool_name: `${LOGBOOK}record_decision`, tool_input: {}, error: 'x' }).slice(0, -2),
       JSON.stringify({ ...base('session-open', home), hook_event_name: 'SessionStart', source: 'compact' }).slice(0, -2),
     ].forEach((stdin) => assert.equal(spawnHook(home, stdin), '', stdin));
+  });
+});
+
+test('pipeline-continuity: a subagent is sent back to the main conversation end to end', () => {
+  withHome(['subagent'], ({ home }) => {
+    const sessionId = 'session-subagent';
+    const command = `$HOME/.mitosis/${REPO}/subagent/run.zsh --resume`;
+    const subagentRun = { ...bashEvent(sessionId, home, 'PreToolUse', command), agent_id: 'sub-1' };
+    const subagentShip = { ...bashEvent(sessionId, home, 'PreToolUse', `SHIP=1 ${command}`), agent_id: 'sub-1' };
+    const subagentNoCommand = { ...base(sessionId, home), hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: {}, agent_id: 'sub-1' };
+    const sentBack = (stdout) => {
+      const reason = assertDeny(stdout, ['main conversation']);
+      assert.ok(!/resume_thread|open_thread/.test(reason), `a subagent is not sent to open_thread or resume_thread: ${reason}`);
+    };
+    sentBack(fire(home, subagentRun));
+    sentBack(fire(home, subagentNoCommand));
+    assert.equal(resume(sessionId, home), '');
+    fire(
+      home,
+      logbookEvent(sessionId, home, 'record_decision', {
+        thread_id: THREAD,
+        title: 'Build the subagent lane',
+        context: 'The plan is clean and the lane is ready to build.',
+        options: ['Build now', 'Revise the Steps first'],
+        outcome: 'Build now',
+      }),
+    );
+    assert.equal(fire(home, logbookEvent(sessionId, home, 'update_thread', { thread_id: THREAD, next_step: 'Review round 1 of the subagent lane', next_step_records: [RECORD] })), '');
+    sentBack(fire(home, subagentRun));
+    sentBack(fire(home, subagentShip));
+    sentBack(fire(home, subagentNoCommand));
+    assert.equal(fire(home, bashEvent(sessionId, home, 'PreToolUse', command)), '');
+    assertDeny(fire(home, bashEvent(sessionId, home, 'PreToolUse', command)), ['record_decision', 'update_thread']);
   });
 });

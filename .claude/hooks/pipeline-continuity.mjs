@@ -70,6 +70,18 @@ function decided(output) {
   return Object.freeze({ output: output === undefined ? null : output, failure: null });
 }
 
+function runGateRefusal(event, detail) {
+  const refusal = couldNotDecide(detail);
+  if (!hasAgentId(event)) return refusal;
+  return Object.freeze({
+    ...refusal,
+    hookSpecificOutput: Object.freeze({
+      ...refusal.hookSpecificOutput,
+      permissionDecisionReason: `Pipeline run gate could not decide: ${detail}. A subagent cannot repair the session's pipeline state or hold its logbook thread, so this run belongs in the main conversation. Hand it back to the main conversation.`,
+    }),
+  });
+}
+
 function undecided(detail) {
   return Object.freeze({ output: null, failure: couldNotDecide(detail).hookSpecificOutput.permissionDecisionReason });
 }
@@ -80,7 +92,7 @@ function handled(event) {
   } catch (error) {
     const command = gatedCommand(event);
     if (command === null || !commandRunsRunZsh(command, event)) return decided(null);
-    return decided(couldNotDecide(`the hook failed while reading or writing the session's pipeline state (${error && error.message})`));
+    return decided(runGateRefusal(event, `the hook failed while reading or writing the session's pipeline state (${error && error.message})`));
   }
 }
 
@@ -91,7 +103,7 @@ export function respond(raw) {
   if (binding === BINDING.OTHER) return payload.ok ? handled(payload.value) : decided(null);
   if (!payload.ok) return decided(couldNotDecide('the hook payload is not a JSON object'));
   const event = payload.value;
-  if (gatedCommand(event) === null && !hasAgentId(event)) return decided(couldNotDecide('the hook payload carries no command'));
+  if (gatedCommand(event) === null) return decided(runGateRefusal(event, 'the hook payload carries no command'));
   return handled(event);
 }
 
