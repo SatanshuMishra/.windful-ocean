@@ -702,33 +702,6 @@ test('continuity: a verdict outside a run home adds no run home', () => {
   });
 });
 
-test('continuity: subagent events pass both gates without changing state', () => {
-  withHome((home) => {
-    makeRunHome(home, 'repo', 'slug');
-    handleEvent(resume(home));
-    recordBoundary(home);
-    const before = readFileSync(statePath(SESSION), 'utf8');
-    assert.equal(handleEvent(bash(home, 'PreToolUse', '~/.mitosis/repo/slug/run.zsh --resume', { agent_id: 'sub-1' })), null);
-    assert.equal(readFileSync(statePath(SESSION), 'utf8'), before);
-    assert.equal(denied(handleEvent(bash(home, 'PreToolUse', '~/.mitosis/repo/slug/run.zsh --resume'))), false);
-  });
-  withHome((home) => {
-    makeRunHome(home, 'repo', 'slug');
-    assert.equal(handleEvent(bash(home, 'PreToolUse', '~/.mitosis/repo/slug/run.zsh --resume', { agent_id: 'sub-1' })), null);
-    assert.equal(handleEvent(skill(home, 'interphase:bug', 'Fix it. Work autonomously.', { agent_id: 'sub-1' })), null);
-    assert.deepEqual(filesUnder(join(home, '.mitosis', 'sessions')), []);
-  });
-  withHome((home) => {
-    makeRunHome(home, 'repo', 'slug');
-    mkdirSync(join(home, '.mitosis', 'sessions'), { recursive: true });
-    writeFileSync(statePath(SESSION), '{ not json');
-    assert.equal(handleEvent(bash(home, 'PreToolUse', '~/.mitosis/repo/slug/run.zsh --resume', { agent_id: 'sub-1' })), null);
-    assert.equal(readFileSync(statePath(SESSION), 'utf8'), '{ not json');
-    assert.equal(handleEvent(bash(home, 'PreToolUse', '~/.mitosis/repo/slug/run.zsh --resume', { agent_id: 'sub-1', session_id: '../escape' })), null);
-    assert.equal(handleEvent(skill(home, 'interphase:bug', 'Fix it. Work autonomously.', { agent_id: 'sub-1', session_id: '../escape' })), null);
-  });
-});
-
 test('continuity: a run home named straight after a redirection is found', () => {
   ['cat x 2>~/.mitosis/repo/slug/err.log', 'echo hi >$HOME/.mitosis/repo/slug/note.txt', 'wc -l <${HOME}/.mitosis/repo/slug/rounds.md'].forEach((command) => {
     withHome((home) => {
@@ -737,5 +710,51 @@ test('continuity: a run home named straight after a redirection is found', () =>
       handleEvent(bash(home, 'PostToolUse', command));
       assert.deepEqual(state().run_homes.map((entry) => entry.path), [path], command);
     });
+  });
+});
+
+test('continuity: a subagent never starts a build, a resume or the ship, and changes no state', () => {
+  const resumeCommand = '~/.mitosis/repo/slug/run.zsh --resume';
+  const planCommand = '~/.mitosis/repo/slug/run.zsh --plan-only';
+  const subagentRun = (home, command, extra = {}) => handleEvent(bash(home, 'PreToolUse', command, { agent_id: 'sub-1', ...extra }));
+  const subagentInterphase = (home, extra = {}) => handleEvent(skill(home, 'interphase:bug', 'Fix it. Work autonomously.', { agent_id: 'sub-1', ...extra }));
+  const sentBack = (output) => denied(output) && /main conversation/.test(reason(output)) && !/resume_thread|open_thread/.test(reason(output));
+  withHome((home) => {
+    makeRunHome(home, 'repo', 'slug');
+    handleEvent(resume(home));
+    const unmarked = readFileSync(statePath(SESSION), 'utf8');
+    assert.equal(sentBack(subagentRun(home, resumeCommand)), true);
+    assert.equal(denied(subagentRun(home, planCommand)), false);
+    assert.equal(denied(subagentInterphase(home)), false);
+    assert.equal(readFileSync(statePath(SESSION), 'utf8'), unmarked);
+    recordBoundary(home);
+    const marked = readFileSync(statePath(SESSION), 'utf8');
+    for (const command of ['~/.mitosis/repo/slug/run.zsh', resumeCommand, `SHIP=1 ${resumeCommand}`]) {
+      assert.equal(sentBack(subagentRun(home, command)), true);
+    }
+    assert.equal(readFileSync(statePath(SESSION), 'utf8'), marked);
+    assert.equal(denied(handleEvent(bash(home, 'PreToolUse', resumeCommand))), false);
+    assert.equal(denied(handleEvent(bash(home, 'PreToolUse', resumeCommand))), true);
+  });
+  withHome((home) => {
+    makeRunHome(home, 'repo', 'slug');
+    assert.equal(sentBack(subagentRun(home, resumeCommand)), true);
+    assert.equal(sentBack(subagentRun(home, planCommand)), true);
+    assert.equal(sentBack(subagentInterphase(home)), true);
+    assert.deepEqual(filesUnder(join(home, '.mitosis', 'sessions')), []);
+  });
+  withHome((home) => {
+    makeRunHome(home, 'repo', 'slug');
+    mkdirSync(join(home, '.mitosis', 'sessions'), { recursive: true });
+    writeFileSync(statePath(SESSION), '{ not json');
+    assert.equal(sentBack(subagentRun(home, resumeCommand)), true);
+    assert.equal(sentBack(subagentRun(home, planCommand)), true);
+    assert.equal(subagentInterphase(home), null);
+    assert.equal(readFileSync(statePath(SESSION), 'utf8'), '{ not json');
+    const files = filesUnder(home);
+    assert.equal(sentBack(subagentRun(home, resumeCommand, { session_id: '../escape' })), true);
+    assert.equal(sentBack(subagentRun(home, planCommand, { session_id: '../escape' })), true);
+    assert.equal(sentBack(subagentInterphase(home, { session_id: '../escape' })), true);
+    assert.deepEqual(filesUnder(home), files);
   });
 });
