@@ -224,3 +224,48 @@ test('pipeline-continuity: settings wires the hooks and the auto-compact window'
     );
   });
 });
+
+function spawnRaw(home, stdin) {
+  return spawnSync(process.execPath, [HOOK], { input: stdin, encoding: 'utf8', env: { ...process.env, HOME: home } });
+}
+
+function assertUndecided(result, label) {
+  assert.equal(result.status, 1, `exit 1 for ${label}`);
+  assert.equal(result.stdout, '', `nothing on stdout for ${label}`);
+  assert.ok(result.stderr.includes('could not decide') && result.stderr.includes('resume_thread'), `the could-not-decide reason on stderr for ${label}: ${result.stderr}`);
+}
+
+test('pipeline-continuity: an unreadable run-gate payload refuses', () => {
+  withHome(['unreadable'], ({ home }) => {
+    const beforeCommand = `{"session_id":"session-cut","cwd":${JSON.stringify(home)},"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"comm`;
+    assertDeny(spawnHook(home, beforeCommand), ['could not decide', 'resume_thread']);
+    const noCommand = { ...base('session-cut', home), hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: {} };
+    assertDeny(fire(home, noCommand), ['could not decide', 'resume_thread']);
+    assert.equal(fire(home, { ...noCommand, agent_id: 'sub-1' }), '');
+    [
+      '',
+      '{"session_id":"session-cut"',
+      '{"session_id":"session-cut","hook_event_name":"PreToolUse","tool_na',
+      '[1,2,3]',
+      'null',
+      '{"session_id":"session-cut"}',
+      '{"session_id":"session-cut","hook_event_name":"PreToolUse"}',
+      '{"session_id":"session-cut","hook_event_name":"PreToolUse","tool_name":"Read"}',
+    ].forEach((stdin) => assertUndecided(spawnRaw(home, stdin), JSON.stringify(stdin)));
+    const fromDirectory = spawnSync('/bin/sh', ['-c', 'exec "$0" "$1" < "$2"', process.execPath, HOOK, home], { encoding: 'utf8', env: { ...process.env, HOME: home } });
+    assertUndecided(fromDirectory, 'stdin opened on a directory');
+  });
+});
+
+test('pipeline-continuity: unreadable payloads of other bindings fail open', () => {
+  withHome(['open'], ({ home }) => {
+    const command = `~/.mitosis/${REPO}/open/run.zsh --resume`;
+    [
+      JSON.stringify(bashEvent('session-open', home, 'PostToolUse', command)).slice(0, -2),
+      JSON.stringify(skillEvent('session-open', home, 'interphase:bug', 'Fix it. Work autonomously.')).slice(0, -2),
+      JSON.stringify(logbookEvent('session-open', home, 'record_decision', { thread_id: THREAD })).slice(0, -2),
+      JSON.stringify({ ...base('session-open', home), hook_event_name: 'PostToolUseFailure', tool_name: `${LOGBOOK}record_decision`, tool_input: {}, error: 'x' }).slice(0, -2),
+      JSON.stringify({ ...base('session-open', home), hook_event_name: 'SessionStart', source: 'compact' }).slice(0, -2),
+    ].forEach((stdin) => assert.equal(spawnHook(home, stdin), '', stdin));
+  });
+});

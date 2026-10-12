@@ -7,6 +7,8 @@ import { analyzeCommand, couldNotDecide, handleEvent, homeDirectory } from '../l
 const RUN_SCRIPT = 'run.zsh';
 const EVENT_NAME_FIELD = /"hook_event_name"\s*:\s*"([^"\\]*)"/;
 const TOOL_NAME_FIELD = /"tool_name"\s*:\s*"([^"\\]*)"/;
+const OTHER_EVENTS = Object.freeze(new Set(['PostToolUse', 'PostToolUseFailure', 'SessionStart']));
+export const BINDING = Object.freeze({ RUN_GATE: 'run-gate', OTHER: 'other', UNATTRIBUTED: 'unattributed' });
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -17,11 +19,33 @@ function fieldIn(raw, pattern) {
   return match === null ? null : match[1];
 }
 
-export function rawMayBeRunGate(raw) {
-  if (typeof raw !== 'string' || !raw.includes(RUN_SCRIPT)) return false;
-  const eventName = fieldIn(raw, EVENT_NAME_FIELD);
-  const toolName = fieldIn(raw, TOOL_NAME_FIELD);
-  return (eventName === null || eventName === 'PreToolUse') && (toolName === null || toolName === 'Bash');
+function parsePayload(raw) {
+  if (typeof raw !== 'string') return Object.freeze({ raw: null, ok: false, value: null });
+  try {
+    return Object.freeze({ raw, ok: true, value: JSON.parse(raw) });
+  } catch {
+    return Object.freeze({ raw, ok: false, value: null });
+  }
+}
+
+function payloadNames(payload) {
+  if (payload.ok) {
+    return isObject(payload.value)
+      ? Object.freeze({ eventName: payload.value.hook_event_name, toolName: payload.value.tool_name })
+      : Object.freeze({ eventName: null, toolName: null });
+  }
+  if (payload.raw === null) return Object.freeze({ eventName: null, toolName: null });
+  return Object.freeze({ eventName: fieldIn(payload.raw, EVENT_NAME_FIELD), toolName: fieldIn(payload.raw, TOOL_NAME_FIELD) });
+}
+
+export function callingBinding(payload) {
+  const { eventName, toolName } = payloadNames(payload);
+  if (typeof eventName !== 'string') return BINDING.UNATTRIBUTED;
+  if (eventName === 'PreToolUse') {
+    if (toolName === 'Bash') return BINDING.RUN_GATE;
+    return toolName === 'Skill' ? BINDING.OTHER : BINDING.UNATTRIBUTED;
+  }
+  return OTHER_EVENTS.has(eventName) ? BINDING.OTHER : BINDING.UNATTRIBUTED;
 }
 
 function gatedCommand(event) {
@@ -38,25 +62,37 @@ function commandRunsRunZsh(command, event) {
   }
 }
 
-export function respond(raw) {
-  const parsed = (() => {
-    try {
-      return Object.freeze({ ok: true, value: JSON.parse(raw) });
-    } catch {
-      return Object.freeze({ ok: false, value: null });
-    }
-  })();
-  if (!parsed.ok || !isObject(parsed.value)) {
-    return rawMayBeRunGate(raw) ? couldNotDecide('the hook payload is not a JSON object') : null;
-  }
-  const event = parsed.value;
+function hasAgentId(event) {
+  return typeof event.agent_id === 'string' && event.agent_id !== '';
+}
+
+function decided(output) {
+  return Object.freeze({ output: output === undefined ? null : output, failure: null });
+}
+
+function undecided(detail) {
+  return Object.freeze({ output: null, failure: couldNotDecide(detail).hookSpecificOutput.permissionDecisionReason });
+}
+
+function handled(event) {
   try {
-    return handleEvent(event);
+    return decided(handleEvent(event));
   } catch (error) {
     const command = gatedCommand(event);
-    if (command === null || !commandRunsRunZsh(command, event)) return null;
-    return couldNotDecide(`the hook failed while reading or writing the session's pipeline state (${error && error.message})`);
+    if (command === null || !commandRunsRunZsh(command, event)) return decided(null);
+    return decided(couldNotDecide(`the hook failed while reading or writing the session's pipeline state (${error && error.message})`));
   }
+}
+
+export function respond(raw) {
+  const payload = parsePayload(raw);
+  const binding = callingBinding(payload);
+  if (binding === BINDING.UNATTRIBUTED) return undecided('the hook could not tell which binding called it from its payload');
+  if (binding === BINDING.OTHER) return payload.ok ? handled(payload.value) : decided(null);
+  if (!payload.ok) return decided(couldNotDecide('the hook payload is not a JSON object'));
+  const event = payload.value;
+  if (gatedCommand(event) === null && !hasAgentId(event)) return decided(couldNotDecide('the hook payload carries no command'));
+  return handled(event);
 }
 
 function main() {
@@ -64,18 +100,19 @@ function main() {
     try {
       return readFileSync(0, 'utf8');
     } catch {
-      return '';
+      return null;
     }
   })();
-  const output = (() => {
+  const result = (() => {
     try {
       return respond(raw);
     } catch (error) {
-      return rawMayBeRunGate(raw) ? couldNotDecide(`the hook failed (${error && error.message})`) : null;
+      return undecided(`the hook failed (${error && error.message})`);
     }
   })();
-  if (output !== null && output !== undefined) process.stdout.write(`${JSON.stringify(output)}\n`);
-  process.exitCode = 0;
+  if (result.output !== null) process.stdout.write(`${JSON.stringify(result.output)}\n`);
+  if (result.failure !== null) process.stderr.write(`${result.failure}\n`);
+  process.exitCode = result.failure === null ? 0 : 1;
 }
 
 function isMainModule() {
