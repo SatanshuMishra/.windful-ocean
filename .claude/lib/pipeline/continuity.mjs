@@ -14,11 +14,23 @@ const ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=/;
 const WRAPPERS = new Set(['nohup', 'exec', 'time', 'zsh', 'bash', 'sh']);
 const SHELLS = new Set(['zsh', 'bash', 'sh']);
 const RESERVED_REPOS = new Set(['runs', 'sessions']);
+const READERS = new Set([
+  'cat', 'less', 'more', 'head', 'tail', 'ls', 'stat', 'file', 'wc', 'grep', 'egrep', 'fgrep', 'rg', 'sed', 'sort', 'cut', 'nl', 'od', 'xxd', 'diff', 'cmp',
+  'shasum', 'sha256sum', 'md5', 'md5sum', 'chmod', 'touch', 'cp', 'mv', 'echo', 'printf', 'test', '[', 'git', 'readlink', 'realpath', 'basename', 'dirname',
+]);
+const RUNNERS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'mksh', 'fish', 'eval', 'source', '.', 'exec', 'xargs', 'parallel', 'env', 'command', 'builtin', 'nice', 'timeout', 'sudo']);
+const GRAMMAR = new Set(['!', '{', '}', '[[', 'case', 'coproc', 'do', 'done', 'elif', 'else', 'end', 'esac', 'fi', 'for', 'foreach', 'function', 'if', 'repeat', 'select', 'then', 'until', 'while']);
+const COMMAND_STRING_FLAG = /^-[A-Za-z]*c[A-Za-z]*$/;
+const REDIRECTION = /^(?:\d*|&)[<>][<>&|-]*$/;
+const SUBSTITUTION = /\$\(|\x60|<\(|>\(/;
+const RUN_ZSH = /run\.zsh/g;
+const VARIABLE_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
 const ANCHOR_TEXT_LIMIT = 200;
 const ROUNDS_LINE_LIMIT = 400;
 const ROUNDS_SHOWN = 5;
 const TAIL_RESERVE = 48;
-const REASONS_FROM = Object.freeze([15, 0, 0]);
+const REASONS_FROM = '0.15.0';
+const REASONS_REFUSED = Object.freeze(['1.0.0', '14.0.0']);
 const SEGMENT = String.raw`[^/\s'"\x60;&|]+`;
 const PATH_END = String.raw`(?=[/\s'"\x60;&|]|$)`;
 const PATH_START = String.raw`(?<![^\s'"\x60=;&|(:<>])`;
@@ -222,11 +234,17 @@ function parseVersion(version) {
   return match === null ? null : Object.freeze({ parts: [Number(match[1]), Number(match[2]), Number(match[3])], prerelease: match[4] !== undefined });
 }
 
+function compareVersions(left, right) {
+  const order = left.parts.reduce((found, part, index) => (found !== 0 ? found : Math.sign(part - right.parts[index])), 0);
+  return order !== 0 ? order : Number(right.prerelease) - Number(left.prerelease);
+}
+
 export function versionAcceptsReasons(version) {
   const parsed = parseVersion(version);
   if (parsed === null) return false;
-  const order = parsed.parts.reduce((found, part, index) => (found !== 0 ? found : Math.sign(part - REASONS_FROM[index])), 0);
-  return order > 0 || (order === 0 && !parsed.prerelease);
+  const against = (bound) => compareVersions(parsed, parseVersion(bound));
+  const [refusedFrom, refusedThrough] = REASONS_REFUSED;
+  return against(REASONS_FROM) >= 0 && !(against(refusedFrom) >= 0 && against(refusedThrough) <= 0);
 }
 
 function pathContains(container, path) {
@@ -358,10 +376,26 @@ export function isRunHome(directory, home = homeDirectory()) {
   return existsSync(join(normal, 'run.zsh')) || existsSync(join(normal, 'CHARTER.md'));
 }
 
+function homePrefixes(home) {
+  return ['~', '\\$HOME', '\\$\\{HOME\\}', escapeRegExp(home)].join('|');
+}
+
+function mitosisTextPattern(home) {
+  const reserved = [...RESERVED_REPOS].map(escapeRegExp).join('|');
+  return new RegExp(`(?:${homePrefixes(home)})/\\.mitosis/(?!(?:${reserved})${PATH_END})`);
+}
+
+function isUnderMitosis(path, home) {
+  if (typeof path !== 'string' || !isAbsolute(path)) return false;
+  const root = mitosisRoot(home);
+  const normal = resolve(path);
+  if (normal === root) return true;
+  return normal.startsWith(`${root}${sep}`) && !RESERVED_REPOS.has(normal.slice(root.length + 1).split(sep)[0]);
+}
+
 export function runHomesInText(command, home = homeDirectory()) {
   if (typeof command !== 'string') return [];
-  const prefixes = ['~', '\\$HOME', '\\$\\{HOME\\}', escapeRegExp(home)].join('|');
-  const pattern = new RegExp(`${PATH_START}(?:${prefixes})/\\.mitosis/(${SEGMENT})/(${SEGMENT})${PATH_END}`, 'g');
+  const pattern = new RegExp(`${PATH_START}(?:${homePrefixes(home)})/\\.mitosis/(${SEGMENT})/(${SEGMENT})${PATH_END}`, 'g');
   const found = [...command.matchAll(pattern)]
     .filter((match) => !RESERVED_REPOS.has(match[1]) && ![match[1], match[2]].some((segment) => segment === '.' || segment === '..'))
     .map((match) => join(mitosisRoot(home), match[1], match[2]))
@@ -518,52 +552,106 @@ function verdictHome(words, home) {
   return Object.freeze({ home: isRunHome(directory, home) ? directory : null });
 }
 
+function removeQuotes(word) {
+  return word.replace(/'([^']*)'|"((?:[^"\\]|\\.)*)"|\\(.)/gs, (match, single, double, escaped) =>
+    single !== undefined ? single : double !== undefined ? double.replace(/\\(.)/gs, '$1') : escaped,
+  );
+}
+
+function knownText(part, variables, home) {
+  return part.replace(VARIABLE_REFERENCE, (match, braced, bare) => variableValue(braced ?? bare, variables, home) ?? match);
+}
+
+function assignedFrom(words, variables, home) {
+  return words.reduce((current, word) => {
+    const [, name] = ASSIGNMENT.exec(word);
+    return { ...current, [name]: expandWord(word.slice(name.length + 1), current, home) };
+  }, variables);
+}
+
+function wordConcernsMitosis(word, variables, cwd, home) {
+  const assignment = ASSIGNMENT.exec(word);
+  const value = expandWord(assignment === null ? word : word.slice(assignment[1].length + 1), variables, home);
+  return isUnderMitosis(value.includes('/') ? resolvePath(value, cwd) : value, home);
+}
+
+function planOnlyFrom(args) {
+  const comment = args.findIndex((word) => word.startsWith('#'));
+  const spoken = comment === -1 ? args : args.slice(0, comment);
+  return spoken.some(
+    (word, index) => !REDIRECTION.test(word) && !(index > 0 && REDIRECTION.test(spoken[index - 1])) && removeQuotes(word) === '--plan-only',
+  );
+}
+
+function unwrap(words) {
+  return words.reduce(
+    (walk, word, index) => {
+      if (walk.program !== null) return walk;
+      if (WRAPPERS.has(word)) return { ...walk, shell: walk.shell || SHELLS.has(word), wrapped: true };
+      if (walk.wrapped && word.startsWith('-')) return { ...walk, handedString: walk.handedString || (walk.shell && COMMAND_STRING_FLAG.test(word)) };
+      return { ...walk, program: word, index };
+    },
+    { program: null, index: -1, shell: false, wrapped: false, handedString: false },
+  );
+}
+
+function readPart(scan, part, home, mitosisText) {
+  const rawWords = splitWords(part);
+  const leading = rawWords.findIndex((word) => !ASSIGNMENT.test(word));
+  const assignmentCount = leading === -1 ? rawWords.length : leading;
+  const assigned = assignedFrom(rawWords.slice(0, assignmentCount), scan.variables, home);
+  const text = knownText(part, assigned, home);
+  const mentions = (text.match(RUN_ZSH) ?? []).length;
+  const substitution = SUBSTITUTION.test(part) || rawWords.some((word) => word.startsWith('=('));
+  const concerns =
+    isUnderMitosis(scan.cwd, home) || mitosisText.test(text) || rawWords.some((word) => wordConcernsMitosis(word, assigned, scan.cwd, home));
+  const plain = Object.freeze({ variables: assigned, cwd: scan.cwd, run: null, verdict: null, mentions, concerns, accounts: !substitution, grammar: false, runner: false });
+  const commandWords = rawWords.slice(assignmentCount);
+  if (commandWords.length === 0) return plain;
+  const expanded = commandWords.map((word) => expandWord(word, assigned, home));
+  if (expanded[0] === 'export') return { ...plain, variables: assignedFrom(commandWords.slice(1).filter((word) => ASSIGNMENT.test(word)), assigned, home) };
+  if (expanded[0] === 'cd' || expanded[0] === 'pushd') {
+    const target = expanded.slice(1).find((word) => !word.startsWith('-'));
+    const nextCwd = target === undefined ? home : resolvePath(target, scan.cwd);
+    return { ...plain, cwd: nextCwd, concerns: concerns || isRunHome(nextCwd, home), accounts: false };
+  }
+  const unwrapped = unwrap(expanded);
+  const program = unwrapped.program;
+  const name = program === null ? null : basename(program);
+  const namesRunZsh = program !== null && !substitution && !unwrapped.handedString && (program.endsWith('/run.zsh') || (program === 'run.zsh' && unwrapped.shell));
+  const target = namesRunZsh ? resolvePath(program, scan.cwd) : null;
+  const runHome = target !== null && basename(target) === 'run.zsh' && isRunHome(dirname(target), home) ? dirname(target) : null;
+  const run = runHome === null ? null : Object.freeze({ home: runHome, planOnly: planOnlyFrom(commandWords.slice(unwrapped.index + 1)), part });
+  const verdict = verdictHome(expanded, home);
+  const first = commandWords[0];
+  const grammar =
+    GRAMMAR.has(first) || first.startsWith('(') || first.startsWith('{') || first.endsWith(')') || rawWords.some((word) => word.endsWith('()'));
+  const runner = run === null && ((unwrapped.wrapped && program === null) || (unwrapped.shell && program !== null) || (name !== null && RUNNERS.has(name)));
+  const accounts = !substitution && (run !== null || (name !== null && READERS.has(name)));
+  return { ...plain, run, verdict: verdict !== null ? verdict.home : null, accounts, grammar, runner };
+}
+
 export function analyzeCommand(command, options = {}) {
   const home = options.home ?? homeDirectory();
-  if (typeof command !== 'string') return Object.freeze({ runs: Object.freeze([]), verdicts: Object.freeze([]) });
-  const initial = Object.freeze({ variables: Object.freeze({}), cwd: typeof options.cwd === 'string' && isAbsolute(options.cwd) ? options.cwd : null, runs: [], verdicts: [] });
+  if (typeof command !== 'string') return Object.freeze({ runs: Object.freeze([]), verdicts: Object.freeze([]), unreadable: false });
+  const cwd = typeof options.cwd === 'string' && isAbsolute(options.cwd) ? options.cwd : null;
+  const mitosisText = mitosisTextPattern(home);
+  const initial = Object.freeze({ variables: Object.freeze({}), cwd, runs: [], verdicts: [], mentions: 0, concerns: false, troubled: false });
   const final = splitCommand(command).reduce((scan, part) => {
-    const rawWords = splitWords(part);
-    const leading = rawWords.findIndex((word) => !ASSIGNMENT.test(word));
-    const assignmentCount = leading === -1 ? rawWords.length : leading;
-    const assigned = rawWords.slice(0, assignmentCount).reduce((variables, word) => {
-      const [, name] = ASSIGNMENT.exec(word);
-      return { ...variables, [name]: expandWord(word.slice(name.length + 1), variables, home) };
-    }, scan.variables);
-    const commandWords = rawWords.slice(assignmentCount);
-    if (commandWords.length === 0) return { ...scan, variables: assigned };
-    const expanded = commandWords.map((word) => expandWord(word, assigned, home));
-    if (expanded[0] === 'export') {
-      const exported = commandWords.slice(1).filter((word) => ASSIGNMENT.test(word)).reduce((variables, word) => {
-        const [, name] = ASSIGNMENT.exec(word);
-        return { ...variables, [name]: expandWord(word.slice(name.length + 1), variables, home) };
-      }, assigned);
-      return { ...scan, variables: exported };
-    }
-    if (expanded[0] === 'cd' || expanded[0] === 'pushd') {
-      const target = expanded.slice(1).find((word) => !word.startsWith('-'));
-      const nextCwd = target === undefined ? home : resolvePath(target, scan.cwd);
-      return { ...scan, variables: assigned, cwd: nextCwd };
-    }
-    const unwrapped = expanded.reduce(
-      (walk, word) => {
-        if (walk.program !== null) return { ...walk, args: [...walk.args, word] };
-        if (WRAPPERS.has(word)) return { ...walk, shell: walk.shell || SHELLS.has(word), wrapped: true };
-        if (walk.wrapped && word.startsWith('-')) return walk;
-        return { ...walk, program: word };
-      },
-      { program: null, args: [], shell: false, wrapped: false },
-    );
-    const verdict = verdictHome(expanded, home);
-    const verdicts = verdict !== null && verdict.home !== null ? [...scan.verdicts, verdict.home] : scan.verdicts;
-    const program = unwrapped.program;
-    const namesRunZsh = program !== null && (program.endsWith('/run.zsh') || (program === 'run.zsh' && unwrapped.shell));
-    const target = namesRunZsh ? resolvePath(program, scan.cwd) : null;
-    const runHome = target !== null && basename(target) === 'run.zsh' && isRunHome(dirname(target), home) ? dirname(target) : null;
-    const runs = runHome === null ? scan.runs : [...scan.runs, Object.freeze({ home: runHome, planOnly: unwrapped.args.includes('--plan-only'), part })];
-    return { ...scan, variables: assigned, runs, verdicts };
+    const read = readPart(scan, part, home, mitosisText);
+    return {
+      variables: read.variables,
+      cwd: read.cwd,
+      runs: read.run === null ? scan.runs : [...scan.runs, read.run],
+      verdicts: read.verdict === null ? scan.verdicts : [...scan.verdicts, read.verdict],
+      mentions: scan.mentions + read.mentions,
+      concerns: scan.concerns || read.concerns,
+      troubled: scan.troubled || (read.mentions > 0 && !read.accounts) || read.grammar || read.runner,
+    };
   }, initial);
-  return Object.freeze({ runs: Object.freeze(final.runs), verdicts: Object.freeze(final.verdicts) });
+  const concerns = final.concerns || isRunHome(cwd, home) || runHomesInText(command, home).length > 0;
+  const unreadable = (final.runs.length > 0 || (concerns && final.mentions > 0)) && final.troubled;
+  return Object.freeze({ runs: Object.freeze(final.runs), verdicts: Object.freeze(final.verdicts), unreadable });
 }
 
 export function addRunHomes(state, paths) {
@@ -609,10 +697,16 @@ const SUBAGENT_RUN_REASON =
 const SUBAGENT_INTERPHASE_REASON =
   "Pipeline interphase gate: a subagent cannot take the session's logbook thread, so the pipeline's interphase call is left to the main conversation. Hand this call back to the main conversation.";
 
-function subagentRunGate(runs, stateResult) {
+const UNREADABLE_RUN_REASON =
+  "Pipeline run gate: this command names a run home's run.zsh in a form the gate cannot read, so it cannot tell how many builds, resumes or ships it starts. Run each one as a plain command of its own, such as SHIP=1 <run home>/run.zsh --resume, recording the boundary before each. Read run.zsh with cat, grep or ls, change it with the file tools, and keep loops, functions, other shells and $(...) out of any command that names it.";
+
+const MANY_RUNS_REASON =
+  'Pipeline run gate: this command can start more than one run that is not --plan-only, and each needs its own recorded boundary. Run them in separate commands, recording the boundary before each.';
+
+function subagentRunGate(runs, unreadable, stateResult) {
   const state = stateResult.state;
   const held = stateResult.status === 'present' && state !== null && state.thread_id !== null;
-  if (held && runs.every((run) => run.planOnly)) return nothing(state);
+  if (held && !unreadable && runs.every((run) => run.planOnly)) return nothing(state);
   return Object.freeze({ state, output: deny(SUBAGENT_RUN_REASON) });
 }
 
@@ -620,16 +714,18 @@ export function runGate(event, stateResult, context = {}) {
   const command = bashCommand(event);
   if (command === null) return nothing(stateResult.state);
   const home = context.home ?? homeDirectory();
-  const runs = analyzeCommand(command, { home, cwd: event.cwd }).runs;
-  if (runs.length === 0) return nothing(stateResult.state);
-  if (hasAgent(event)) return subagentRunGate(runs, stateResult);
+  const { runs, unreadable } = analyzeCommand(command, { home, cwd: event.cwd });
+  if (runs.length === 0 && !unreadable) return nothing(stateResult.state);
+  if (hasAgent(event)) return subagentRunGate(runs, unreadable, stateResult);
   if (stateResult.status === 'invalid') return Object.freeze({ state: null, output: couldNotDecide('the session id is not usable as a pipeline state key') });
   if (stateResult.status === 'unreadable') {
     return Object.freeze({ state: null, output: couldNotDecide(`the session's pipeline state at ${stateResult.path} cannot be read`) });
   }
   const state = stateResult.state;
   if (state === null || state.thread_id === null) return Object.freeze({ state, output: deny(noThreadReason('Pipeline run gate')) });
+  if (unreadable) return Object.freeze({ state, output: deny(UNREADABLE_RUN_REASON) });
   if (runs.every((run) => run.planOnly)) return nothing(state);
+  if (runs.filter((run) => !run.planOnly).length >= 2) return Object.freeze({ state, output: deny(MANY_RUNS_REASON) });
   const missing = [
     ...(state.decision_recorded
       ? []

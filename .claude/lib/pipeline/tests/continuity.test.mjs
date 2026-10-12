@@ -232,7 +232,7 @@ test('continuity: a decision meeting the standard marks the boundary', () => {
 
 const LOGBOOK_14_UNKNOWN_KEY =
   'field: option_reasons\naccepted: object\nexample: {"thread_id":"00000000000000000000000000","title":"x","context":"x","options":[],"outcome":"x"}\nretryable: true\noption_reasons was refused; it accepts object; a valid example is {"thread_id":"00000000000000000000000000","title":"x","context":"x","options":[],"outcome":"x"}; remedy: send a value matching what this field accepts and retry; retryable=true.';
-const LOGBOOK_15_COUNT =
+const LOGBOOK_0_15_COUNT =
   'field: option_reasons\naccepted: exactly one reason per option, in the same order as options, or no option_reasons at all\nexample: ["retries every request, unsafe for payments", "chosen: only charges are idempotent"]\nretryable: true\noption_reasons carries 1 reason for 2 options; nothing was stored.';
 
 test('continuity: option reasons are demanded when logbook accepts them', () => {
@@ -242,14 +242,14 @@ test('continuity: option reasons are demanded when logbook accepts them', () => 
     handleEvent(logbook(home, 'record_decision', decision()));
     assert.equal(state().decision_recorded, true);
 
-    writeInstalled(home, '15.0.0');
+    writeInstalled(home, '0.15.0');
     handleEvent(resume(home, OTHER_THREAD));
     handleEvent(resume(home));
     const demanded = handleEvent(logbook(home, 'record_decision', decision()));
     assert.equal(state().decision_recorded, false);
     assert.match(context(demanded), /option_reasons/);
 
-    const mismatch = failure(home, 'record_decision', withReasons({ option_reasons: ['one'] }), LOGBOOK_15_COUNT);
+    const mismatch = failure(home, 'record_decision', withReasons({ option_reasons: ['one'] }), LOGBOOK_0_15_COUNT);
     assert.equal(handleEvent(mismatch), null);
     handleEvent(logbook(home, 'record_decision', decision()));
     assert.equal(state().decision_recorded, false);
@@ -279,7 +279,7 @@ test('continuity: option reasons are demanded when logbook accepts them', () => 
     });
 
     withHome((scoped) => {
-      writeInstalled(scoped, '14.0.0', [{ scope: 'project', projectPath: join(scoped, 'project'), version: '15.1.0' }]);
+      writeInstalled(scoped, '14.0.0', [{ scope: 'project', projectPath: join(scoped, 'project'), version: '0.15.1' }]);
       handleEvent(resume(scoped));
       handleEvent(logbook(scoped, 'record_decision', decision()));
       assert.equal(state().decision_recorded, false);
@@ -620,7 +620,7 @@ test('continuity: a session id that could escape the state directory is ignored'
 
 test('continuity: a running logbook that refuses option_reasons lifts the demand', () => {
   withHome((home) => {
-    writeInstalled(home, '15.0.0');
+    writeInstalled(home, '0.15.0');
     handleEvent(resume(home));
     assert.equal(handleEvent(failure(home, 'record_decision', withReasons(), LOGBOOK_14_UNKNOWN_KEY)), null);
     assert.equal(state().reasons_refused, true);
@@ -628,14 +628,14 @@ test('continuity: a running logbook that refuses option_reasons lifts the demand
     assert.equal(state().decision_recorded, true);
   });
   withHome((home) => {
-    writeInstalled(home, '15.0.0');
+    writeInstalled(home, '0.15.0');
     handleEvent(resume(home));
     const blocks = JSON.stringify([{ type: 'text', text: LOGBOOK_14_UNKNOWN_KEY }]);
     handleEvent(failure(home, 'record_decision', withReasons(), blocks));
     assert.equal(state().reasons_refused, true);
   });
   withHome((home) => {
-    writeInstalled(home, '15.0.0');
+    writeInstalled(home, '0.15.0');
     handleEvent(resume(home));
     const refused = { tool_response: { isError: true, content: [{ type: 'text', text: LOGBOOK_14_UNKNOWN_KEY }] } };
     handleEvent(logbook(home, 'record_decision', withReasons(), refused));
@@ -646,9 +646,9 @@ test('continuity: a running logbook that refuses option_reasons lifts the demand
     assert.equal(state().decision_recorded, true);
   });
   withHome((home) => {
-    writeInstalled(home, '15.0.0');
+    writeInstalled(home, '0.15.0');
     handleEvent(resume(home));
-    handleEvent(failure(home, 'record_decision', withReasons({ option_reasons: ['only one'] }), LOGBOOK_15_COUNT));
+    handleEvent(failure(home, 'record_decision', withReasons({ option_reasons: ['only one'] }), LOGBOOK_0_15_COUNT));
     assert.equal(state().reasons_refused, false);
     const otherKey = 'field: option_reasons_note\naccepted: object\noption_reasons_note was refused; it accepts object';
     handleEvent(failure(home, 'record_decision', withReasons({ option_reasons_note: 'x' }), otherKey));
@@ -657,7 +657,7 @@ test('continuity: a running logbook that refuses option_reasons lifts the demand
     assert.equal(state().decision_recorded, false);
   });
   withHome((home) => {
-    writeInstalled(home, '15.0.0');
+    writeInstalled(home, '0.15.0');
     handleEvent(resume(home));
     handleEvent(logbook(home, 'record_decision', withReasons(), { tool_response: [{ type: 'text', text: LOGBOOK_14_UNKNOWN_KEY }] }));
     assert.equal(state().reasons_accepted, false);
@@ -665,7 +665,7 @@ test('continuity: a running logbook that refuses option_reasons lifts the demand
     assert.equal(state().decision_recorded, false);
   });
   withHome((home) => {
-    writeInstalled(home, '15.0.0');
+    writeInstalled(home, '0.15.0');
     handleEvent(resume(home));
     const unrecognised = 'MCP error -32602: Invalid arguments: [{"code":"unrecognized_keys","keys":["option_reasons"],"message":"Unrecognized key(s) in object: \'option_reasons\'"}]';
     handleEvent(failure(home, 'record_decision', withReasons(), unrecognised));
@@ -673,7 +673,7 @@ test('continuity: a running logbook that refuses option_reasons lifts the demand
   });
   ["Unrecognized key(s) in object: 'option_reasons_note'", "Unrecognized key(s) in object: 'option_reasons[0]'"].forEach((text) => {
     withHome((home) => {
-      writeInstalled(home, '15.0.0');
+      writeInstalled(home, '0.15.0');
       handleEvent(resume(home));
       handleEvent(failure(home, 'record_decision', withReasons(), text));
       assert.equal(state().reasons_refused, false, text);
@@ -756,5 +756,200 @@ test('continuity: a subagent never starts a build, a resume or the ship, and cha
     assert.equal(sentBack(subagentRun(home, planCommand, { session_id: '../escape' })), true);
     assert.equal(sentBack(subagentInterphase(home, { session_id: '../escape' })), true);
     assert.deepEqual(filesUnder(home), files);
+  });
+});
+
+test('continuity: one command starts at most one build, resume or ship', () => {
+  withHome((home) => {
+    makeRunHome(home, '.windful-ocean', 'continuity');
+    makeRunHome(home, '.windful-ocean', 'other');
+    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
+    const other = '$HOME/.mitosis/.windful-ocean/other/run.zsh';
+    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
+    const unheld = gate(`${run} --resume && SHIP=1 ${run} --resume`);
+    assert.ok(denied(unheld));
+    assert.match(reason(unheld), /resume_thread/);
+    assert.doesNotMatch(reason(unheld), /separate commands/);
+    handleEvent(resume(home));
+    const chained = [
+      `${run} --resume && SHIP=1 ${run} --resume`,
+      `${run} --resume; ${run} --resume`,
+      `${run} --resume || ${run} --resume`,
+      `${run} --resume & ${other} --resume`,
+      `${run}\n${other} --resume`,
+      `SHIP=1 ${run} --resume | tee log; ${other}`,
+    ];
+    const holdAfresh = () => {
+      handleEvent(resume(home, OTHER_THREAD));
+      handleEvent(resume(home));
+    };
+    const markings = [
+      ['no marks', holdAfresh],
+      ['only the decision', () => {
+        holdAfresh();
+        handleEvent(logbook(home, 'record_decision', decision()));
+      }],
+      ['only the next step', () => {
+        holdAfresh();
+        handleEvent(logbook(home, 'update_thread', nextStep()));
+      }],
+      ['both marks', () => {
+        holdAfresh();
+        recordBoundary(home);
+      }],
+    ];
+    for (const command of chained) {
+      for (const [marks, mark] of markings) {
+        mark();
+        const before = readFileSync(statePath(SESSION), 'utf8');
+        const refused = gate(command);
+        assert.ok(denied(refused), `${marks}: ${command}`);
+        assert.match(reason(refused), /each needs its own recorded boundary/, `${marks}: ${command}`);
+        assert.match(reason(refused), /separate commands/, `${marks}: ${command}`);
+        assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, `${marks}: ${command}`);
+      }
+    }
+    assert.equal(gate(`${run} --plan-only && ${run} --resume`), null);
+    assert.equal(state().decision_recorded, false);
+    assert.equal(state().next_step_recorded, false);
+    assert.equal(gate(`${run} --plan-only; ${other} --plan-only`), null);
+    recordBoundary(home);
+    assert.equal(gate(`${other} --resume`), null);
+    assert.ok(denied(gate(`${run} --resume`)));
+  });
+});
+
+test('continuity: option reasons are demanded from logbook 0.15.0 on, except for releases 1.0.0 to 14.0.0', () => {
+  const demands = (version) =>
+    withHome((home) => {
+      writeInstalled(home, version);
+      handleEvent(resume(home));
+      handleEvent(logbook(home, 'record_decision', decision()));
+      return state().decision_recorded === false;
+    });
+  for (const version of ['0.15.0', '0.15.1', '0.16.0', '0.16.0-rc.1', '0.99.0', '14.0.1', '15.0.0', '15.1.0']) {
+    assert.equal(demands(version), true, version);
+  }
+  for (const version of ['0.2.8', '0.14.9', '0.15.0-rc.1', '1.0.0', '7.3.0', '14.0.0']) {
+    assert.equal(demands(version), false, version);
+  }
+});
+
+test('continuity: a run.zsh command the gate cannot read is refused', () => {
+  withHome((home) => {
+    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
+    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
+    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
+    const unreadable = [
+      `{ ${run} --resume; }`,
+      `(SHIP=1 ${run} --resume)`,
+      `(cd ${runHome} && ./run.zsh --resume)`,
+      `! ${run} --resume`,
+      `if true; then SHIP=1 ${run} --resume; else ${run} --resume; fi`,
+      `for attempt in 1 2; do ${run} --resume; done`,
+      `{ for attempt in 1 2; do ${run} --plan-only; done; }`,
+      `until ${run} --resume; do :; done`,
+      `bash -c '${run} --resume'`,
+      `bash -lc '${run} --resume && SHIP=1 ${run} --resume'`,
+      `sh -ec "${run} --plan-only"`,
+      `env SHIP=1 ${run} --resume`,
+      `source ${run} --resume`,
+      `. ${run} --resume`,
+      `out=$(SHIP=1 ${run} --resume)`,
+      `D=$(dirname ${run})`,
+      `python3 -c 'print(1)' ${run}`,
+      `for attempt in 1 2; do\n  ${run} --resume && break\ndone`,
+      `for attempt in 1 2; do :; ${run} --resume; done`,
+      `retry() {\n  ${run} --resume\n}\nretry\nretry`,
+      `[[ -x ${run} ]] && ${run} --resume`,
+      `echo "${run} --resume" | zsh`,
+      `export RUN=${run}; bash -c '$RUN --resume'`,
+      `RUN=${run}; eval "$RUN --resume"`,
+      `RUN=${run}; caffeinate -i $RUN --resume`,
+      `for slug in continuity fix-a; do $HOME/.mitosis/.windful-ocean/$slug/run.zsh --resume; done`,
+      `$HOME/.mitosis/.windful-ocean/$SLUG/run.zsh --resume`,
+      `for h in $HOME/.mitosis/.windful-ocean/*; do "$h/run.zsh"; done`,
+      `for slug in continuity fix-a; do cd $HOME/.mitosis/.windful-ocean/$slug && ./run.zsh; done`,
+      `ls -d $HOME/.mitosis/.windful-ocean/* | xargs -I{} {}/run.zsh --resume`,
+      `{ "$HOME"/.mitosis/.windful-ocean/continuity/run.zsh --resume; }`,
+      `zsh -c ${run} --plan-only`,
+      `zsh -lc ${run} --plan-only`,
+      `${run} --resume \`${run} --resume\``,
+      `cat <(${run} --resume)`,
+      `echo x > >(${run} --resume)`,
+      `bash -c '$HOME/.mitosis/.windful-ocean/$slug/run.zsh --resume'`,
+      `${run} --resume =(${run} --resume)`,
+      ...['sh', 'bash', 'zsh', 'dash', 'ksh', 'mksh', 'fish', 'eval', 'source', '.', 'exec', 'xargs', 'parallel', 'env', 'command', 'builtin', 'nice', 'timeout', 'sudo'].map((runner) => `echo "${run} --resume" | ${runner}`),
+      ...['!', '{', '}', '[[', 'case', 'coproc', 'do', 'done', 'elif', 'else', 'end', 'esac', 'fi', 'for', 'foreach', 'function', 'if', 'repeat', 'select', 'then', 'until', 'while'].map((word) => `${run} --resume; ${word} x`),
+    ];
+    const unheld = gate(unreadable[0]);
+    assert.ok(denied(unheld));
+    assert.match(reason(unheld), /resume_thread/);
+    handleEvent(resume(home));
+    const holdAfresh = () => {
+      handleEvent(resume(home, OTHER_THREAD));
+      handleEvent(resume(home));
+    };
+    for (const command of unreadable) {
+      for (const [marks, mark] of [['no marks', holdAfresh], ['both marks', () => { holdAfresh(); recordBoundary(home); }]]) {
+        mark();
+        const before = readFileSync(statePath(SESSION), 'utf8');
+        const refused = gate(command);
+        assert.ok(denied(refused), `${marks}: ${command}`);
+        assert.match(reason(refused), /cannot read/, `${marks}: ${command}`);
+        assert.match(reason(refused), /plain command/, `${marks}: ${command}`);
+        assert.match(reason(refused), /file tools/, `${marks}: ${command}`);
+        assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, `${marks}: ${command}`);
+      }
+    }
+    holdAfresh();
+    recordBoundary(home);
+    const inRunHome = readFileSync(statePath(SESSION), 'utf8');
+    const looped = handleEvent(bash(home, 'PreToolUse', 'for attempt in 1 2; do zsh run.zsh --resume; done', { cwd: runHome }));
+    assert.ok(denied(looped));
+    assert.match(reason(looped), /cannot read/);
+    assert.equal(readFileSync(statePath(SESSION), 'utf8'), inRunHome);
+    for (const command of [`X=--plan-only ${run} --resume $X`, `X=--plan-only true; ${run} --resume $X`, `FLAGS=--plan-only; ${run} $FLAGS`, `${run} --resume # unlike --plan-only`, `${run} --resume <<< --plan-only`]) {
+      holdAfresh();
+      const refused = gate(command);
+      assert.ok(denied(refused), command);
+      assert.match(reason(refused), /record_decision/, command);
+    }
+    holdAfresh();
+    assert.equal(gate(`${run} "--plan-only"`), null);
+    recordBoundary(home);
+    const marked = readFileSync(statePath(SESSION), 'utf8');
+    for (const reading of [`cat ${run}`, `grep -n resume ${run}`, `sed -n 1,5p ${run}`, `ls -l ${run}`, `chmod +x ${run}`, `echo '{ ${run} --resume; }'`, `git diff -- ${run}`, `cat ${runHome}/CHARTER.md`]) {
+      assert.equal(gate(reading), null, reading);
+    }
+    assert.equal(readFileSync(statePath(SESSION), 'utf8'), marked);
+    const elsewhere = join(home, 'project');
+    mkdirSync(elsewhere, { recursive: true });
+    writeFileSync(join(elsewhere, 'run.zsh'), '#!/bin/zsh\n');
+    assert.equal(gate(`{ ${elsewhere}/run.zsh; }`), null);
+    assert.equal(gate(`SHIP=1 ${run} --resume`), null);
+    assert.equal(state().decision_recorded, false);
+    const viaVariable = `RUN=${run}; SHIP=1 $RUN --resume`;
+    const unmarked = gate(viaVariable);
+    assert.ok(denied(unmarked));
+    assert.match(reason(unmarked), /record_decision/);
+    recordBoundary(home);
+    assert.equal(gate(viaVariable), null);
+    assert.equal(state().decision_recorded, false);
+    holdAfresh();
+    recordBoundary(home);
+    const held = readFileSync(statePath(SESSION), 'utf8');
+    const subagent = { agent_id: 'agent-reviewer-9', agent_type: 'code-reviewer' };
+    for (const command of [`{ ${run} --resume; }`, `{ ${run} --plan-only; }`, `python3 -c 'print(1)' ${run}`]) {
+      const refused = handleEvent(bash(home, 'PreToolUse', command, subagent));
+      assert.ok(denied(refused), command);
+      assert.match(reason(refused), /main conversation/, command);
+      assert.doesNotMatch(reason(refused), /resume_thread/, command);
+      assert.equal(readFileSync(statePath(SESSION), 'utf8'), held, command);
+    }
+    writeFileSync(statePath(SESSION), '{"version":1, broken');
+    const undecided = gate(`{ ${run} --resume; }`);
+    assert.ok(denied(undecided));
+    assert.match(reason(undecided), /could not decide/);
   });
 });
