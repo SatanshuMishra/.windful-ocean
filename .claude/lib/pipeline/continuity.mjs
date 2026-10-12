@@ -603,13 +603,26 @@ function noThreadReason(subject) {
   return `${subject}: this session holds no logbook thread. Open one with open_thread, or pick an existing one from list_threads, and call resume_thread on it so the session holds it; then try again.`;
 }
 
+const SUBAGENT_RUN_REASON =
+  'Pipeline run gate: a subagent cannot start a build, a resume or the ship, and runs --plan-only only while the main conversation holds a logbook thread. Hand this run back to the main conversation.';
+
+const SUBAGENT_INTERPHASE_REASON =
+  "Pipeline interphase gate: a subagent cannot take the session's logbook thread, so the pipeline's interphase call is left to the main conversation. Hand this call back to the main conversation.";
+
+function subagentRunGate(runs, stateResult) {
+  const state = stateResult.state;
+  const held = stateResult.status === 'present' && state !== null && state.thread_id !== null;
+  if (held && runs.every((run) => run.planOnly)) return nothing(state);
+  return Object.freeze({ state, output: deny(SUBAGENT_RUN_REASON) });
+}
+
 export function runGate(event, stateResult, context = {}) {
-  if (hasAgent(event)) return nothing(stateResult.state);
   const command = bashCommand(event);
   if (command === null) return nothing(stateResult.state);
   const home = context.home ?? homeDirectory();
   const runs = analyzeCommand(command, { home, cwd: event.cwd }).runs;
   if (runs.length === 0) return nothing(stateResult.state);
+  if (hasAgent(event)) return subagentRunGate(runs, stateResult);
   if (stateResult.status === 'invalid') return Object.freeze({ state: null, output: couldNotDecide('the session id is not usable as a pipeline state key') });
   if (stateResult.status === 'unreadable') {
     return Object.freeze({ state: null, output: couldNotDecide(`the session's pipeline state at ${stateResult.path} cannot be read`) });
@@ -640,13 +653,13 @@ export function isPipelineInterphaseCall(event) {
 }
 
 export function interphaseGate(event, stateResult) {
-  if (hasAgent(event)) return nothing(stateResult.state);
   if (!isPipelineInterphaseCall(event)) return nothing(stateResult.state);
   if (stateResult.status === 'unreadable') return nothing(null);
-  if (stateResult.status === 'invalid') return Object.freeze({ state: null, output: deny(noThreadReason('Pipeline interphase gate')) });
+  const reason = hasAgent(event) ? SUBAGENT_INTERPHASE_REASON : noThreadReason('Pipeline interphase gate');
+  if (stateResult.status === 'invalid') return Object.freeze({ state: null, output: deny(reason) });
   const state = stateResult.state;
   if (state !== null && state.thread_id !== null) return nothing(state);
-  return Object.freeze({ state, output: deny(noThreadReason('Pipeline interphase gate')) });
+  return Object.freeze({ state, output: deny(reason) });
 }
 
 function readText(path) {
