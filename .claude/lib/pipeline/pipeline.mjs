@@ -51,10 +51,15 @@ const FINDING_ID = /^[A-Z][0-9]{1,3}$/;
 const CARRIED_ID_PREFIX = 'P';
 const KIND = /^[a-z0-9][a-z0-9 -]*[a-z0-9]$/;
 const KIND_MIN = 3;
-const KIND_MAX = 60;
-const LOCATION_CAP = 200;
-const SUMMARY_CAP = 500;
-const LONG_TEXT_CAP = 2000;
+const KIND_ASKED = 60;
+const LOCATION_ASKED = 200;
+const SUMMARY_ASKED = 500;
+const LONG_TEXT_ASKED = 2000;
+const HEADROOM = 2;
+const KIND_CEILING = KIND_ASKED * HEADROOM;
+const LOCATION_CEILING = LOCATION_ASKED * HEADROOM;
+const SUMMARY_CEILING = SUMMARY_ASKED * HEADROOM;
+const LONG_TEXT_CEILING = LONG_TEXT_ASKED * HEADROOM;
 const FLAG_PREFIX = '--';
 const SET_SEPARATOR = '=';
 const DO_NOT_FLAG_HEADER = '# Do not flag\n\n';
@@ -175,8 +180,8 @@ function checkFindingFields(prefix, entry, idPattern) {
     FINDING_SOURCES.includes(entry.source) ? accept(entry) : refuse(`${prefix} key source: ${quoted(entry.source)} is not one of ${FINDING_SOURCES.join(', ')}`),
     SEVERITIES.includes(entry.severity) ? accept(entry) : refuse(`${prefix} key severity: ${quoted(entry.severity)} is not one of ${SEVERITIES.join(', ')}`),
     !Object.hasOwn(entry, 'security') || typeof entry.security === 'boolean' ? accept(entry) : refuse(`${prefix} key security: ${quoted(entry.security)} is not true or false`),
-    checkText(prefix, 'location', entry.location, { min: 0, max: LOCATION_CAP }),
-    checkText(prefix, 'summary', entry.summary, { min: 1, max: SUMMARY_CAP }),
+    checkText(prefix, 'location', entry.location, { min: 0, max: LOCATION_CEILING }),
+    checkText(prefix, 'summary', entry.summary, { min: 1, max: SUMMARY_CEILING }),
   ]);
 }
 
@@ -195,8 +200,8 @@ export function parseFindings(text, label) {
       checkExactKeys(prefix, entry, FINDING_KEYS, OPTIONAL_FINDING_KEYS),
       ...(isPlainObject(entry) ? [
         checkFindingFields(prefix, entry, FINDING_ID),
-        checkText(prefix, 'reproduction', entry.reproduction, { min: 0, max: LONG_TEXT_CAP }),
-        checkText(prefix, 'fix', entry.fix, { min: 0, max: LONG_TEXT_CAP }),
+        checkText(prefix, 'reproduction', entry.reproduction, { min: 0, max: LONG_TEXT_CEILING }),
+        checkText(prefix, 'fix', entry.fix, { min: 0, max: LONG_TEXT_CEILING }),
       ] : []),
     ]);
     if (!refusal.ok) return refusal;
@@ -216,8 +221,8 @@ function checkLedgerScope(prefix, entry) {
 }
 
 function checkKindText(prefix, kind) {
-  if (typeof kind !== 'string' || kind.length < KIND_MIN || kind.length > KIND_MAX || !KIND.test(kind)) {
-    return refuse(`${prefix} key kind: ${quoted(kind)} is not ${KIND_MIN} to ${KIND_MAX} characters of lowercase letters, digits, spaces and hyphens beginning and ending with a letter or digit`);
+  if (typeof kind !== 'string' || kind.length < KIND_MIN || kind.length > KIND_CEILING || !KIND.test(kind)) {
+    return refuse(`${prefix} key kind: ${quoted(kind)} is not ${KIND_MIN} to ${KIND_CEILING} characters of lowercase letters, digits, spaces and hyphens beginning and ending with a letter or digit`);
   }
   return accept(kind);
 }
@@ -244,7 +249,7 @@ function checkFindingLine(prefix, entry) {
     checkFindingFields(prefix, entry, FINDING_ID),
     LEDGER_VERDICTS.includes(entry.verdict) ? accept(entry) : refuse(`${prefix} key verdict: ${quoted(entry.verdict)} is not one of ${LEDGER_VERDICTS.join(', ')}`),
     ...(LEDGER_VERDICTS.includes(entry.verdict) ? [testRule, kindRule] : []),
-    checkText(prefix, 'evidence', entry.evidence, { min: 0, max: LONG_TEXT_CAP }),
+    checkText(prefix, 'evidence', entry.evidence, { min: 0, max: LONG_TEXT_CEILING }),
   ]);
 }
 
@@ -383,7 +388,7 @@ export function parseVerdicts(text, label, obligationIds, carriedIds) {
     if (seen.has(entry.id)) return refuse(`${prefix} key id: obligation ${entry.id} has more than one verdict, also verdict ${seen.get(entry.id)}`);
     const refusal = firstRefusal([
       checkVerdictEntry(prefix, entry, carriedIds),
-      checkText(prefix, 'evidence', entry.evidence, { min: 1, max: LONG_TEXT_CAP }),
+      checkText(prefix, 'evidence', entry.evidence, { min: 1, max: LONG_TEXT_CEILING }),
     ]);
     if (!refusal.ok) return refusal;
     seen = new Map([...seen, [entry.id, index]]);

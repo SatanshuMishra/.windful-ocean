@@ -841,3 +841,37 @@ test('comment withholds every security finding, whoever reported it', () => {
   assert.equal(rejectedComment.stdout.includes('stale cache'), false);
   assert.equal(rejectedComment.stdout.includes('Cached token'), false);
 });
+
+test('findings and verdicts may run to twice the lengths the briefs ask for, and no further', () => {
+  const dir = scratch();
+  const asked = { location: 200, summary: 500, reproduction: 2000, fix: 2000, evidence: 2000, kind: 60 };
+  const filled = (key, length) => (key === 'kind' ? 'k' : 'a').repeat(length);
+  const findingKeys = ['location', 'summary', 'reproduction', 'fix'];
+  const longest = finding('C1', 'code-reviewer', 'MEDIUM', Object.fromEntries(findingKeys.map((key) => [key, filled(key, asked[key] * 2)])));
+  const longestVerdict = verdict('C1', 'confirmed', filled('kind', asked.kind * 2), { evidence: filled('evidence', asked.evidence * 2) });
+  const ledger = join(dir, 'findings.jsonl');
+  const listed = runTool(['candidates', '--findings', writeJson(dir, 'longest.json', [longest]), '--ledger', ledger, '--run', 'alpha', '--msp', 'core', '--round', '1', '--out', join(dir, 'longest.md')]);
+  assert.equal(listed.status, 0, listed.stderr);
+  recordRound(dir, ledger, 'alpha', 'core', 1, [longest], [longestVerdict]);
+  const [line] = ledgerLines(ledger).filter((entry) => entry.type === 'finding');
+  assert.equal(line.summary, longest.summary);
+  assert.equal(line.kind, longestVerdict.kind);
+  assert.equal(line.evidence, longestVerdict.evidence);
+  assert.equal(verdictOf(ledger, 'alpha', 'core', 1).blockers[0].summary, longest.summary);
+
+  for (const key of findingKeys) {
+    const over = finding('C1', 'code-reviewer', 'MEDIUM', { [key]: filled(key, asked[key] * 2 + 1) });
+    const out = join(dir, `over-${key}.md`);
+    const result = runTool(['candidates', '--findings', writeJson(dir, `over-${key}.json`, [over]), '--ledger', join(dir, `over-${key}.jsonl`), '--run', 'alpha', '--msp', 'core', '--round', '1', '--out', out]);
+    assert.equal(result.status, 2, `${key} one past twice its asked length exited ${result.status}`);
+    assert.ok(result.stderr.includes(`key ${key}`), result.stderr);
+    assert.equal(existsSync(out), false, `${key} wrote ${out}`);
+  }
+  for (const key of ['kind', 'evidence']) {
+    const overLedger = join(dir, `over-${key}.jsonl`);
+    const result = runTool(recordArgs(dir, overLedger, 'alpha', 'core', 1, [longest], [{ ...longestVerdict, [key]: filled(key, asked[key] * 2 + 1) }]));
+    assert.equal(result.status, 2, `${key} one past twice its asked length exited ${result.status}`);
+    assert.ok(result.stderr.includes(`key ${key}`), result.stderr);
+    assert.equal(existsSync(overLedger), false, `${key} wrote ${overLedger}`);
+  }
+});
