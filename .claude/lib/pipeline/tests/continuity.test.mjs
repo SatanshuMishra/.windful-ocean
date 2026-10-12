@@ -230,6 +230,11 @@ test('continuity: a decision meeting the standard marks the boundary', () => {
   });
 });
 
+const LOGBOOK_14_UNKNOWN_KEY =
+  'field: option_reasons\naccepted: object\nexample: {"thread_id":"00000000000000000000000000","title":"x","context":"x","options":[],"outcome":"x"}\nretryable: true\noption_reasons was refused; it accepts object; a valid example is {"thread_id":"00000000000000000000000000","title":"x","context":"x","options":[],"outcome":"x"}; remedy: send a value matching what this field accepts and retry; retryable=true.';
+const LOGBOOK_15_COUNT =
+  'field: option_reasons\naccepted: exactly one reason per option, in the same order as options, or no option_reasons at all\nexample: ["retries every request, unsafe for payments", "chosen: only charges are idempotent"]\nretryable: true\noption_reasons carries 1 reason for 2 options; nothing was stored.';
+
 test('continuity: option reasons are demanded when logbook accepts them', () => {
   withHome((home) => {
     writeInstalled(home, '14.0.0');
@@ -244,12 +249,12 @@ test('continuity: option reasons are demanded when logbook accepts them', () => 
     assert.equal(state().decision_recorded, false);
     assert.match(context(demanded), /option_reasons/);
 
-    const mismatch = failure(home, 'record_decision', withReasons({ option_reasons: ['one'] }), 'option_reasons must hold one reason per option: 1 reasons for 2 options');
+    const mismatch = failure(home, 'record_decision', withReasons({ option_reasons: ['one'] }), LOGBOOK_15_COUNT);
     assert.equal(handleEvent(mismatch), null);
     handleEvent(logbook(home, 'record_decision', decision()));
     assert.equal(state().decision_recorded, false);
 
-    const unrecognised = failure(home, 'record_decision', withReasons(), 'MCP error -32602: Invalid arguments: [{"code":"unrecognized_keys","keys":["option_reasons"],"message":"Unrecognized key(s) in object: \'option_reasons\'"}]');
+    const unrecognised = failure(home, 'record_decision', withReasons(), LOGBOOK_14_UNKNOWN_KEY);
     assert.equal(handleEvent(unrecognised), null);
     assert.equal(state().reasons_refused, true);
     handleEvent(logbook(home, 'record_decision', decision()));
@@ -263,7 +268,7 @@ test('continuity: option reasons are demanded when logbook accepts them', () => 
       const after = handleEvent(logbook(fresh, 'record_decision', decision()));
       assert.equal(state().decision_recorded, false);
       assert.match(context(after), /option_reasons/);
-      handleEvent(failure(fresh, 'record_decision', withReasons(), 'Unrecognized key(s) in object: option_reasons'));
+      handleEvent(failure(fresh, 'record_decision', withReasons(), LOGBOOK_14_UNKNOWN_KEY));
       handleEvent(logbook(fresh, 'record_decision', decision()));
       assert.equal(state().decision_recorded, false);
       const blankReason = handleEvent(logbook(fresh, 'record_decision', withReasons({ option_reasons: ['a reason', ' '] })));
@@ -610,5 +615,127 @@ test('continuity: a session id that could escape the state directory is ignored'
     assert.deepEqual(filesUnder(home), before);
     assert.equal(statePath('../x'), null);
     assert.equal(existsSync(join(home, '.mitosis', 'x.json')), false);
+  });
+});
+
+test('continuity: a running logbook that refuses option_reasons lifts the demand', () => {
+  withHome((home) => {
+    writeInstalled(home, '15.0.0');
+    handleEvent(resume(home));
+    assert.equal(handleEvent(failure(home, 'record_decision', withReasons(), LOGBOOK_14_UNKNOWN_KEY)), null);
+    assert.equal(state().reasons_refused, true);
+    handleEvent(logbook(home, 'record_decision', decision()));
+    assert.equal(state().decision_recorded, true);
+  });
+  withHome((home) => {
+    writeInstalled(home, '15.0.0');
+    handleEvent(resume(home));
+    const blocks = JSON.stringify([{ type: 'text', text: LOGBOOK_14_UNKNOWN_KEY }]);
+    handleEvent(failure(home, 'record_decision', withReasons(), blocks));
+    assert.equal(state().reasons_refused, true);
+  });
+  withHome((home) => {
+    writeInstalled(home, '15.0.0');
+    handleEvent(resume(home));
+    const refused = { tool_response: { isError: true, content: [{ type: 'text', text: LOGBOOK_14_UNKNOWN_KEY }] } };
+    handleEvent(logbook(home, 'record_decision', withReasons(), refused));
+    assert.equal(state().reasons_accepted, false);
+    assert.equal(state().reasons_refused, true);
+    assert.equal(state().decision_recorded, false);
+    handleEvent(logbook(home, 'record_decision', decision()));
+    assert.equal(state().decision_recorded, true);
+  });
+  withHome((home) => {
+    writeInstalled(home, '15.0.0');
+    handleEvent(resume(home));
+    handleEvent(failure(home, 'record_decision', withReasons({ option_reasons: ['only one'] }), LOGBOOK_15_COUNT));
+    assert.equal(state().reasons_refused, false);
+    const otherKey = 'field: option_reasons_note\naccepted: object\noption_reasons_note was refused; it accepts object';
+    handleEvent(failure(home, 'record_decision', withReasons({ option_reasons_note: 'x' }), otherKey));
+    assert.equal(state().reasons_refused, false);
+    handleEvent(logbook(home, 'record_decision', decision()));
+    assert.equal(state().decision_recorded, false);
+  });
+  withHome((home) => {
+    writeInstalled(home, '15.0.0');
+    handleEvent(resume(home));
+    handleEvent(logbook(home, 'record_decision', withReasons(), { tool_response: [{ type: 'text', text: LOGBOOK_14_UNKNOWN_KEY }] }));
+    assert.equal(state().reasons_accepted, false);
+    assert.equal(state().reasons_refused, true);
+    assert.equal(state().decision_recorded, false);
+  });
+  withHome((home) => {
+    writeInstalled(home, '15.0.0');
+    handleEvent(resume(home));
+    const unrecognised = 'MCP error -32602: Invalid arguments: [{"code":"unrecognized_keys","keys":["option_reasons"],"message":"Unrecognized key(s) in object: \'option_reasons\'"}]';
+    handleEvent(failure(home, 'record_decision', withReasons(), unrecognised));
+    assert.equal(state().reasons_refused, true);
+  });
+  ["Unrecognized key(s) in object: 'option_reasons_note'", "Unrecognized key(s) in object: 'option_reasons[0]'"].forEach((text) => {
+    withHome((home) => {
+      writeInstalled(home, '15.0.0');
+      handleEvent(resume(home));
+      handleEvent(failure(home, 'record_decision', withReasons(), text));
+      assert.equal(state().reasons_refused, false, text);
+    });
+  });
+});
+
+test('continuity: a verdict outside a run home adds no run home', () => {
+  withHome((home) => {
+    mkdirSync(join(home, '.mitosis', 'runs', '.windful-ocean'), { recursive: true });
+    mkdirSync(join(home, '.mitosis', 'sessions', 'x'), { recursive: true });
+    mkdirSync(join(home, 'elsewhere', 'y'), { recursive: true });
+    writeFileSync(join(home, 'elsewhere', 'y', 'CHARTER.md'), '- Spec: /elsewhere/spec.md\n');
+    const real = makeRunHome(home, 'repo', 'slug', { runZsh: false, charter: '- Spec: /repo/spec.md\n' });
+    handleEvent(resume(home));
+    const outputs = [
+      'node pipeline.mjs verdict --ledger ~/.mitosis/runs/findings.jsonl --run .windful-ocean',
+      'node pipeline.mjs verdict --ledger ~/.mitosis/sessions/l.jsonl --run x',
+      `node pipeline.mjs verdict --ledger ${join(home, 'elsewhere', 'l.jsonl')} --run y`,
+    ].map((command) => handleEvent(bash(home, 'PostToolUse', command)));
+    assert.deepEqual(outputs, [null, null, null]);
+    assert.deepEqual(state().run_homes, []);
+    const kept = handleEvent(bash(home, 'PostToolUse', 'node pipeline.mjs verdict --ledger ~/.mitosis/repo/findings.jsonl --run slug'));
+    assert.notEqual(kept, null);
+    assert.deepEqual(state().run_homes.map((entry) => entry.path), [real]);
+  });
+});
+
+test('continuity: subagent events pass both gates without changing state', () => {
+  withHome((home) => {
+    makeRunHome(home, 'repo', 'slug');
+    handleEvent(resume(home));
+    recordBoundary(home);
+    const before = readFileSync(statePath(SESSION), 'utf8');
+    assert.equal(handleEvent(bash(home, 'PreToolUse', '~/.mitosis/repo/slug/run.zsh --resume', { agent_id: 'sub-1' })), null);
+    assert.equal(readFileSync(statePath(SESSION), 'utf8'), before);
+    assert.equal(denied(handleEvent(bash(home, 'PreToolUse', '~/.mitosis/repo/slug/run.zsh --resume'))), false);
+  });
+  withHome((home) => {
+    makeRunHome(home, 'repo', 'slug');
+    assert.equal(handleEvent(bash(home, 'PreToolUse', '~/.mitosis/repo/slug/run.zsh --resume', { agent_id: 'sub-1' })), null);
+    assert.equal(handleEvent(skill(home, 'interphase:bug', 'Fix it. Work autonomously.', { agent_id: 'sub-1' })), null);
+    assert.deepEqual(filesUnder(join(home, '.mitosis', 'sessions')), []);
+  });
+  withHome((home) => {
+    makeRunHome(home, 'repo', 'slug');
+    mkdirSync(join(home, '.mitosis', 'sessions'), { recursive: true });
+    writeFileSync(statePath(SESSION), '{ not json');
+    assert.equal(handleEvent(bash(home, 'PreToolUse', '~/.mitosis/repo/slug/run.zsh --resume', { agent_id: 'sub-1' })), null);
+    assert.equal(readFileSync(statePath(SESSION), 'utf8'), '{ not json');
+    assert.equal(handleEvent(bash(home, 'PreToolUse', '~/.mitosis/repo/slug/run.zsh --resume', { agent_id: 'sub-1', session_id: '../escape' })), null);
+    assert.equal(handleEvent(skill(home, 'interphase:bug', 'Fix it. Work autonomously.', { agent_id: 'sub-1', session_id: '../escape' })), null);
+  });
+});
+
+test('continuity: a run home named straight after a redirection is found', () => {
+  ['cat x 2>~/.mitosis/repo/slug/err.log', 'echo hi >$HOME/.mitosis/repo/slug/note.txt', 'wc -l <${HOME}/.mitosis/repo/slug/rounds.md'].forEach((command) => {
+    withHome((home) => {
+      const path = makeRunHome(home, 'repo', 'slug');
+      handleEvent(resume(home));
+      handleEvent(bash(home, 'PostToolUse', command));
+      assert.deepEqual(state().run_homes.map((entry) => entry.path), [path], command);
+    });
   });
 });
