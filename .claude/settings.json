@@ -120,6 +120,7 @@
     "defaultMode": "bypassPermissions"
   },
   "model": "claude-opus-5[1m]",
+  "autoCompactWindow": 400000,
   "hooks": {
     "Stop": [
       {
@@ -177,6 +178,16 @@
           {
             "type": "command",
             "command": "python3 $HOME/.claude/hooks/agent-ledger/roster-index-gen.py",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/pipeline-continuity.mjs\"",
             "timeout": 10
           }
         ]
@@ -272,6 +283,28 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "^Skill$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/pipeline-continuity.mjs\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/pipeline-continuity.mjs\"",
+            "if": "Bash(*run.zsh*)",
+            "onFailure": "block",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -282,6 +315,39 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/lint-on-edit.sh",
             "async": true
+          }
+        ]
+      },
+      {
+        "matcher": "^mcp__(?:plugin_logbook_)?ledger__(resume_thread|record_decision|update_thread|park_thread|close_thread)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/pipeline-continuity.mjs\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/pipeline-continuity.mjs\"",
+            "if": "Bash(*.mitosis/*)",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "^mcp__(?:plugin_logbook_)?ledger__record_decision$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/pipeline-continuity.mjs\"",
+            "timeout": 10
           }
         ]
       }
