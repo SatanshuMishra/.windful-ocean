@@ -334,21 +334,19 @@ test('check-run: a state write that fails leaves the state and no lock behind', 
     const path = writeState(home, { decision_recorded: true, next_step_recorded: true });
     const before = readFileSync(path, 'utf8');
     const entries = readdirSync(sessionsDirectory(home)).sort();
-    assert.equal(spawnSync('chflags', ['uchg', path]).status, 0);
-    try {
-      const result = checkRun(home, [`${runHome}/run.zsh`]);
-      assert.equal(result.status, 2);
-      assert.ok(
-        result.stderr.startsWith(`check-run: could not decide: the session's pipeline state at ${path} cannot be written (`),
-        result.stderr,
-      );
-      assert.equal(result.stdout, '');
-      assert.equal(readFileSync(path, 'utf8'), before);
-      assert.equal(existsSync(`${path}.lock`), false);
-      assert.deepEqual(readdirSync(sessionsDirectory(home)).sort(), entries);
-    } finally {
-      spawnSync('chflags', ['nouchg', path]);
-    }
+    const result = spawnSync('/bin/sh', ['-c', 'ulimit -f 0 && exec "$0" "$@"', process.execPath, CHECK_RUN, `${runHome}/run.zsh`], {
+      encoding: 'utf8',
+      env: environment(home, { CLAUDE_CODE_SESSION_ID: SESSION }),
+    });
+    assert.equal(result.status, 2);
+    assert.ok(
+      result.stderr.startsWith(`check-run: could not decide: the session's pipeline state at ${path} cannot be written (`),
+      result.stderr,
+    );
+    assert.equal(result.stdout, '');
+    assert.equal(readFileSync(path, 'utf8'), before);
+    assert.equal(existsSync(`${path}.lock`), false);
+    assert.deepEqual(readdirSync(sessionsDirectory(home)).sort(), entries);
   });
 });
 
