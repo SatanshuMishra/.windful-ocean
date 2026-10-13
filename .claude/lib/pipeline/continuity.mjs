@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -403,31 +403,47 @@ export function checkRun({ argv, env, home = homeDirectory(), now = new Date() }
   const environment = env !== null && typeof env === 'object' ? env : {};
   const sessionId = environment.CLAUDE_CODE_SESSION_ID;
   if (sessionId === undefined || sessionId === '') return runVerdict(0, null);
-  const stateResult = readState(sessionId, home);
-  if (stateResult.status === 'invalid') return runUndecided('the session id is not usable as a pipeline state key');
-  if (stateResult.status === 'absent') return runVerdict(1, noThreadReason('check-run'));
-  if (stateResult.status === 'unreadable') {
-    return runUndecided(`the session's pipeline state at ${stateResult.path} cannot be read; call resume_thread on the held logbook thread, then run again`);
-  }
-  const state = stateResult.state;
-  if (state.thread_id === null) return runVerdict(1, noThreadReason('check-run'));
-  const planOnly = runArguments.length === 1 && runArguments[0] === '--plan-only';
-  const missing = planOnly ? [] : missingBoundaryParts(state);
-  if (missing.length > 0) {
-    return runVerdict(1, `check-run: the boundary before this run is not recorded. Missing: ${missing.join('; ')}. A --plan-only run needs only the held thread.`);
-  }
-  const command = runCommand(runScript, runArguments, environment.SHIP);
-  const anchor = `${ANCHOR_PREFIX} ${basename(runHome)} at ${runHome}, thread ${state.thread_id}: ${shorten(command, ANCHOR_TEXT_LIMIT)}`;
-  const anchored = setRunHomeAnchor(addRunHomes(state, [runHome]), runHome, anchor);
-  const next = planOnly ? anchored : { ...anchored, decision_recorded: false, next_step_recorded: false };
-  if (stateBody(next) !== stateBody(state)) {
-    try {
-      writeState(next, home, now);
-    } catch (error) {
-      return runUndecided(`the session's pipeline state at ${stateResult.path} cannot be written (${error && error.message})`);
+  const path = statePath(sessionId, home);
+  if (path === null) return runUndecided('the session id is not usable as a pipeline state key');
+  if (!existsSync(path)) return runVerdict(1, noThreadReason('check-run'));
+  const lockPath = `${path}.lock`;
+  try {
+    closeSync(openSync(lockPath, 'wx'));
+  } catch (error) {
+    if (error && error.code === 'EEXIST') {
+      return runUndecided(`${lockPath} exists, so another run is being checked for this session; run again when it ends, or delete ${lockPath} if no other run is starting`);
     }
+    return runUndecided(`the session's pipeline state at ${path} cannot be written (${error && error.message})`);
   }
-  return runVerdict(0, anchor);
+  try {
+    const stateResult = readState(sessionId, home);
+    if (stateResult.status === 'invalid') return runUndecided('the session id is not usable as a pipeline state key');
+    if (stateResult.status === 'absent') return runVerdict(1, noThreadReason('check-run'));
+    if (stateResult.status === 'unreadable') {
+      return runUndecided(`the session's pipeline state at ${stateResult.path} cannot be read; call resume_thread on the held logbook thread, then run again`);
+    }
+    const state = stateResult.state;
+    if (state.thread_id === null) return runVerdict(1, noThreadReason('check-run'));
+    const planOnly = runArguments.length === 1 && runArguments[0] === '--plan-only';
+    const missing = planOnly ? [] : missingBoundaryParts(state);
+    if (missing.length > 0) {
+      return runVerdict(1, `check-run: the boundary before this run is not recorded. Missing: ${missing.join('; ')}. A --plan-only run needs only the held thread.`);
+    }
+    const command = runCommand(runScript, runArguments, environment.SHIP);
+    const anchor = `${ANCHOR_PREFIX} ${basename(runHome)} at ${runHome}, thread ${state.thread_id}: ${shorten(command, ANCHOR_TEXT_LIMIT)}`;
+    const anchored = setRunHomeAnchor(addRunHomes(state, [runHome]), runHome, anchor);
+    const next = planOnly ? anchored : { ...anchored, decision_recorded: false, next_step_recorded: false };
+    if (stateBody(next) !== stateBody(state)) {
+      try {
+        writeState(next, home, now);
+      } catch (error) {
+        return runUndecided(`the session's pipeline state at ${stateResult.path} cannot be written (${error && error.message})`);
+      }
+    }
+    return runVerdict(0, anchor);
+  } finally {
+    rmSync(lockPath, { force: true });
+  }
 }
 
 const SUBAGENT_INTERPHASE_REASON =
