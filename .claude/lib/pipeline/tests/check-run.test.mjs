@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -273,6 +273,81 @@ test('check-run: a state that cannot be written cannot be decided', () => {
       assert.equal(readFileSync(path, 'utf8'), before);
     } finally {
       chmodSync(sessionsDirectory(home), 0o700);
+    }
+  });
+});
+
+test('check-run: a held lock cannot be decided and changes nothing', () => {
+  withHome((home) => {
+    const runHome = makeRunHome(home, 'held');
+    const path = writeState(home, { decision_recorded: true, next_step_recorded: true });
+    const lockPath = `${path}.lock`;
+    writeFileSync(lockPath, 'held');
+    const before = readFileSync(path, 'utf8');
+    const result = checkRun(home, [`${runHome}/run.zsh`, '--resume']);
+    assert.equal(result.status, 2);
+    assert.equal(
+      result.stderr,
+      `check-run: could not decide: ${lockPath} exists, so another run is being checked for this session; run again when it ends, or delete ${lockPath} if no other run is starting\n`,
+    );
+    assert.equal(result.stdout, '');
+    assert.equal(readFileSync(path, 'utf8'), before);
+    assert.equal(readFileSync(lockPath, 'utf8'), 'held');
+  });
+});
+
+function spawnCheckRun(home, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [CHECK_RUN, ...args], { env: environment(home, { CLAUDE_CODE_SESSION_ID: SESSION }), stdio: 'ignore' });
+    child.on('error', reject);
+    child.on('close', (code) => resolve(code));
+  });
+}
+
+test('check-run: concurrent builds on one boundary start exactly one', async () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'check-run-')));
+  try {
+    const first = makeRunHome(home, 'a');
+    const second = makeRunHome(home, 'b');
+    for (let repetition = 0; repetition < 20; repetition += 1) {
+      const path = writeState(home, { decision_recorded: true, next_step_recorded: true });
+      const codes = await Promise.all([
+        spawnCheckRun(home, [`${first}/run.zsh`, '--resume']),
+        spawnCheckRun(home, [`${second}/run.zsh`, '--resume']),
+      ]);
+      assert.equal(codes.filter((code) => code === 0).length, 1, `repetition ${repetition}: ${codes}`);
+      assert.equal(
+        codes.filter((code) => code === 1 || code === 2).length,
+        1,
+        `repetition ${repetition}: ${codes}`,
+      );
+      assert.equal(existsSync(`${path}.lock`), false, `repetition ${repetition}`);
+    }
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('check-run: a state write that fails leaves the state and no lock behind', () => {
+  withHome((home) => {
+    const runHome = makeRunHome(home, 'immutable');
+    const path = writeState(home, { decision_recorded: true, next_step_recorded: true });
+    const before = readFileSync(path, 'utf8');
+    const entries = readdirSync(sessionsDirectory(home)).sort();
+    assert.equal(spawnSync('chflags', ['uchg', path]).status, 0);
+    try {
+      const result = checkRun(home, [`${runHome}/run.zsh`]);
+      assert.equal(result.status, 2);
+      assert.ok(
+        result.stderr.startsWith(`check-run: could not decide: the session's pipeline state at ${path} cannot be written (`),
+        result.stderr,
+      );
+      assert.equal(result.stdout, '');
+      assert.equal(readFileSync(path, 'utf8'), before);
+      assert.equal(existsSync(`${path}.lock`), false);
+      assert.deepEqual(readdirSync(sessionsDirectory(home)).sort(), entries);
+    } finally {
+      spawnSync('chflags', ['nouchg', path]);
     }
   });
 });
