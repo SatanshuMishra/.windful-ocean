@@ -293,18 +293,6 @@
             "timeout": 10
           }
         ]
-      },
-      {
-        "matcher": "^Bash$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/pipeline-continuity.mjs\"",
-            "if": "Bash(*run.zsh*)",
-            "onFailure": "block",
-            "timeout": 10
-          }
-        ]
       }
     ],
     "PostToolUse": [
@@ -324,17 +312,6 @@
           {
             "type": "command",
             "command": "node \"$HOME/.claude/hooks/pipeline-continuity.mjs\"",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "^Bash$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/pipeline-continuity.mjs\"",
-            "if": "Bash(*.mitosis/*)",
             "timeout": 10
           }
         ]
