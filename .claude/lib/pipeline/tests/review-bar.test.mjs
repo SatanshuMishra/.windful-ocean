@@ -20,8 +20,29 @@ const SECURITY_SENTENCE = 'A finding that describes a vulnerability, a weakness 
 
 const REPEAT_KIND_SENTENCE = 'A candidate rejected as a repeat takes the kind of the item it repeats.';
 
+const EARLIER_FINDINGS_SENTENCE = 'A finding already in an earlier round\'s findings file is not reported again; the validator re-checks earlier blockers.';
+
+const SUITE_REPORT_SENTENCES = Object.freeze([
+  'A criterion fails when the test a row names is missing, fails in the suite output, or does not assert the row\'s given and expected.',
+  'The full suite runs once at the reviewed head before review starts, and its output is the suite output the brief names; a reviewer or validator reads a test\'s result there and does not run the full suite again.',
+  'A reviewer finds a defect by reading the diff, the spec and the tests, and runs a command only to reproduce a defect it found by reading.',
+]);
+
+const MEDIUM_LINE = '- MEDIUM: behaviour that is wrong for an input of a class the spec lists, in a criterion\'s inputs or by name, or for an input of a class no criterion lists that the changed code tells apart by a branch, a parse or a lookup at a line the finding cites, or a security need the spec states that is weakened, with a reproduction.';
+
+const BAR_LINE = '1. Bar: the finding breaks an acceptance criterion, a requirement, a boundary or a non-goal of the spec, a need in the spec\'s Review bar section when the spec has one, or a project rule quoted word for word with its path, or it shows the changed code handling wrongly an input of a class no criterion lists that the code tells apart at a line the finding cites, or it is a vulnerability the Severity section\'s HIGH item names; a CRITICAL finding passes this test.';
+
+const SUITE_INPUT_TEXT = 'Suite output, the output of the project\'s full test suite run at {{head}} before review: {{suite}}. Read a test\'s result there and do not run the full suite yourself.';
+
+const REPRODUCE_SENTENCE = 'Never edit, commit, push or open anything: you read and report, and you run a command only to reproduce a finding.';
+
+const UNLISTED_CLASS_SENTENCE = 'Find defects by reading the diff, the spec and the tests: look for code that tells apart, by a branch, a parse or a lookup, a class of input that no acceptance criterion lists, and for a row whose test does not assert the row\'s given and expected.';
+
+const MET_SENTENCE = 'A criterion is MET when the test of each of its rows exists, asserts the row\'s given and expected, and passes in {{suite}}; read the tests and {{suite}} as that evidence, and run a single test only to reproduce a NOT MET verdict.';
+
 const REPORT_SENTENCES = Object.freeze([
-  'A finding already in an earlier round\'s findings file is not reported again; the validator re-checks earlier blockers.',
+  EARLIER_FINDINGS_SENTENCE,
+  ...SUITE_REPORT_SENTENCES,
   'Every finding is rated with the Severity section, and the validator decides with What blocks whether it blocks.',
   'A kind listed in the do-not-flag file is not reported unless it is CRITICAL or breaks an acceptance criterion or requirement of the spec.',
   'A secret or credential is never quoted: name the file and line that hold it.',
@@ -29,17 +50,17 @@ const REPORT_SENTENCES = Object.freeze([
 ]);
 
 const REVIEWER_PLACEHOLDERS = Object.freeze([
-  'range', 'worktree', 'base', 'head', 'round', 'previous_head', 'earlier_findings', 'spec', 'decisions', 'do_not_flag', 'review_bar',
+  'range', 'worktree', 'base', 'head', 'round', 'previous_head', 'earlier_findings', 'spec', 'decisions', 'do_not_flag', 'suite', 'review_bar',
 ]);
 
 const PLACEHOLDERS = Object.freeze({
   'code-reviewer.md': REVIEWER_PLACEHOLDERS,
   'security-reviewer.md': REVIEWER_PLACEHOLDERS,
   'conformance-auditor.md': Object.freeze([
-    'range', 'worktree', 'base', 'head', 'round', 'earlier_findings', 'spec', 'decisions', 'criteria', 'diff', 'review_bar',
+    'range', 'worktree', 'base', 'head', 'round', 'earlier_findings', 'spec', 'decisions', 'criteria', 'diff', 'suite', 'review_bar',
   ]),
   'validator.md': Object.freeze([
-    'range', 'worktree', 'base', 'head', 'round', 'previous_head', 'spec', 'decisions', 'ledger', 'candidates', 'diff', 'review_bar',
+    'range', 'worktree', 'base', 'head', 'round', 'previous_head', 'spec', 'decisions', 'ledger', 'candidates', 'diff', 'suite', 'review_bar',
   ]),
 });
 
@@ -110,7 +131,27 @@ test('the review bar defines the severities, the three blocking tests and the ro
   const reports = parts['## What a reviewer reports'];
   REPORT_SENTENCES.forEach((sentence) => assert.ok(reports.includes(sentence), `What a reviewer reports must hold: ${sentence}`));
 
+  const paragraphs = reports.split('\n\n').map((paragraph) => paragraph.trim()).filter((paragraph) => paragraph.length > 0);
+  const earlier = paragraphs.findIndex((paragraph) => paragraph.startsWith('A finding already in an earlier round\'s findings file'));
+  assert.ok(earlier >= 0, 'What a reviewer reports must hold the paragraph on earlier findings');
+  assert.deepEqual(
+    paragraphs.slice(earlier + 1, earlier + 1 + SUITE_REPORT_SENTENCES.length),
+    [...SUITE_REPORT_SENTENCES],
+    'the three suite paragraphs must follow the paragraph on earlier findings in order',
+  );
+
   assert.ok(parts['## Kinds'].includes('ledger'), 'Kinds must name the ledger');
+});
+
+test('the review bar rates an input by the class the spec lists or the code tells apart', () => {
+  const severity = sections(readFileSync(REVIEW_BAR, 'utf8'))['## Severity'].split('\n').filter((line) => line.startsWith('- '));
+  assert.equal(severity[2], MEDIUM_LINE);
+  assert.ok(!severity[2].includes('plausibly gives'), 'the MEDIUM item must not hold plausibly gives');
+});
+
+test('the review bar blocks an unlisted class only with the line that tells it apart', () => {
+  const numbered = sections(readFileSync(REVIEW_BAR, 'utf8'))['## What blocks'].split('\n').filter((line) => /^\d+\. /.test(line));
+  assert.equal(numbered[0], BAR_LINE);
 });
 
 test('each brief template holds exactly its placeholders and the fixed instructions', () => {
@@ -158,6 +199,39 @@ test('each brief template holds exactly its placeholders and the fixed instructi
   VERDICT_KEYS.forEach((key) => assert.ok(validator.includes(`\`${key}\``), `validator.md must name the JSON key ${key}`));
   ['open', 'fixed', 'confirmed', 'rejected', 'bar', 'introduced', 'reproduced', 'carried', 'network', '2000']
     .forEach((word) => assertWord(validator, word, 'validator.md'));
+});
+
+test('the briefs read a test\'s result in the suite output', () => {
+  const read = (name) => sections(readFileSync(`${BRIEFS_DIR}/${name}`, 'utf8'));
+
+  ['code-reviewer.md', 'security-reviewer.md', 'validator.md'].forEach((name) => {
+    const bullets = read(name)['## Inputs'].split('\n').filter((line) => line.startsWith('- '));
+    assert.equal(bullets[bullets.length - 1], `- ${SUITE_INPUT_TEXT}`, `${name} must end its Inputs list with the suite output bullet`);
+  });
+
+  const paragraphs = read('conformance-auditor.md')['## Input'].split('\n\n').map((paragraph) => paragraph.trim()).filter((paragraph) => paragraph.length > 0);
+  assert.equal(paragraphs[paragraphs.length - 1], SUITE_INPUT_TEXT, 'conformance-auditor.md must end its Input section with the suite output paragraph');
+});
+
+test('the reviewer briefs run a command only to reproduce a finding', () => {
+  ['code-reviewer.md', 'security-reviewer.md', 'conformance-auditor.md'].forEach((name) => {
+    const text = readFileSync(`${BRIEFS_DIR}/${name}`, 'utf8');
+    assert.ok(text.includes(REPRODUCE_SENTENCE), `${name} must hold: ${REPRODUCE_SENTENCE}`);
+    assert.ok(!text.includes('you read, build and test'), `${name} must not hold you read, build and test`);
+  });
+});
+
+test('the code reviewer looks for unlisted classes and rows their tests do not assert', () => {
+  const review = sections(readFileSync(`${BRIEFS_DIR}/code-reviewer.md`, 'utf8'))['## What you review'];
+  const paragraph = review.split('\n\n').map((part) => part.trim()).find((part) => part.startsWith('In round 1, review the whole range'));
+  assert.ok(paragraph !== undefined, 'code-reviewer.md must hold the round 1 paragraph');
+  assert.ok(paragraph.endsWith(` ${UNLISTED_CLASS_SENTENCE}`), 'the round 1 paragraph must end with the sentence that begins Find defects by reading');
+});
+
+test('the conformance auditor judges a criterion from its rows and the suite output', () => {
+  const text = readFileSync(`${BRIEFS_DIR}/conformance-auditor.md`, 'utf8');
+  assert.ok(text.includes(MET_SENTENCE), `conformance-auditor.md must hold: ${MET_SENTENCE}`);
+  assert.ok(!text.includes('Run each criterion\'s named test command'), 'conformance-auditor.md must not hold Run each criterion\'s named test command');
 });
 
 test('the review bar and the validator brief state the repeat rule and every pass of the introduced test', () => {
