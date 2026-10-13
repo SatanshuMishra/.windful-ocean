@@ -2,13 +2,12 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import { basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { analyzeCommand, couldNotDecide, handleEvent, homeDirectory } from '../lib/pipeline/continuity.mjs';
+import { couldNotDecide, handleEvent } from '../lib/pipeline/continuity.mjs';
 
-const RUN_SCRIPT = 'run.zsh';
 const EVENT_NAME_FIELD = /"hook_event_name"\s*:\s*"([^"\\]*)"/;
 const TOOL_NAME_FIELD = /"tool_name"\s*:\s*"([^"\\]*)"/;
 const OTHER_EVENTS = Object.freeze(new Set(['PostToolUse', 'PostToolUseFailure', 'SessionStart']));
-export const BINDING = Object.freeze({ RUN_GATE: 'run-gate', OTHER: 'other', UNATTRIBUTED: 'unattributed' });
+export const BINDING = Object.freeze({ OTHER: 'other', UNATTRIBUTED: 'unattributed' });
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -41,45 +40,12 @@ function payloadNames(payload) {
 export function callingBinding(payload) {
   const { eventName, toolName } = payloadNames(payload);
   if (typeof eventName !== 'string') return BINDING.UNATTRIBUTED;
-  if (eventName === 'PreToolUse') {
-    if (toolName === 'Bash') return BINDING.RUN_GATE;
-    return toolName === 'Skill' ? BINDING.OTHER : BINDING.UNATTRIBUTED;
-  }
+  if (eventName === 'PreToolUse') return toolName === 'Skill' ? BINDING.OTHER : BINDING.UNATTRIBUTED;
   return OTHER_EVENTS.has(eventName) ? BINDING.OTHER : BINDING.UNATTRIBUTED;
-}
-
-function gatedCommand(event) {
-  if (event.hook_event_name !== 'PreToolUse' || event.tool_name !== 'Bash') return null;
-  const command = isObject(event.tool_input) ? event.tool_input.command : null;
-  return typeof command === 'string' ? command : null;
-}
-
-function commandRunsRunZsh(command, event) {
-  try {
-    return analyzeCommand(command, { home: homeDirectory(), cwd: event.cwd }).runs.length > 0;
-  } catch {
-    return command.includes(RUN_SCRIPT);
-  }
-}
-
-function hasAgentId(event) {
-  return typeof event.agent_id === 'string' && event.agent_id !== '';
 }
 
 function decided(output) {
   return Object.freeze({ output: output === undefined ? null : output, failure: null });
-}
-
-function runGateRefusal(event, detail) {
-  const refusal = couldNotDecide(detail);
-  if (!hasAgentId(event)) return refusal;
-  return Object.freeze({
-    ...refusal,
-    hookSpecificOutput: Object.freeze({
-      ...refusal.hookSpecificOutput,
-      permissionDecisionReason: `Pipeline run gate could not decide: ${detail}. A subagent cannot repair the session's pipeline state or hold its logbook thread, so this run belongs in the main conversation. Hand it back to the main conversation.`,
-    }),
-  });
 }
 
 function undecided(detail) {
@@ -89,10 +55,8 @@ function undecided(detail) {
 function handled(event) {
   try {
     return decided(handleEvent(event));
-  } catch (error) {
-    const command = gatedCommand(event);
-    if (command === null || !commandRunsRunZsh(command, event)) return decided(null);
-    return decided(runGateRefusal(event, `the hook failed while reading or writing the session's pipeline state (${error && error.message})`));
+  } catch {
+    return decided(null);
   }
 }
 
@@ -100,11 +64,7 @@ export function respond(raw) {
   const payload = parsePayload(raw);
   const binding = callingBinding(payload);
   if (binding === BINDING.UNATTRIBUTED) return undecided('the hook could not tell which binding called it from its payload');
-  if (binding === BINDING.OTHER) return payload.ok ? handled(payload.value) : decided(null);
-  if (!payload.ok) return decided(couldNotDecide('the hook payload is not a JSON object'));
-  const event = payload.value;
-  if (gatedCommand(event) === null) return decided(runGateRefusal(event, 'the hook payload carries no command'));
-  return handled(event);
+  return payload.ok ? handled(payload.value) : decided(null);
 }
 
 function main() {

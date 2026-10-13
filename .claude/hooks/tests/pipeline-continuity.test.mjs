@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HOOK = fileURLToPath(new URL('../pipeline-continuity.mjs', import.meta.url));
+const CHECK_RUN = fileURLToPath(new URL('../../lib/pipeline/check-run.mjs', import.meta.url));
 const SETTINGS = fileURLToPath(new URL('../../settings.json', import.meta.url));
 const HOOK_COMMAND = 'node "$HOME/.claude/hooks/pipeline-continuity.mjs"';
 const HEADING = '# Pipeline: the runs this session is driving';
@@ -18,14 +19,12 @@ const LOGBOOK = 'mcp__plugin_logbook_ledger__';
 
 const EXPECTED_BINDINGS = Object.freeze([
   Object.freeze({ event: 'PreToolUse', matcher: '^Skill$', if: undefined, onFailure: undefined }),
-  Object.freeze({ event: 'PreToolUse', matcher: '^Bash$', if: 'Bash(*run.zsh*)', onFailure: 'block' }),
   Object.freeze({
     event: 'PostToolUse',
     matcher: '^mcp__(?:plugin_logbook_)?ledger__(resume_thread|record_decision|update_thread|park_thread|close_thread)$',
     if: undefined,
     onFailure: undefined,
   }),
-  Object.freeze({ event: 'PostToolUse', matcher: '^Bash$', if: 'Bash(*.mitosis/*)', onFailure: undefined }),
   Object.freeze({ event: 'PostToolUseFailure', matcher: '^mcp__(?:plugin_logbook_)?ledger__record_decision$', if: undefined, onFailure: undefined }),
   Object.freeze({ event: 'SessionStart', matcher: 'compact', if: undefined, onFailure: undefined }),
 ]);
@@ -97,6 +96,35 @@ function compact(sessionId, home) {
   return fire(home, { ...base(sessionId, home), hook_event_name: 'SessionStart', source: 'compact' });
 }
 
+function checkRunEnvironment(home, sessionId) {
+  const inherited = Object.entries(process.env).filter(([name]) => name !== 'CLAUDE_CODE_SESSION_ID' && name !== 'SHIP');
+  return { ...Object.fromEntries(inherited), HOME: home, CLAUDE_CODE_SESSION_ID: sessionId };
+}
+
+function spawnCheckRun(home, sessionId, args) {
+  return spawnSync(process.execPath, [CHECK_RUN, ...args], { encoding: 'utf8', env: checkRunEnvironment(home, sessionId) });
+}
+
+function writeHeldState(home, sessionId) {
+  const sessions = join(home, '.mitosis', 'sessions');
+  mkdirSync(sessions, { recursive: true });
+  writeFileSync(
+    join(sessions, `${sessionId}.json`),
+    JSON.stringify({
+      version: 1,
+      session_id: sessionId,
+      thread_id: THREAD,
+      decision_recorded: false,
+      next_step_recorded: false,
+      reasons_accepted: false,
+      reasons_refused: false,
+      run_homes: [],
+      latest_anchor: null,
+      updated_at: null,
+    }),
+  );
+}
+
 function continuityBindings(settings) {
   return Object.entries(settings.hooks).flatMap(([event, bindings]) =>
     bindings.flatMap((binding, index) =>
@@ -118,38 +146,12 @@ test('pipeline-continuity: interphase is denied until the session holds a thread
   });
 });
 
-test('pipeline-continuity: the run gate denies then allows end to end', () => {
-  withHome(['run-gate'], ({ home }) => {
-    const sessionId = 'session-run-gate';
-    const run = bashEvent(sessionId, home, 'PreToolUse', `$HOME/.mitosis/${REPO}/run-gate/run.zsh --resume`);
-    assertDeny(fire(home, run), ['open_thread', 'resume_thread']);
-    assert.equal(resume(sessionId, home), '');
-    assertDeny(fire(home, run), ['record_decision', 'update_thread']);
-    const decided = fire(
-      home,
-      logbookEvent(sessionId, home, 'record_decision', {
-        thread_id: THREAD,
-        title: 'Build the run-gate lane',
-        context: 'The plan is clean and the lane is ready to build.',
-        options: ['Build now', 'Revise the Steps first'],
-        outcome: 'Build now',
-      }),
-    );
-    assert.ok(parsedOne(decided).hookSpecificOutput.additionalContext.startsWith(ANCHOR_PREFIX));
-    const missingNextStep = assertDeny(fire(home, run), ['update_thread']);
-    assert.ok(!missingNextStep.includes('call record_decision'), `the decision is no longer missing: ${missingNextStep}`);
-    assert.equal(fire(home, logbookEvent(sessionId, home, 'update_thread', { thread_id: THREAD, next_step: 'Review round 1 of the run-gate lane', next_step_records: [RECORD] })), '');
-    assert.equal(fire(home, run), '');
-    assertDeny(fire(home, run), ['record_decision', 'update_thread']);
-  });
-});
-
 test('pipeline-continuity: compaction brings back the pipeline briefing', () => {
   withHome(['briefed'], ({ home, runHomes }) => {
     const sessionId = 'session-briefing';
     assert.equal(compact(sessionId, home), '');
     assert.equal(resume(sessionId, home), '');
-    fire(home, bashEvent(sessionId, home, 'PostToolUse', `H=~/.mitosis/${REPO}/briefed; $H/run.zsh --plan-only > $H/plan.log 2>&1`));
+    assert.equal(spawnCheckRun(home, sessionId, [`${runHomes[0]}/run.zsh`, '--plan-only']).status, 0);
     const output = parsedOne(compact(sessionId, home)).hookSpecificOutput;
     assert.equal(output.hookEventName, 'SessionStart');
     assert.ok(output.additionalContext.startsWith(`${HEADING}\n`), output.additionalContext);
@@ -162,40 +164,24 @@ test('pipeline-continuity: compaction brings back the pipeline briefing', () => 
 test('pipeline-continuity: a run leaves an anchor line', () => {
   withHome(['anchored'], ({ home, runHomes }) => {
     const sessionId = 'session-anchor';
-    const command = `~/.mitosis/${REPO}/anchored/run.zsh --plan-only`;
-    assert.equal(fire(home, bashEvent(sessionId, home, 'PostToolUse', command)), '');
+    const args = [`${runHomes[0]}/run.zsh`, '--plan-only'];
+    const statePath = join(home, '.mitosis', 'sessions', `${sessionId}.json`);
+    const refused = spawnCheckRun(home, sessionId, args);
+    assert.equal(refused.status, 1, refused.stderr);
+    assert.equal(existsSync(statePath), false);
     assert.equal(resume(sessionId, home), '');
-    const output = parsedOne(fire(home, bashEvent(sessionId, home, 'PostToolUse', command))).hookSpecificOutput;
-    assert.equal(output.hookEventName, 'PostToolUse');
-    const anchor = output.additionalContext;
+    const allowed = spawnCheckRun(home, sessionId, args);
+    assert.equal(allowed.status, 0, allowed.stderr);
+    assert.equal(allowed.stdout, '');
+    const lines = allowed.stderr.split('\n').filter((line) => line !== '');
+    assert.equal(lines.length, 1, allowed.stderr);
+    const anchor = lines[0];
+    assert.equal(anchor, `Pipeline anchor: anchored at ${runHomes[0]}, thread ${THREAD}: ${runHomes[0]}/run.zsh --plan-only`);
     assert.ok(anchor.startsWith(ANCHOR_PREFIX), anchor);
-    assert.ok(!anchor.includes('\n'), 'the anchor is one line');
-    ['anchored', runHomes[0], THREAD, command].forEach((part) => assert.ok(anchor.includes(part), `the anchor names ${part}: ${anchor}`));
+    assert.equal(JSON.parse(readFileSync(statePath, 'utf8')).latest_anchor, anchor);
     const briefing = parsedOne(compact(sessionId, home)).hookSpecificOutput.additionalContext;
     assert.ok(briefing.includes(anchor), briefing);
   });
-});
-
-test('pipeline-continuity: a failing gate refuses', () => {
-  withHome(['failing'], ({ home }) => {
-    const command = `~/.mitosis/${REPO}/failing/run.zsh --resume`;
-    const truncated = JSON.stringify(bashEvent('session-truncated', home, 'PreToolUse', command)).slice(0, -2);
-    assertDeny(spawnHook(home, truncated), ['could not decide', 'resume_thread']);
-    const truncatedPost = JSON.stringify(bashEvent('session-truncated', home, 'PostToolUse', command)).slice(0, -2);
-    assert.equal(spawnHook(home, truncatedPost), '');
-    const sessionId = 'session-corrupt';
-    const sessions = join(home, '.mitosis', 'sessions');
-    mkdirSync(sessions, { recursive: true });
-    const statePath = join(sessions, `${sessionId}.json`);
-    writeFileSync(statePath, 'this is not JSON');
-    assertDeny(fire(home, bashEvent(sessionId, home, 'PreToolUse', command)), ['could not decide', 'resume_thread']);
-    assert.equal(fire(home, bashEvent(sessionId, home, 'PostToolUse', command)), '');
-    assert.equal(readFileSync(statePath, 'utf8'), 'this is not JSON');
-  });
-  const settings = JSON.parse(readFileSync(SETTINGS, 'utf8'));
-  const gate = continuityBindings(settings).filter((found) => found.event === 'PreToolUse' && found.matcher === '^Bash$');
-  assert.equal(gate.length, 1);
-  assert.equal(gate[0].handler.onFailure, 'block');
 });
 
 test('pipeline-continuity: settings wires the hooks and the auto-compact window', () => {
@@ -232,17 +218,16 @@ function spawnRaw(home, stdin) {
 function assertUndecided(result, label) {
   assert.equal(result.status, 1, `exit 1 for ${label}`);
   assert.equal(result.stdout, '', `nothing on stdout for ${label}`);
-  assert.ok(result.stderr.includes('could not decide') && result.stderr.includes('resume_thread'), `the could-not-decide reason on stderr for ${label}: ${result.stderr}`);
+  assert.ok(result.stderr.startsWith('Pipeline continuity hook could not decide:'), `the could-not-decide reason on stderr for ${label}: ${result.stderr}`);
+  assert.ok(result.stderr.includes('resume_thread'), `the reason names resume_thread for ${label}: ${result.stderr}`);
 }
 
-test('pipeline-continuity: an unreadable run-gate payload refuses', () => {
+test('pipeline-continuity: an unattributable payload is undecided', () => {
   withHome(['unreadable'], ({ home }) => {
     const beforeCommand = `{"session_id":"session-cut","cwd":${JSON.stringify(home)},"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"comm`;
-    assertDeny(spawnHook(home, beforeCommand), ['could not decide', 'resume_thread']);
+    assertUndecided(spawnRaw(home, beforeCommand), 'a truncated PreToolUse Bash payload');
     const noCommand = { ...base('session-cut', home), hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: {} };
-    assertDeny(fire(home, noCommand), ['could not decide', 'resume_thread']);
-    const subagentReason = assertDeny(fire(home, { ...noCommand, agent_id: 'sub-1' }), ['could not decide', 'main conversation']);
-    assert.ok(!/resume_thread|open_thread/.test(subagentReason), `a subagent is not sent to open_thread or resume_thread: ${subagentReason}`);
+    assertUndecided(spawnRaw(home, JSON.stringify(noCommand)), 'a PreToolUse Bash payload with no command');
     [
       '',
       '{"session_id":"session-cut"',
@@ -257,7 +242,6 @@ test('pipeline-continuity: an unreadable run-gate payload refuses', () => {
     assertUndecided(fromDirectory, 'stdin opened on a directory');
   });
 });
-
 test('pipeline-continuity: unreadable payloads of other bindings fail open', () => {
   withHome(['open'], ({ home }) => {
     const command = `~/.mitosis/${REPO}/open/run.zsh --resume`;
@@ -271,35 +255,29 @@ test('pipeline-continuity: unreadable payloads of other bindings fail open', () 
   });
 });
 
-test('pipeline-continuity: a subagent is sent back to the main conversation end to end', () => {
-  withHome(['subagent'], ({ home }) => {
-    const sessionId = 'session-subagent';
-    const command = `$HOME/.mitosis/${REPO}/subagent/run.zsh --resume`;
-    const subagentRun = { ...bashEvent(sessionId, home, 'PreToolUse', command), agent_id: 'sub-1' };
-    const subagentShip = { ...bashEvent(sessionId, home, 'PreToolUse', `SHIP=1 ${command}`), agent_id: 'sub-1' };
-    const subagentNoCommand = { ...base(sessionId, home), hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: {}, agent_id: 'sub-1' };
-    const sentBack = (stdout) => {
-      const reason = assertDeny(stdout, ['main conversation']);
-      assert.ok(!/resume_thread|open_thread/.test(reason), `a subagent is not sent to open_thread or resume_thread: ${reason}`);
-    };
-    sentBack(fire(home, subagentRun));
-    sentBack(fire(home, subagentNoCommand));
-    assert.equal(resume(sessionId, home), '');
-    fire(
-      home,
-      logbookEvent(sessionId, home, 'record_decision', {
-        thread_id: THREAD,
-        title: 'Build the subagent lane',
-        context: 'The plan is clean and the lane is ready to build.',
-        options: ['Build now', 'Revise the Steps first'],
-        outcome: 'Build now',
-      }),
-    );
-    assert.equal(fire(home, logbookEvent(sessionId, home, 'update_thread', { thread_id: THREAD, next_step: 'Review round 1 of the subagent lane', next_step_records: [RECORD] })), '');
-    sentBack(fire(home, subagentRun));
-    sentBack(fire(home, subagentShip));
-    sentBack(fire(home, subagentNoCommand));
-    assert.equal(fire(home, bashEvent(sessionId, home, 'PreToolUse', command)), '');
-    assertDeny(fire(home, bashEvent(sessionId, home, 'PreToolUse', command)), ['record_decision', 'update_thread']);
+test('pipeline-continuity: a Bash command that names run.zsh inside a quoted argument is not refused', () => {
+  withHome(['quoted'], ({ home, runHomes }) => {
+    const runHome = runHomes[0];
+    writeHeldState(home, 'session-quoted');
+    const command = `${runHome}/lb.zsh update_thread '{"next_step":"Run ${runHome}/run.zsh after the review"}'`;
+    const result = spawnRaw(home, JSON.stringify(bashEvent('session-quoted', home, 'PreToolUse', command)));
+    assert.equal(result.stdout, '');
+    assert.equal(result.status, 1, result.stderr);
   });
+});
+
+test('pipeline-continuity: a Bash command that runs run.zsh is not refused by the hook', () => {
+  withHome(['direct'], ({ home, runHomes }) => {
+    writeHeldState(home, 'session-direct');
+    const result = spawnRaw(home, JSON.stringify(bashEvent('session-direct', home, 'PreToolUse', `${runHomes[0]}/run.zsh --resume`)));
+    assert.equal(result.stdout, '');
+    assert.equal(result.status, 1, result.stderr);
+  });
+});
+
+test('pipeline-continuity: the hook has no run-gate binding', async () => {
+  const { BINDING, callingBinding } = await import('../pipeline-continuity.mjs');
+  assert.deepEqual(Object.keys(BINDING), ['OTHER', 'UNATTRIBUTED']);
+  const value = { session_id: 'session-binding', hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'ls' } };
+  assert.equal(callingBinding({ raw: JSON.stringify(value), ok: true, value }), 'unattributed');
 });

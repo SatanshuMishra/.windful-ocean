@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { BRIEFING_CAP, BRIEFING_HEADING, handleEvent, readState, statePath } from '../continuity.mjs';
+import * as continuity from '../continuity.mjs';
+import { BRIEFING_CAP, BRIEFING_HEADING, eventKind, handleEvent, readState, statePath } from '../continuity.mjs';
 
 const SESSION = 'session-main_1';
 const THREAD = '01M0NDPM0ACCR9CD68PMHYWGGD';
@@ -311,88 +312,6 @@ test('continuity: a next step counts only with its records', () => {
   });
 });
 
-test('continuity: a run waits for the decision and the next step', () => {
-  withHome((home) => {
-    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
-    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
-    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
-
-    const noThread = gate(run);
-    assert.ok(denied(noThread));
-    assert.match(reason(noThread), /resume_thread/);
-
-    handleEvent(resume(home));
-    const bare = gate(run);
-    assert.ok(denied(bare));
-    assert.match(reason(bare), /record_decision/);
-    assert.match(reason(bare), /option_reasons/);
-    assert.match(reason(bare), /update_thread/);
-    assert.match(reason(bare), /next_step_records/);
-
-    handleEvent(logbook(home, 'record_decision', decision()));
-    const halfway = gate(run);
-    assert.ok(denied(halfway));
-    assert.doesNotMatch(reason(halfway), /record_decision/);
-    assert.match(reason(halfway), /update_thread/);
-
-    handleEvent(logbook(home, 'update_thread', nextStep()));
-    assert.equal(gate(`${run} --resume`), null);
-    assert.equal(state().decision_recorded, false);
-    assert.equal(state().next_step_recorded, false);
-    assert.ok(denied(gate(run)));
-
-    const forms = [
-      `SHIP=1 ${run} --resume`,
-      `zsh ~/.mitosis/.windful-ocean/continuity/run.zsh`,
-      `nohup "${runHome}/run.zsh" > /dev/null 2>&1 &`,
-      `H=~/.mitosis/.windful-ocean/continuity; $H/run.zsh --resume > $H/build.log 2>&1`,
-      `H="\${HOME}/.mitosis/.windful-ocean/continuity" && SHIP=1 exec "$H/run.zsh"`,
-      `cd ~/.mitosis/.windful-ocean/continuity && ./run.zsh --resume`,
-      `cd ${runHome}\nzsh run.zsh`,
-      `echo start; time ${run}`,
-    ];
-    for (const form of forms) {
-      assert.ok(denied(gate(form)), form);
-      recordBoundary(home);
-      assert.equal(gate(form), null, form);
-      assert.equal(state().decision_recorded, false, form);
-    }
-
-    recordBoundary(home);
-    const marked = readFileSync(statePath(SESSION), 'utf8');
-    for (const harmless of [`chmod +x ${run}`, `cat ${runHome}/run.zsh`, `ls ~/.mitosis/.windful-ocean/continuity/run.zsh`, `echo './run.zsh'`]) {
-      assert.equal(gate(harmless), null, harmless);
-    }
-    assert.equal(readFileSync(statePath(SESSION), 'utf8'), marked);
-
-    const elsewhere = join(home, 'project');
-    mkdirSync(elsewhere, { recursive: true });
-    writeFileSync(join(elsewhere, 'run.zsh'), '#!/bin/zsh\n');
-    handleEvent(logbook(home, 'close_thread', { thread_id: THREAD }));
-    assert.equal(gate(`cd ${elsewhere} && ./run.zsh`), null);
-    assert.equal(gate(`${elsewhere}/run.zsh --resume`), null);
-    makeRunHome(home, 'runs', 'continuity');
-    assert.equal(gate('~/.mitosis/runs/continuity/run.zsh'), null);
-    assert.ok(denied(handleEvent({ ...bash(home, 'PreToolUse', './run.zsh'), cwd: runHome })));
-  });
-});
-
-test('continuity: plan-only runs are never held back by records', () => {
-  withHome((home) => {
-    makeRunHome(home, 'logbook', 'compaction-safe-continuity');
-    const plan = '$HOME/.mitosis/logbook/compaction-safe-continuity/run.zsh --plan-only';
-    assert.ok(denied(handleEvent(bash(home, 'PreToolUse', plan))));
-    handleEvent(resume(home));
-    assert.equal(handleEvent(bash(home, 'PreToolUse', plan)), null);
-    assert.equal(state().decision_recorded, false);
-    assert.equal(state().next_step_recorded, false);
-    handleEvent(logbook(home, 'record_decision', decision()));
-    assert.equal(handleEvent(bash(home, 'PreToolUse', plan)), null);
-    assert.equal(state().decision_recorded, true);
-    assert.ok(denied(handleEvent(bash(home, 'PreToolUse', `${plan}; ~/.mitosis/logbook/compaction-safe-continuity/run.zsh`))));
-  });
-});
-
 test('continuity: sessions without state are left alone', () => {
   withHome((home) => {
     const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
@@ -420,14 +339,11 @@ test('continuity: sessions without state are left alone', () => {
     const corrupt = readFileSync(statePath(SESSION), 'utf8');
     assert.equal(handleEvent(skill(home, 'interphase:feature', 'Do it. Work autonomously.')), null);
     for (const event of quiet) assert.equal(handleEvent(event), null);
-    const refused = handleEvent(bash(home, 'PreToolUse', `${runHome}/run.zsh --plan-only`));
-    assert.ok(denied(refused));
-    assert.match(reason(refused), /could not decide/);
-    assert.match(reason(refused), /resume_thread/);
+    assert.equal(handleEvent(bash(home, 'PreToolUse', `${runHome}/run.zsh --plan-only`)), null);
     assert.equal(readFileSync(statePath(SESSION), 'utf8'), corrupt);
 
     writeFileSync(statePath(SESSION), JSON.stringify({ version: 1, session_id: SESSION, thread_id: THREAD }));
-    assert.match(reason(handleEvent(bash(home, 'PreToolUse', `${runHome}/run.zsh`))), /could not decide/);
+    assert.equal(handleEvent(bash(home, 'PreToolUse', `${runHome}/run.zsh`)), null);
 
     handleEvent(resume(home));
     assert.equal(state().thread_id, THREAD);
@@ -446,59 +362,8 @@ test('continuity: sessions without state are left alone', () => {
   });
 });
 
-test('continuity: run homes are found from command text', () => {
-  withHome((home) => {
-    const dotted = makeRunHome(home, '.windful-ocean', 'pipeline-logbook-continuity');
-    const plain = makeRunHome(home, 'logbook', 'compaction-safe-continuity', { runZsh: false, charter: '# Charter\n' });
-    const verdictHome = makeRunHome(home, '.windful-ocean', 'review-loop');
-    const empty = join(home, '.mitosis', '.windful-ocean', 'nothing-here');
-    mkdirSync(empty, { recursive: true });
-    makeRunHome(home, 'runs', 'pipeline-logbook-continuity');
-    makeRunHome(home, 'sessions', 'stray');
-    handleEvent(resume(home));
-    const homes = () => state().run_homes.map((entry) => entry.path);
-    const post = (command) => handleEvent(bash(home, 'PostToolUse', command));
-
-    post('ls ~/.mitosis/.windful-ocean/pipeline-logbook-continuity/');
-    assert.deepEqual(homes(), [dotted]);
-    post('cat "$HOME/.mitosis/logbook/compaction-safe-continuity/CHARTER.md"');
-    assert.deepEqual(homes(), [plain, dotted]);
-    post(`grep x \${HOME}/.mitosis/.windful-ocean/pipeline-logbook-continuity`);
-    assert.deepEqual(homes(), [dotted, plain]);
-    post(`tail ${plain}/rounds.md|head`);
-    assert.deepEqual(homes(), [plain, dotted]);
-    post(`test -d '${dotted}'&&echo yes`);
-    assert.deepEqual(homes(), [dotted, plain]);
-
-    post('ls ~/.mitosis/.windful-ocean/nothing-here/ ~/.mitosis/runs/pipeline-logbook-continuity/ $HOME/.mitosis/sessions/stray');
-    assert.deepEqual(homes(), [dotted, plain]);
-    post('ls ~/.mitosis/.windful-ocean/pipeline-logbook-continuity-old ~/.mitosis/.windful-ocean/pipeline-logbook-continuityX/run.zsh');
-    assert.deepEqual(homes(), [dotted, plain]);
-
-    post('node ~/.claude/lib/pipeline/pipeline.mjs verdict --ledger ~/.mitosis/.windful-ocean/findings.jsonl --run review-loop --msp core --round 1');
-    assert.deepEqual(homes(), [verdictHome, dotted, plain]);
-
-    post(`echo ${plain}`);
-    assert.deepEqual(homes(), [plain, verdictHome, dotted]);
-    assert.equal(new Set(homes()).size, homes().length);
-
-    withHome((other) => {
-      const scoped = makeRunHome(other, '.windful-ocean', 'pipeline-logbook-continuity');
-      handleEvent(resume(other));
-      handleEvent(bash(other, 'PostToolUse', 'H=~/.mitosis/.windful-ocean/pipeline-logbook-continuity; $H/run.zsh --plan-only > $H/plan.log 2>&1'));
-      assert.deepEqual(state().run_homes.map((entry) => entry.path), [scoped]);
-    });
-
-    withHome((other) => {
-      const viaVariable = makeRunHome(other, 'logbook', 'slug-b');
-      handleEvent(resume(other));
-      handleEvent(bash(other, 'PostToolUse', 'R=logbook; S=slug-b; D=$HOME/.mitosis/$R/$S; "$D/run.zsh" --plan-only'));
-      assert.deepEqual(state().run_homes.map((entry) => entry.path), [viaVariable]);
-    });
-  });
-});
-
 test('continuity: the pipeline briefing names each run and fits the cap', () => {
+  const { checkRun } = continuity;
   withHome((home) => {
     handleEvent(resume(home));
     handleEvent(logbook(home, 'record_decision', decision()));
@@ -521,8 +386,8 @@ test('continuity: the pipeline briefing names each run and fits the cap', () => 
     const rounds = ['# Rounds for first', '', ...Array.from({ length: 8 }, (_, index) => `round ${index + 1} spec run verdict loop`)].join('\n');
     const first = makeRunHome(home, '.windful-ocean', 'first', { charter, rounds });
     const second = makeRunHome(home, 'logbook', 'second', { charter: '# Charter without paths\n' });
-    handleEvent(bash(home, 'PostToolUse', `${first}/run.zsh --plan-only`));
-    handleEvent(bash(home, 'PostToolUse', '~/.mitosis/logbook/second/run.zsh --resume'));
+    checkRun({ argv: [`${first}/run.zsh`, '--plan-only'], env: { CLAUDE_CODE_SESSION_ID: SESSION }, home });
+    checkRun({ argv: [`${second}/run.zsh`, '--plan-only'], env: { CLAUDE_CODE_SESSION_ID: SESSION }, home });
     const briefing = context(handleEvent(compact(home)));
     const lines = briefing.split('\n');
     assert.equal(lines[0], BRIEFING_HEADING);
@@ -546,7 +411,7 @@ test('continuity: the pipeline briefing names each run and fits the cap', () => 
       handleEvent(resume(crowded));
       const longRounds = Array.from({ length: 30 }, (_, index) => `round ${index} ${'detail '.repeat(60)}`).join('\n');
       const all = Array.from({ length: 40 }, (_, index) => makeRunHome(crowded, '.windful-ocean', `run-${String(index).padStart(2, '0')}`, { charter, rounds: longRounds }));
-      for (const path of all) handleEvent(bash(crowded, 'PostToolUse', `${path}/run.zsh --plan-only`));
+      for (const path of all) checkRun({ argv: [`${path}/run.zsh`, '--plan-only'], env: { CLAUDE_CODE_SESSION_ID: SESSION }, home: crowded });
       const capped = context(handleEvent(compact(crowded)));
       assert.ok(capped.length <= BRIEFING_CAP, String(capped.length));
       assert.ok(capped.startsWith(BRIEFING_HEADING));
@@ -557,43 +422,6 @@ test('continuity: the pipeline briefing names each run and fits the cap', () => 
       assert.equal(Number(tail.split(' ')[0]), 40 - shown);
       assert.ok(shown > 0);
     });
-  });
-});
-
-test('continuity: runs and verdicts leave anchor lines', () => {
-  withHome((home) => {
-    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
-    handleEvent(resume(home));
-    const entryFor = (path) => state().run_homes.find((entry) => entry.path === path);
-
-    const runCommand = 'SHIP=1 ~/.mitosis/.windful-ocean/continuity/run.zsh --resume';
-    const runAnchor = context(handleEvent(bash(home, 'PostToolUse', runCommand)));
-    assert.equal(runAnchor, `Pipeline anchor: continuity at ${runHome}, thread ${THREAD}: ${runCommand}`);
-    assert.equal(entryFor(runHome).anchor, runAnchor);
-    assert.equal(state().latest_anchor, runAnchor);
-
-    const verdictCommand = 'node ~/.claude/lib/pipeline/pipeline.mjs verdict --ledger ~/.mitosis/.windful-ocean/findings.jsonl --run continuity --msp core --round 2';
-    const verdictAnchor = context(handleEvent(bash(home, 'PostToolUse', verdictCommand)));
-    assert.equal(verdictAnchor, `Pipeline anchor: continuity at ${runHome}, thread ${THREAD}: ${verdictCommand}`);
-    assert.equal(entryFor(runHome).anchor, verdictAnchor);
-
-    const viaHome = 'node "$HOME/.claude/lib/pipeline/pipeline.mjs" verdict --ledger "$HOME/.mitosis/.windful-ocean/findings.jsonl" --run continuity --msp core --round 3 > $HOME/.mitosis/.windful-ocean/continuity/v.json';
-    const homeAnchor = context(handleEvent(bash(home, 'PostToolUse', viaHome)));
-    assert.ok(homeAnchor.startsWith(`Pipeline anchor: continuity at ${runHome}, thread ${THREAD}: node`));
-    assert.equal(entryFor(runHome).anchor, homeAnchor);
-
-    const viaVariable = 'L=${HOME}/.mitosis/.windful-ocean/findings.jsonl; node pipeline.mjs verdict --ledger $L --run=continuity';
-    assert.match(context(handleEvent(bash(home, 'PostToolUse', viaVariable))), /^Pipeline anchor: continuity at /);
-
-    const before = readFileSync(statePath(SESSION), 'utf8');
-    assert.equal(handleEvent(bash(home, 'PostToolUse', 'node ~/.claude/lib/pipeline/pipeline.mjs verdict --ledger ~/.mitosis/.windful-ocean/findings.jsonl --run missing-run')), null);
-    assert.equal(handleEvent(bash(home, 'PostToolUse', 'node ~/.claude/lib/pipeline/pipeline.mjs record --ledger ~/.mitosis/.windful-ocean/findings.jsonl --run continuity')), null);
-    assert.equal(readFileSync(statePath(SESSION), 'utf8'), before);
-
-    const long = `${runHome}/run.zsh --resume ${'--flag '.repeat(80)}`;
-    const shortened = context(handleEvent(bash(home, 'PostToolUse', long)));
-    const commandPart = shortened.slice(shortened.indexOf(`${THREAD}: `) + THREAD.length + 2);
-    assert.ok(commandPart.length <= 200);
   });
 });
 
@@ -608,7 +436,7 @@ test('continuity: a session id that could escape the state directory is ignored'
       assert.equal(handleEvent(logbook(home, 'update_thread', nextStep(), extra)), null);
       assert.equal(handleEvent(bash(home, 'PostToolUse', `${runHome}/run.zsh`, extra)), null);
       assert.equal(handleEvent(compact(home, extra)), null);
-      assert.ok(denied(handleEvent(bash(home, 'PreToolUse', `${runHome}/run.zsh --plan-only`, extra))), sessionId);
+      assert.equal(handleEvent(bash(home, 'PreToolUse', `${runHome}/run.zsh --plan-only`, extra)), null, sessionId);
       assert.ok(denied(handleEvent(skill(home, 'interphase:feature', 'Do it. Work autonomously.', extra))), sessionId);
     }
     assert.equal(handleEvent({ ...resume(home), session_id: undefined }), null);
@@ -681,144 +509,6 @@ test('continuity: a running logbook that refuses option_reasons lifts the demand
   });
 });
 
-test('continuity: a verdict outside a run home adds no run home', () => {
-  withHome((home) => {
-    mkdirSync(join(home, '.mitosis', 'runs', '.windful-ocean'), { recursive: true });
-    mkdirSync(join(home, '.mitosis', 'sessions', 'x'), { recursive: true });
-    mkdirSync(join(home, 'elsewhere', 'y'), { recursive: true });
-    writeFileSync(join(home, 'elsewhere', 'y', 'CHARTER.md'), '- Spec: /elsewhere/spec.md\n');
-    const real = makeRunHome(home, 'repo', 'slug', { runZsh: false, charter: '- Spec: /repo/spec.md\n' });
-    handleEvent(resume(home));
-    const outputs = [
-      'node pipeline.mjs verdict --ledger ~/.mitosis/runs/findings.jsonl --run .windful-ocean',
-      'node pipeline.mjs verdict --ledger ~/.mitosis/sessions/l.jsonl --run x',
-      `node pipeline.mjs verdict --ledger ${join(home, 'elsewhere', 'l.jsonl')} --run y`,
-    ].map((command) => handleEvent(bash(home, 'PostToolUse', command)));
-    assert.deepEqual(outputs, [null, null, null]);
-    assert.deepEqual(state().run_homes, []);
-    const kept = handleEvent(bash(home, 'PostToolUse', 'node pipeline.mjs verdict --ledger ~/.mitosis/repo/findings.jsonl --run slug'));
-    assert.notEqual(kept, null);
-    assert.deepEqual(state().run_homes.map((entry) => entry.path), [real]);
-  });
-});
-
-test('continuity: a run home named straight after a redirection is found', () => {
-  ['cat x 2>~/.mitosis/repo/slug/err.log', 'echo hi >$HOME/.mitosis/repo/slug/note.txt', 'wc -l <${HOME}/.mitosis/repo/slug/rounds.md'].forEach((command) => {
-    withHome((home) => {
-      const path = makeRunHome(home, 'repo', 'slug');
-      handleEvent(resume(home));
-      handleEvent(bash(home, 'PostToolUse', command));
-      assert.deepEqual(state().run_homes.map((entry) => entry.path), [path], command);
-    });
-  });
-});
-
-test('continuity: a subagent never starts a build, a resume or the ship, and changes no state', () => {
-  const resumeCommand = '~/.mitosis/repo/slug/run.zsh --resume';
-  const planCommand = '~/.mitosis/repo/slug/run.zsh --plan-only';
-  const subagentRun = (home, command, extra = {}) => handleEvent(bash(home, 'PreToolUse', command, { agent_id: 'sub-1', ...extra }));
-  const subagentInterphase = (home, extra = {}) => handleEvent(skill(home, 'interphase:bug', 'Fix it. Work autonomously.', { agent_id: 'sub-1', ...extra }));
-  const sentBack = (output) => denied(output) && /main conversation/.test(reason(output)) && !/resume_thread|open_thread/.test(reason(output));
-  withHome((home) => {
-    makeRunHome(home, 'repo', 'slug');
-    handleEvent(resume(home));
-    const unmarked = readFileSync(statePath(SESSION), 'utf8');
-    assert.equal(sentBack(subagentRun(home, resumeCommand)), true);
-    assert.equal(denied(subagentRun(home, planCommand)), false);
-    assert.equal(denied(subagentInterphase(home)), false);
-    assert.equal(readFileSync(statePath(SESSION), 'utf8'), unmarked);
-    recordBoundary(home);
-    const marked = readFileSync(statePath(SESSION), 'utf8');
-    for (const command of ['~/.mitosis/repo/slug/run.zsh', resumeCommand, `SHIP=1 ${resumeCommand}`]) {
-      assert.equal(sentBack(subagentRun(home, command)), true);
-    }
-    assert.equal(readFileSync(statePath(SESSION), 'utf8'), marked);
-    assert.equal(denied(handleEvent(bash(home, 'PreToolUse', resumeCommand))), false);
-    assert.equal(denied(handleEvent(bash(home, 'PreToolUse', resumeCommand))), true);
-  });
-  withHome((home) => {
-    makeRunHome(home, 'repo', 'slug');
-    assert.equal(sentBack(subagentRun(home, resumeCommand)), true);
-    assert.equal(sentBack(subagentRun(home, planCommand)), true);
-    assert.equal(sentBack(subagentInterphase(home)), true);
-    assert.deepEqual(filesUnder(join(home, '.mitosis', 'sessions')), []);
-  });
-  withHome((home) => {
-    makeRunHome(home, 'repo', 'slug');
-    mkdirSync(join(home, '.mitosis', 'sessions'), { recursive: true });
-    writeFileSync(statePath(SESSION), '{ not json');
-    assert.equal(sentBack(subagentRun(home, resumeCommand)), true);
-    assert.equal(sentBack(subagentRun(home, planCommand)), true);
-    assert.equal(subagentInterphase(home), null);
-    assert.equal(readFileSync(statePath(SESSION), 'utf8'), '{ not json');
-    const files = filesUnder(home);
-    assert.equal(sentBack(subagentRun(home, resumeCommand, { session_id: '../escape' })), true);
-    assert.equal(sentBack(subagentRun(home, planCommand, { session_id: '../escape' })), true);
-    assert.equal(sentBack(subagentInterphase(home, { session_id: '../escape' })), true);
-    assert.deepEqual(filesUnder(home), files);
-  });
-});
-
-test('continuity: one command starts at most one build, resume or ship', () => {
-  withHome((home) => {
-    makeRunHome(home, '.windful-ocean', 'continuity');
-    makeRunHome(home, '.windful-ocean', 'other');
-    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
-    const other = '$HOME/.mitosis/.windful-ocean/other/run.zsh';
-    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
-    const unheld = gate(`${run} --resume && SHIP=1 ${run} --resume`);
-    assert.ok(denied(unheld));
-    assert.match(reason(unheld), /resume_thread/);
-    assert.doesNotMatch(reason(unheld), /separate commands/);
-    handleEvent(resume(home));
-    const chained = [
-      `${run} --resume && SHIP=1 ${run} --resume`,
-      `${run} --resume; ${run} --resume`,
-      `${run} --resume || ${run} --resume`,
-      `${run} --resume & ${other} --resume`,
-      `${run}\n${other} --resume`,
-      `SHIP=1 ${run} --resume | tee log; ${other}`,
-    ];
-    const holdAfresh = () => {
-      handleEvent(resume(home, OTHER_THREAD));
-      handleEvent(resume(home));
-    };
-    const markings = [
-      ['no marks', holdAfresh],
-      ['only the decision', () => {
-        holdAfresh();
-        handleEvent(logbook(home, 'record_decision', decision()));
-      }],
-      ['only the next step', () => {
-        holdAfresh();
-        handleEvent(logbook(home, 'update_thread', nextStep()));
-      }],
-      ['both marks', () => {
-        holdAfresh();
-        recordBoundary(home);
-      }],
-    ];
-    for (const command of chained) {
-      for (const [marks, mark] of markings) {
-        mark();
-        const before = readFileSync(statePath(SESSION), 'utf8');
-        const refused = gate(command);
-        assert.ok(denied(refused), `${marks}: ${command}`);
-        assert.match(reason(refused), /each needs its own recorded boundary/, `${marks}: ${command}`);
-        assert.match(reason(refused), /separate commands/, `${marks}: ${command}`);
-        assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, `${marks}: ${command}`);
-      }
-    }
-    assert.equal(gate(`${run} --plan-only && ${run} --resume`), null);
-    assert.equal(state().decision_recorded, false);
-    assert.equal(state().next_step_recorded, false);
-    assert.equal(gate(`${run} --plan-only; ${other} --plan-only`), null);
-    recordBoundary(home);
-    assert.equal(gate(`${other} --resume`), null);
-    assert.ok(denied(gate(`${run} --resume`)));
-  });
-});
-
 test('continuity: option reasons are demanded from logbook 0.15.0 on, except for releases 1.0.0 to 14.0.0', () => {
   const demands = (version) =>
     withHome((home) => {
@@ -835,363 +525,17 @@ test('continuity: option reasons are demanded from logbook 0.15.0 on, except for
   }
 });
 
-test('continuity: a run.zsh command the gate cannot read is refused', () => {
-  withHome((home) => {
-    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
-    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
-    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
-    const unreadable = [
-      `{ ${run} --resume; }`,
-      `(SHIP=1 ${run} --resume)`,
-      `(cd ${runHome} && ./run.zsh --resume)`,
-      `! ${run} --resume`,
-      `if true; then SHIP=1 ${run} --resume; else ${run} --resume; fi`,
-      `for attempt in 1 2; do ${run} --resume; done`,
-      `{ for attempt in 1 2; do ${run} --plan-only; done; }`,
-      `until ${run} --resume; do :; done`,
-      `bash -c '${run} --resume'`,
-      `bash -lc '${run} --resume && SHIP=1 ${run} --resume'`,
-      `sh -ec "${run} --plan-only"`,
-      `env SHIP=1 ${run} --resume`,
-      `source ${run} --resume`,
-      `. ${run} --resume`,
-      `out=$(SHIP=1 ${run} --resume)`,
-      `D=$(dirname ${run})`,
-      `python3 -c 'print(1)' ${run}`,
-      `for attempt in 1 2; do\n  ${run} --resume && break\ndone`,
-      `for attempt in 1 2; do :; ${run} --resume; done`,
-      `retry() {\n  ${run} --resume\n}\nretry\nretry`,
-      `[[ -x ${run} ]] && ${run} --resume`,
-      `echo "${run} --resume" | zsh`,
-      `export RUN=${run}; bash -c '$RUN --resume'`,
-      `RUN=${run}; eval "$RUN --resume"`,
-      `RUN=${run}; caffeinate -i $RUN --resume`,
-      `for slug in continuity fix-a; do $HOME/.mitosis/.windful-ocean/$slug/run.zsh --resume; done`,
-      `$HOME/.mitosis/.windful-ocean/$SLUG/run.zsh --resume`,
-      `for h in $HOME/.mitosis/.windful-ocean/*; do "$h/run.zsh"; done`,
-      `for slug in continuity fix-a; do cd $HOME/.mitosis/.windful-ocean/$slug && ./run.zsh; done`,
-      `ls -d $HOME/.mitosis/.windful-ocean/* | xargs -I{} {}/run.zsh --resume`,
-      `{ "$HOME"/.mitosis/.windful-ocean/continuity/run.zsh --resume; }`,
-      `zsh -c ${run} --plan-only`,
-      `zsh -lc ${run} --plan-only`,
-      `${run} --resume \`${run} --resume\``,
-      `cat <(${run} --resume)`,
-      `echo x > >(${run} --resume)`,
-      `bash -c '$HOME/.mitosis/.windful-ocean/$slug/run.zsh --resume'`,
-      `${run} --resume =(${run} --resume)`,
-      ...['sh', 'bash', 'zsh', 'dash', 'ksh', 'mksh', 'fish', 'eval', 'source', '.', 'exec', 'xargs', 'parallel', 'env', 'command', 'builtin', 'nice', 'timeout', 'sudo'].map((runner) => `echo "${run} --resume" | ${runner}`),
-      ...['!', '{', '}', '[[', 'case', 'coproc', 'do', 'done', 'elif', 'else', 'end', 'esac', 'fi', 'for', 'foreach', 'function', 'if', 'repeat', 'select', 'then', 'until', 'while'].map((word) => `${run} --resume; ${word} x`),
-    ];
-    assert.equal(gate(unreadable[0]), null);
-    assert.equal(existsSync(statePath(SESSION)), false);
-    handleEvent(resume(home));
-    const holdAfresh = () => {
-      handleEvent(resume(home, OTHER_THREAD));
-      handleEvent(resume(home));
-    };
-    for (const command of unreadable) {
-      for (const [marks, mark] of [['no marks', holdAfresh], ['both marks', () => { holdAfresh(); recordBoundary(home); }]]) {
-        mark();
-        const before = readFileSync(statePath(SESSION), 'utf8');
-        const refused = gate(command);
-        assert.ok(denied(refused), `${marks}: ${command}`);
-        assert.match(reason(refused), /cannot read/, `${marks}: ${command}`);
-        assert.match(reason(refused), /plain command/, `${marks}: ${command}`);
-        assert.match(reason(refused), /file tools/, `${marks}: ${command}`);
-        assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, `${marks}: ${command}`);
-      }
-    }
-    holdAfresh();
-    recordBoundary(home);
-    const inRunHome = readFileSync(statePath(SESSION), 'utf8');
-    const looped = handleEvent(bash(home, 'PreToolUse', 'for attempt in 1 2; do zsh run.zsh --resume; done', { cwd: runHome }));
-    assert.ok(denied(looped));
-    assert.match(reason(looped), /cannot read/);
-    assert.equal(readFileSync(statePath(SESSION), 'utf8'), inRunHome);
-    for (const command of [`X=--plan-only ${run} --resume $X`, `X=--plan-only true; ${run} --resume $X`, `FLAGS=--plan-only; ${run} $FLAGS`, `${run} --resume # unlike --plan-only`, `${run} --resume <<< --plan-only`]) {
-      holdAfresh();
-      const refused = gate(command);
-      assert.ok(denied(refused), command);
-      assert.match(reason(refused), /record_decision/, command);
-    }
-    holdAfresh();
-    assert.equal(gate(`${run} "--plan-only"`), null);
-    recordBoundary(home);
-    const marked = readFileSync(statePath(SESSION), 'utf8');
-    for (const reading of [`cat ${run}`, `grep -n resume ${run}`, `sed -n 1,5p ${run}`, `ls -l ${run}`, `chmod +x ${run}`, `echo '{ ${run} --resume; }'`, `git diff -- ${run}`, `cat ${runHome}/CHARTER.md`]) {
-      assert.equal(gate(reading), null, reading);
-    }
-    assert.equal(readFileSync(statePath(SESSION), 'utf8'), marked);
-    const elsewhere = join(home, 'project');
-    mkdirSync(elsewhere, { recursive: true });
-    writeFileSync(join(elsewhere, 'run.zsh'), '#!/bin/zsh\n');
-    assert.equal(gate(`{ ${elsewhere}/run.zsh; }`), null);
-    assert.equal(gate(`SHIP=1 ${run} --resume`), null);
-    assert.equal(state().decision_recorded, false);
-    const viaVariable = `RUN=${run}; SHIP=1 $RUN --resume`;
-    const unmarked = gate(viaVariable);
-    assert.ok(denied(unmarked));
-    assert.match(reason(unmarked), /record_decision/);
-    recordBoundary(home);
-    assert.equal(gate(viaVariable), null);
-    assert.equal(state().decision_recorded, false);
-    holdAfresh();
-    recordBoundary(home);
-    const held = readFileSync(statePath(SESSION), 'utf8');
-    const subagent = { agent_id: 'agent-reviewer-9', agent_type: 'code-reviewer' };
-    for (const command of [`{ ${run} --resume; }`, `{ ${run} --plan-only; }`, `python3 -c 'print(1)' ${run}`]) {
-      assert.equal(handleEvent(bash(home, 'PreToolUse', command, subagent)), null, command);
-      assert.equal(readFileSync(statePath(SESSION), 'utf8'), held, command);
-    }
-    writeFileSync(statePath(SESSION), '{"version":1, broken');
-    const undecided = gate(`{ ${run} --resume; }`);
-    assert.ok(denied(undecided));
-    assert.match(reason(undecided), /could not decide/);
-  });
+test('continuity: the shell-text run gate is not exported', () => {
+  const exported = Object.keys(continuity);
+  for (const name of ['analyzeCommand', 'lexCommand', 'splitWords', 'expandWord', 'runHomesInText', 'runGate', 'onBashCompleted']) {
+    assert.equal(exported.includes(name), false, name);
+  }
 });
 
-test('continuity: a comment, a quoted string or a heredoc never hides a run', () => {
+test('continuity: Bash events are not handled', () => {
   withHome((home) => {
     const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
-    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
-    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
-    const unheld = gate(`cat ${runHome}/rounds.md  # what's next\n${run} --resume`);
-    assert.ok(denied(unheld));
-    assert.match(reason(unheld), /resume_thread/);
-    handleEvent(resume(home));
-    const holdAfresh = () => {
-      handleEvent(resume(home, OTHER_THREAD));
-      handleEvent(resume(home));
-    };
-    holdAfresh();
-    const planThenBuild = gate(`${run} --plan-only  # then it's the build\n${run} --resume`);
-    assert.ok(denied(planThenBuild));
-    assert.match(reason(planThenBuild), /record_decision/);
-    const chained = [
-      `# it's the build\n${run} --resume\nSHIP=1 ${run} --resume`,
-      `${run} --resume\n# it's next\nSHIP=1 ${run} --resume`,
-      `${run} --resume  # MSP's first\nSHIP=1 ${run} --resume`,
-      `${run} --resume  # say "hi\nSHIP=1 ${run} --resume`,
-      `cat ${runHome}/rounds.md # don't\n${run} --resume\ncat ${runHome}/CHARTER.md # can't\n${run} --resume`,
-      `echo $'it\\'s'\n${run} --resume\nSHIP=1 ${run} --resume`,
-      `cat > ${runHome}/notes.md <<'EOF'\nit's done\nEOF\n${run} --resume\nSHIP=1 ${run} --resume`,
-      `cat > ${runHome}/a.md <<'EOF'\nit's\nEOF\n${run} --resume\ncat > ${runHome}/b.md <<-EOF\n\tit's\n\tEOF\n${run} --resume`,
-    ];
-    for (const command of chained) {
-      holdAfresh();
-      recordBoundary(home);
-      const before = readFileSync(statePath(SESSION), 'utf8');
-      const refused = gate(command);
-      assert.ok(denied(refused), command);
-      assert.match(reason(refused), /each needs its own recorded boundary/, command);
-      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, command);
-    }
-    for (const command of [`${run} --resume 'never closed`, `cat > ${runHome}/notes.md <<'EOF'\n${run} --resume`, `zsh <<'EOF'\n${run} --resume\nEOF`, `cat > ${runHome}/notes.md <<EOF\n$(${run} --resume)\nEOF`]) {
-      holdAfresh();
-      recordBoundary(home);
-      const before = readFileSync(statePath(SESSION), 'utf8');
-      const refused = gate(command);
-      assert.ok(denied(refused), command);
-      assert.match(reason(refused), /cannot read/, command);
-      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, command);
-    }
-    holdAfresh();
-    recordBoundary(home);
-    const written = readFileSync(statePath(SESSION), 'utf8');
-    assert.equal(gate(`cat > ${runHome}/notes.md <<'EOF'\n${run} --resume and SHIP=1 ${run} --resume\nEOF`), null);
-    assert.equal(gate(`echo "# it's ${run}"`), null);
-    assert.equal(readFileSync(statePath(SESSION), 'utf8'), written);
-    for (const operator of ['>!', '>>!', '&>!', '{fd}>']) {
-      holdAfresh();
-      const refused = gate(`${run} --resume ${operator} --plan-only`);
-      assert.ok(denied(refused), operator);
-      assert.match(reason(refused), /record_decision/, operator);
-    }
-    holdAfresh();
-    recordBoundary(home);
-    assert.equal(gate(`SHIP=1 \\\n  ${run} --resume`), null);
-    assert.equal(state().decision_recorded, false);
-  });
-});
-
-test('continuity: only a main conversation holding a thread is refused a command the gate cannot read', () => {
-  withHome((home) => {
-    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
-    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
-    const reads = [
-      `find ${join(home, '.mitosis', '.windful-ocean')} -name run.zsh`,
-      `awk NR==1 ${runHome}/run.zsh`,
-      `for f in run.zsh CHARTER.md; do cat ${runHome}/$f; done`,
-      `[[ -x ${runHome}/run.zsh ]]`,
-    ];
-    const subagent = { agent_id: 'agent-reviewer-9', agent_type: 'code-reviewer' };
-    for (const command of reads) {
-      assert.equal(handleEvent(bash(home, 'PreToolUse', command)), null, command);
-      assert.equal(handleEvent(bash(home, 'PreToolUse', command, subagent)), null, command);
-    }
-    assert.equal(existsSync(statePath(SESSION)), false);
-    handleEvent(resume(home));
-    handleEvent(logbook(home, 'close_thread', { thread_id: THREAD }));
-    const released = readFileSync(statePath(SESSION), 'utf8');
-    for (const command of reads) {
-      assert.equal(handleEvent(bash(home, 'PreToolUse', command)), null, command);
-      assert.equal(readFileSync(statePath(SESSION), 'utf8'), released, command);
-    }
-    handleEvent(resume(home));
-    recordBoundary(home);
-    const held = readFileSync(statePath(SESSION), 'utf8');
-    for (const command of reads) {
-      assert.equal(handleEvent(bash(home, 'PreToolUse', command, subagent)), null, command);
-      const refused = handleEvent(bash(home, 'PreToolUse', command));
-      assert.ok(denied(refused), command);
-      assert.match(reason(refused), /cannot read/, command);
-      assert.equal(readFileSync(statePath(SESSION), 'utf8'), held, command);
-    }
-    const plain = handleEvent(bash(home, 'PreToolUse', `${run} --resume`, subagent));
-    assert.ok(denied(plain));
-    assert.match(reason(plain), /main conversation/);
-    assert.equal(readFileSync(statePath(SESSION), 'utf8'), held);
-  });
-});
-
-test('continuity: a # the shell does not read as a comment never hides a run', () => {
-  withHome((home) => {
-    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
-    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
-    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
-    const kept = ['echo $(echo a)#b', 'echo `true #`', 'ls (#i)x', 'ls (a #b)', 'echo ${(#)x}', 'echo ${x:-a #b}', 'echo ${x:-"}" #b}', "echo ${x:-'}' #b}", 'echo ${x:-$(echo a) #b}', 'echo ${x:-{a} #b}', 'echo ${x:-{a #b}}', 'echo ${x}#b', 'echo $(( #x ))', 'echo $[ #x ]', 'echo a\r#b', 'echo a\f#b', 'echo a\v#b'];
-    for (const prefix of kept) {
-      const unheld = gate(`${prefix}; ${run} --resume`);
-      assert.ok(denied(unheld), prefix);
-      assert.match(reason(unheld), /resume_thread/, prefix);
-    }
-    assert.equal(existsSync(statePath(SESSION)), false);
-    handleEvent(resume(home));
-    const holdAfresh = () => {
-      handleEvent(resume(home, OTHER_THREAD));
-      handleEvent(resume(home));
-    };
-    for (const prefix of kept) {
-      holdAfresh();
-      recordBoundary(home);
-      const before = readFileSync(statePath(SESSION), 'utf8');
-      const refused = gate(`${prefix}; ${run} --resume; SHIP=1 ${run} --resume`);
-      assert.ok(denied(refused), prefix);
-      assert.match(reason(refused), /each needs its own recorded boundary/, prefix);
-      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, prefix);
-      assert.equal(gate(`${prefix}; ${run} --resume`), null, prefix);
-      assert.equal(state().decision_recorded, false, prefix);
-    }
-    for (const [command, refusal] of [
-      [`echo $(true # it's\n)\n${run} --resume\nSHIP=1 ${run} --resume`, /cannot read/],
-      [`echo \${x:-$(f() { echo a; }; f) #b}; ${run} --resume`, /cannot read/],
-      [`(( #x )); ${run} --resume`, /cannot read/],
-      [`ls ((#i)a|b); ${run} --resume`, /cannot read/],
-      [`ls (a|(#i)b); ${run} --resume`, /cannot read/],
-      [`cat ${runHome}/rounds.md\t# it's next\n${run} --resume\nSHIP=1 ${run} --resume`, /each needs its own recorded boundary/],
-    ]) {
-      holdAfresh();
-      recordBoundary(home);
-      const refused = gate(command);
-      assert.ok(denied(refused), command);
-      assert.match(reason(refused), refusal, command);
-    }
-    holdAfresh();
-    recordBoundary(home);
-    assert.equal(gate(`cat ${runHome}/rounds.md|# it's ${run} --resume\n${run} --resume`), null);
-    assert.equal(state().decision_recorded, false);
-    const subagent = { agent_id: 'agent-reviewer-9', agent_type: 'code-reviewer' };
-    const held = readFileSync(statePath(SESSION), 'utf8');
-    for (const command of [
-      `echo \`date # it's\`\n${run} --resume`,
-      `(# it's\n${run} --resume\n)`,
-      `echo $(# it's\n${run} --resume\n)`,
-      `(cd ${runHome})# it's\n${run} --resume`,
-      `{# it's\n${run} --resume; }`,
-      `x=(# it's\na b)\n${run} --resume`,
-      `case a in a)# it's\n${run} --resume;; esac`,
-      `! (true)# it's\n${run} --resume`,
-      `cat <(# it's\n${run} --resume\n)`,
-      `cat =(# it's\n${run} --resume\n)`,
-      `x=(a b)# it's\n${run} --resume`,
-      `x=(a # it's\nb)\n${run} --resume`,
-      `n=1; ((n++))# it's\n${run} --resume`,
-      `echo \${x:-$(echo a # it's\n)}\n${run} --resume`,
-      `echo \${x:-\`echo a # it's\`}\n${run} --resume`,
-      `echo $(( $(echo 1 # it's\n) + 1 ))\n${run} --resume`,
-    ]) {
-      const refused = handleEvent(bash(home, 'PreToolUse', command, subagent));
-      assert.ok(denied(refused), command);
-      assert.match(reason(refused), /main conversation/, command);
-      assert.equal(readFileSync(statePath(SESSION), 'utf8'), held, command);
-    }
-  });
-});
-
-test('continuity: a redirection glued to a word is read as the shell reads it', () => {
-  withHome((home) => {
-    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
-    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
-    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
-    handleEvent(resume(home));
-    const held = readFileSync(statePath(SESSION), 'utf8');
-    for (const operator of ['>', '>>', '>!', '>>!', '>|', '&>', '&>!', '&>>', '2>', '{fd}>', '<', '<<<']) {
-      const refused = gate(`SHIP=1 ${run} --resume${operator} --plan-only`);
-      assert.ok(denied(refused), operator);
-      assert.match(reason(refused), /record_decision/, operator);
-      assert.equal(readFileSync(statePath(SESSION), 'utf8'), held, operator);
-    }
-    for (const command of [`${run} --plan-only>${runHome}/plan.log`, `${run} --resume>&2 --plan-only`, `${run} --resume 2>&1 --plan-only`, `${run} >&- --plan-only`]) {
-      assert.equal(gate(command), null, command);
-    }
-    const subagent = { agent_id: 'agent-reviewer-9', agent_type: 'code-reviewer' };
-    for (const command of [`SHIP=1>/dev/null ${run} --resume`, `>${runHome}/build.log ${run} --resume`, `>|${runHome}/build.log ${run} --resume`, `2>&1 ${run}`]) {
-      const refused = handleEvent(bash(home, 'PreToolUse', command, subagent));
-      assert.ok(denied(refused), command);
-      assert.match(reason(refused), /main conversation/, command);
-      assert.equal(readFileSync(statePath(SESSION), 'utf8'), held, command);
-      const main = gate(command);
-      assert.ok(denied(main), command);
-      assert.match(reason(main), /record_decision/, command);
-    }
-  });
-});
-
-test('continuity: a construct left open makes a run.zsh command one the gate cannot read', () => {
-  withHome((home) => {
-    const runHome = makeRunHome(home, '.windful-ocean', 'continuity');
-    const run = '$HOME/.mitosis/.windful-ocean/continuity/run.zsh';
-    const gate = (command) => handleEvent(bash(home, 'PreToolUse', command));
-    const commented = (prefix) => `${prefix}\ncat ${runHome}/rounds.md # it's next\n${run} --resume\nSHIP=1 ${run} --resume\ncat ${runHome}/rounds.md # it's done`;
-    const unfollowed = [
-      "x='a(b'; echo ${x%%[(]*}",
-      'name=${line%%[(]*}',
-      'echo ${(s:(:)x}',
-      'echo ${(s.(.)x}',
-      'n="$(grep -c "foo(" notes.txt)"',
-      "n=\"$(grep -c '${' notes.txt)\"",
-      `n="$(cat <<'EOF'\n\${\nEOF\n)"`,
-      'n="$(echo "(")"',
-    ];
-    handleEvent(resume(home));
-    const holdAfresh = () => {
-      handleEvent(resume(home, OTHER_THREAD));
-      handleEvent(resume(home));
-    };
-    for (const prefix of unfollowed) {
-      holdAfresh();
-      recordBoundary(home);
-      const before = readFileSync(statePath(SESSION), 'utf8');
-      const refused = gate(commented(prefix));
-      assert.ok(denied(refused), prefix);
-      assert.match(reason(refused), /cannot read/, prefix);
-      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, prefix);
-      const single = gate(`${prefix}\n${run} --resume`);
-      assert.ok(denied(single), prefix);
-      assert.match(reason(single), /cannot read/, prefix);
-      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, prefix);
-      assert.equal(gate(`${prefix}\ncat notes.txt # it's next\necho done`), null, prefix);
-      assert.equal(readFileSync(statePath(SESSION), 'utf8'), before, prefix);
-    }
+    assert.equal(eventKind(bash(home, 'PreToolUse', `${runHome}/run.zsh --resume`)), null);
+    assert.equal(eventKind(bash(home, 'PostToolUse', `${runHome}/run.zsh --resume`)), null);
   });
 });
