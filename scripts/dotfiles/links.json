@@ -1,0 +1,21 @@
+{
+  "links": [
+    { "source": ".zshrc", "target": ".zshrc" },
+    { "source": ".gitattributes_global", "target": ".gitattributes_global" },
+    { "source": ".gitconfig", "target": ".gitconfig.dotfiles" },
+    { "source": ".config/git", "target": ".config/git" },
+    { "source": ".config/nvim", "target": ".config/nvim" },
+    { "source": ".config/ripgrep", "target": ".config/ripgrep" },
+    { "source": ".config/starship.toml", "target": ".config/starship.toml" },
+    { "source": ".config/tmux", "target": ".config/tmux" },
+    { "source": ".claude/CLAUDE.md", "target": ".claude/CLAUDE.md" },
+    { "source": ".claude/agents", "target": ".claude/agents" },
+    { "source": ".claude/hooks", "target": ".claude/hooks" },
+    { "source": ".claude/keybindings.json", "target": ".claude/keybindings.json" },
+    { "source": ".claude/lib", "target": ".claude/lib" },
+    { "source": ".claude/output-styles", "target": ".claude/output-styles" },
+    { "source": ".claude/rules", "target": ".claude/rules" },
+    { "source": ".claude/skills", "target": ".claude/skills" },
+    { "source": ".claude/sounds", "target": ".claude/sounds" }
+  ]
+}

@@ -5,6 +5,7 @@
   "description": "Personal Claude Code configuration and dotfiles repository, with a deterministic test backstop for its hooks and scripts",
   "license": "Apache-2.0",
   "scripts": {
-    "test": "node --test .claude/lib/*/tests/*.test.mjs .claude/hooks/tests/*.test.mjs .claude/skills/*/tests/*.test.mjs scripts/repo/tests/*.test.mjs"
+    "test": "node --test .claude/lib/*/tests/*.test.mjs .claude/hooks/tests/*.test.mjs .claude/skills/*/tests/*.test.mjs scripts/repo/tests/*.test.mjs scripts/dotfiles/tests/*.test.mjs",
+    "test:ci": "node --test .claude/hooks/tests/block-destructive-bash.test.mjs .claude/hooks/tests/secret-scanner.test.mjs"
   }
 }
