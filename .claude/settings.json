@@ -119,7 +119,6 @@
     ],
     "defaultMode": "bypassPermissions"
   },
-  "model": "claude-opus-5[1m]",
   "autoCompactWindow": 400000,
   "hooks": {
     "Stop": [
@@ -183,6 +182,14 @@
         ]
       },
       {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/dotfiles-check.mjs\""
+          }
+        ]
+      },
+      {
         "matcher": "compact",
         "hooks": [
           {
@@ -206,6 +213,15 @@
       }
     ],
     "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/config-write-guard.mjs\""
+          }
+        ]
+      },
       {
         "matcher": "Edit|Write",
         "hooks": [
@@ -371,74 +387,7 @@
     "command": "npx -y ccstatusline@2.2.29",
     "padding": 0
   },
-  "enabledPlugins": {
-    "typescript-lsp@claude-plugins-official": true,
-    "rust-analyzer-lsp@claude-plugins-official": true,
-    "code-simplifier@claude-plugins-official": true,
-    "code-review@claude-plugins-official": true,
-    "security-guidance@claude-plugins-official": true,
-    "commit-commands@claude-plugins-official": true,
-    "serena@claude-plugins-official": true,
-    "vscode-langservers@claude-code-lsps": true,
-    "visual-explainer@visual-explainer-marketplace": true,
-    "warp@claude-code-warp": true,
-    "receipts@receipts": true,
-    "superpowers@claude-plugins-official": true,
-    "context7@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true,
-    "logbook@logbook": true
-  },
-  "extraKnownMarketplaces": {
-    "claude-code-lsps": {
-      "source": {
-        "source": "github",
-        "repo": "Piebald-AI/claude-code-lsps"
-      }
-    },
-    "visual-explainer-marketplace": {
-      "source": {
-        "source": "github",
-        "repo": "nicobailon/visual-explainer"
-      }
-    },
-    "receipts": {
-      "source": {
-        "source": "github",
-        "repo": "shaheershoaib/receipts"
-      }
-    },
-    "claude-code-warp": {
-      "source": {
-        "source": "github",
-        "repo": "warpdotdev/claude-code-warp"
-      }
-    }
-  },
   "outputStyle": "satanshu",
-  "alwaysThinkingEnabled": true,
-  "effortLevel": "high",
-  "modelSettings": {
-    "claude-opus-5": {
-      "effortLevel": "xhigh"
-    }
-  },
-  "pluginConfigs": {
-    "logbook@logbook": {
-      "options": {
-        "ledger_backend": "orphan-branch",
-        "ledger_branch": "_ledger",
-        "disable_trailer": false,
-        "disable_bash_guard": true
-      }
-    }
-  },
-  "tui": "default",
-  "autoMemoryEnabled": true,
-  "skipDangerousModePermissionPrompt": true,
-  "skipWorkflowUsageWarning": true,
-  "theme": "auto",
-  "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true,
   "autoMode": {
     "environment": [
       "### Org-wide",
@@ -466,9 +415,5 @@
       "**Org-specific CLIs**: None configured \u2014 observed tooling is standard (git, gh, npm/pnpm/npx, node, brew, cargo, composer, php, flutter, docker, tmux, stow, nvim)",
       "**Routine under this repo's prefix**: local dotfile linking and shell/editor config work under the repo checkout (e.g. `stow`) is routine; anything touching $HOME history files or ignored secret paths is not"
     ]
-  },
-  "voiceEnabled": true,
-  "feedbackSurveyState": {
-    "lastShownTime": 1754070465024
   }
 }

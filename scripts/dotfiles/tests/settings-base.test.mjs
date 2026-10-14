@@ -1,0 +1,79 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const settingsPath = path.resolve(here, '..', '..', '..', '.claude', 'settings.json');
+
+function hookCommands(entries, matcher) {
+  return entries
+    .filter((entry) => matcher === undefined || entry.matcher === matcher)
+    .flatMap((entry) => entry.hooks);
+}
+
+test('the tracked settings base holds only repository keys and registers the dotfiles hooks', () => {
+  const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+
+  assert.deepEqual(Object.keys(settings).sort(), [
+    '$schema',
+    'env',
+    'includeCoAuthoredBy',
+    'permissions',
+    'autoCompactWindow',
+    'hooks',
+    'statusLine',
+    'outputStyle',
+    'autoMode',
+  ].sort());
+
+  for (const machineKey of [
+    'model',
+    'enabledPlugins',
+    'extraKnownMarketplaces',
+    'pluginConfigs',
+    'theme',
+    'effortLevel',
+    'modelSettings',
+    'tui',
+    'alwaysThinkingEnabled',
+    'autoMemoryEnabled',
+    'voiceEnabled',
+    'agentPushNotifEnabled',
+    'skipDangerousModePermissionPrompt',
+    'skipWorkflowUsageWarning',
+    'skipAutoPermissionPrompt',
+    'feedbackSurveyState',
+  ]) {
+    assert.equal(machineKey in settings, false, `${machineKey} must not be in the tracked base`);
+  }
+
+  const guard = {
+    type: 'command',
+    command: 'node "$HOME/.claude/hooks/config-write-guard.mjs"',
+  };
+  assert.ok(
+    hookCommands(settings.hooks.PreToolUse, 'Edit|Write').some(
+      (hook) => hook.type === guard.type && hook.command === guard.command,
+    ),
+    'PreToolUse Edit|Write must register config-write-guard.mjs',
+  );
+
+  const check = {
+    type: 'command',
+    command: 'node "$HOME/.claude/hooks/dotfiles-check.mjs"',
+  };
+  assert.ok(
+    hookCommands(settings.hooks.SessionStart).some(
+      (hook) => hook.type === check.type && hook.command === check.command,
+    ),
+    'SessionStart must register dotfiles-check.mjs',
+  );
+
+  for (const hook of [...hookCommands(settings.hooks.PreToolUse), ...hookCommands(settings.hooks.SessionStart)]) {
+    if (hook.command.includes('config-write-guard.mjs') || hook.command.includes('dotfiles-check.mjs')) {
+      assert.equal(hook.command.includes('|| exit 2'), false);
+    }
+  }
+});
