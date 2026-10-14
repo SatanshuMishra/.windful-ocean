@@ -54,7 +54,7 @@ One command line, `node scripts/dotfiles/cli.mjs`, with four commands. It reads 
 | Command | What it does |
 |---|---|
 | `node scripts/dotfiles/cli.mjs install` | Links every entry of `scripts/dotfiles/links.json` from the clone it runs in into the home folder. Anything in the way is moved to `~/.dotfiles-backup/<time>/`. |
-| `node scripts/dotfiles/cli.mjs check` | Reports missing links, links replaced by real files or folders, links pointing elsewhere, dangling links into the clone and stray `.claude` folders. It changes nothing. A SessionStart hook runs it in every new Claude Code session. |
+| `node scripts/dotfiles/cli.mjs check` | Reports missing links, links replaced by real files or folders, links pointing elsewhere and links it cannot read. It changes nothing. A SessionStart hook runs it in every new Claude Code session. |
 | `node scripts/dotfiles/cli.mjs sync` | Merges the tracked `.claude/settings.json` (repository keys such as hooks, permissions and env) into the real `~/.claude/settings.json`. Machine keys such as model, enabledPlugins, theme and effortLevel stay in that real file. |
 | `node scripts/dotfiles/cli.mjs cutover` | Switches the links from the development checkout to the live clone. One time only; see [Cutover](#cutover). |
 
@@ -129,7 +129,7 @@ In order:
 
 1. Merge the roster and tooling pull requests.
 2. In the development checkout, commit or discard the changes under linked folders and `git pull`.
-3. Next, run node scripts/dotfiles/cli.mjs check in the development checkout and fix the problems it reports, deleting each dangling link it names. Today those are `~/.gitignore_global` and the `~/.config` links `autostart`, `fish`, `github-copilot`, `silicon` and `wezterm`, whose sources no longer exist.
+3. Remove the six links the old install left pointing at files that no longer exist: `rm ~/.gitignore_global ~/.config/autostart ~/.config/fish ~/.config/github-copilot ~/.config/silicon ~/.config/wezterm`. Then run node scripts/dotfiles/cli.mjs check in the development checkout and fix the problems it reports.
 4. `git clone https://github.com/SatanshuMishra/.windful-ocean.git ~/.windful-ocean`.
 5. Run `node ~/.windful-ocean/scripts/dotfiles/cli.mjs cutover`. It refuses and lists every difference until the two copies match, and it copies untracked files such as `.claude/skills/synced` across. When it succeeds it repoints each link to the live clone and ends with `cutover: done`.
 6. In the development checkout, run `git restore --staged --worktree .claude/settings.json`, since `~/.claude/settings.json` is now a real file.
