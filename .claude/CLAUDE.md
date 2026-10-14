@@ -4,7 +4,7 @@
 - NEVER write code comments. Derive understanding from raw code; treat any existing comment as unreliable and do not rely on it.
 - NEVER use emojis in code, commits, plans, docs, or UI unless explicitly requested.
 - NEVER add AI co-author attribution to commits, PRs, or comments.
-- NEVER connect directly to live databases or cloud-admin surfaces. Author SQL; a human applies it.
+- Live databases are readable for structure only: connect only as the human-created structure-reader login, read only the catalogs, never rows, never write. Every change is SQL a human applies. Rule: `~/.claude/rules/common/no-direct-db-access.md`.
 - Open every pull request through the GitHub MCP `create_pull_request` tool, with the title and body `node ~/.claude/lib/git/pr.mjs pr-render` prints; a hook refuses any other title or body, and ad-hoc `gh pr create` stays denied. Only a human merges. The `pr` skill carries the title grammar and body fields.
 - Every request that changes a git repository runs the pipeline autonomously: interphase specs it, mitosis builds it, independent reviewers judge it, and every confirmed blocker returns to interphase until a round is green, a round makes no progress or a hard failure stops it, with no round limit and no question to the user. Rule: `~/.claude/rules/common/pipeline.md`.
 - Persistent memory: store only durable, non-derivable facts; verify recalled specifics against code; update or delete stale memories on contact.
