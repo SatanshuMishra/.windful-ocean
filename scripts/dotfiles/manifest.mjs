@@ -37,3 +37,14 @@ export function placeLink(file, text) {
     throw error;
   }
 }
+
+export function writeAtomically(file, data) {
+  const temporary = file + '.dotfiles-tmp-' + process.pid;
+  try {
+    fs.writeFileSync(temporary, data);
+    fs.renameSync(temporary, file);
+  } catch (error) {
+    fs.rmSync(temporary, { force: true });
+    throw error;
+  }
+}

@@ -260,3 +260,128 @@ test('cutover refuses a settings link it cannot read', () => withSetup({}, async
   assert.deepEqual(result.lines, ['cutover: cannot read ~/.claude/settings.json: ENOENT', 'cutover: nothing was changed']);
   assert.deepEqual(snapshot(home), before);
 }));
+
+function gitOutput(home, cwd, ...args) {
+  const result = spawnSync('git', ['-C', cwd, ...args], { env: cleanEnv(home), encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout;
+}
+
+function linkTexts(home) {
+  return ['.zshrc', '.claude/skills', '.claude/settings.json'].map((rel) => {
+    const file = path.join(home, rel);
+    return fs.lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink() ? fs.readlinkSync(file) : null;
+  });
+}
+
+test('cutover carries an exclude file reached through a symbolic link', () => withSetup({
+  afterClone: ({ root, dev, live }) => {
+    const shared = path.join(root, 'shared-exclude');
+    write(shared, '.claude/skills/vibesec/\n');
+    fs.rmSync(path.join(dev, '.git', 'info', 'exclude'));
+    fs.symlinkSync(shared, path.join(dev, '.git', 'info', 'exclude'));
+    const old = path.join(root, 'old-exclude');
+    write(old, 'old');
+    fs.rmSync(path.join(live, '.git', 'info', 'exclude'));
+    fs.symlinkSync(old, path.join(live, '.git', 'info', 'exclude'));
+  },
+}, async ({ root, home, live }) => {
+  const result = await runCutover(live, home);
+  assert.equal(result.status, 0, result.lines.join('\n'));
+  const exclude = path.join(live, '.git', 'info', 'exclude');
+  assert.ok(fs.lstatSync(exclude).isFile());
+  assert.deepEqual(fs.readFileSync(exclude), fs.readFileSync(path.join(root, 'shared-exclude')));
+  assert.equal(fs.readFileSync(path.join(root, 'old-exclude'), 'utf8'), 'old');
+  const status = gitOutput(home, live, 'status', '--porcelain', '--untracked-files=all');
+  assert.equal(status.split('\n').some((line) => line.includes('.claude/skills/vibesec')), false, status);
+}));
+
+test('cutover carries the exclude file of a linked-worktree checkout', async () => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dotfiles-cutover-')));
+  const home = path.join(root, 'home');
+  const main = path.join(root, 'main');
+  const dev = path.join(root, 'dev');
+  const live = path.join(home, '.windful-ocean');
+  try {
+    fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
+    makeCheckout(home, main, () => {});
+    fs.appendFileSync(path.join(main, '.git', 'info', 'exclude'), '.claude/skills/vibesec/\n');
+    git(home, main, 'worktree', 'add', '-q', dev);
+    write(path.join(dev, '.claude', 'skills', 'vibesec', 'b.md'), 'licensed b\n');
+    git(home, root, 'clone', '-q', main, live);
+    fs.rmSync(path.join(live, '.git', 'info', 'exclude'));
+    fs.symlinkSync(path.join(dev, '.zshrc'), path.join(home, '.zshrc'));
+    fs.symlinkSync(path.join(dev, '.claude', 'skills'), path.join(home, '.claude', 'skills'));
+    const result = await runCutover(live, home);
+    assert.equal(result.status, 0, result.lines.join('\n'));
+    assert.deepEqual(
+      fs.readFileSync(path.join(live, '.git', 'info', 'exclude')),
+      fs.readFileSync(path.join(main, '.git', 'info', 'exclude')),
+    );
+    assert.ok(fs.existsSync(path.join(live, '.claude', 'skills', 'vibesec', 'b.md')));
+    const status = gitOutput(home, live, 'status', '--porcelain', '--untracked-files=all');
+    assert.equal(status.split('\n').some((line) => line.includes('.claude/skills/vibesec')), false, status);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('cutover refuses an exclude file it cannot read', () => withSetup({}, async ({ home, dev, live }) => {
+  const exclude = path.join(dev, '.git', 'info', 'exclude');
+  fs.chmodSync(exclude, 0o000);
+  try {
+    const before = linkTexts(home);
+    const result = await runCutover(live, home);
+    assert.equal(result.status, 1, result.lines.join('\n'));
+    assert.ok(
+      result.lines.some((line) => line.startsWith('cutover: cannot read') && line.endsWith('.git/info/exclude: EACCES')),
+      result.lines.join('\n'),
+    );
+    assert.equal(result.lines.at(-1), 'cutover: nothing was changed');
+    assert.deepEqual(linkTexts(home), before);
+    assert.equal(fs.existsSync(path.join(live, '.claude', 'skills', 'vibesec')), false);
+  } finally {
+    fs.chmodSync(exclude, 0o644);
+  }
+}));
+
+test('cutover stops before copying content when it cannot write the live exclude file', () => withSetup({
+  afterClone: ({ live }) => {
+    const exclude = path.join(live, '.git', 'info', 'exclude');
+    fs.rmSync(exclude);
+    fs.mkdirSync(exclude);
+  },
+}, async ({ home, live }) => {
+  const before = linkTexts(home);
+  const result = await runCutover(live, home);
+  assert.equal(result.status, 1, result.lines.join('\n'));
+  assert.ok(
+    result.lines.some((line) => line.startsWith('cutover: cannot write') && line.endsWith('.windful-ocean/.git/info/exclude: EISDIR')),
+    result.lines.join('\n'),
+  );
+  assert.equal(result.lines.at(-1), 'cutover: nothing was changed');
+  assert.equal(fs.existsSync(path.join(live, '.claude', 'skills', 'vibesec')), false);
+  assert.equal(fs.existsSync(path.join(live, '.claude', 'skills', 'synced')), false);
+  assert.deepEqual(linkTexts(home), before);
+}));
+
+test('cutover keeps the live exclude file when the checkout has none', () => withSetup({
+  afterClone: ({ dev, live }) => {
+    fs.rmSync(path.join(dev, '.git', 'info', 'exclude'));
+    write(path.join(live, '.git', 'info', 'exclude'), 'live');
+  },
+}, async ({ home, live }) => {
+  const result = await runCutover(live, home);
+  assert.equal(result.status, 0, result.lines.join('\n'));
+  assert.equal(fs.readFileSync(path.join(live, '.git', 'info', 'exclude'), 'utf8'), 'live');
+}));
+
+test('cutover refuses a live clone that is not a git work tree', () => withSetup({
+  afterClone: ({ live }) => fs.rmSync(path.join(live, '.git'), { recursive: true, force: true }),
+}, async ({ home, live }) => {
+  const before = linkTexts(home);
+  const result = await runCutover(live, home);
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.lines, [`cutover: ${home}/.windful-ocean is not a git work tree`, 'cutover: nothing was changed']);
+  assert.deepEqual(linkTexts(home), before);
+}));
