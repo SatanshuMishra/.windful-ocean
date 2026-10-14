@@ -6,10 +6,10 @@ __      _(_)_ __   __| |/ _|_   _| |       ___   ___ ___  __ _ _ __
 (_)_/\_/ |_|_| |_|\__,_|_|  \__,_|_|      \___/ \___\___|\__,_|_| |_|
 ```
 
-[![test](https://github.com/SatanshuMishra/.windful-ocean/actions/workflows/test.yml/badge.svg)](https://github.com/SatanshuMishra/.windful-ocean/actions/workflows/test.yml)
+[![ci](https://github.com/SatanshuMishra/.windful-ocean/actions/workflows/ci.yml/badge.svg)](https://github.com/SatanshuMishra/.windful-ocean/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-**My personal macOS dotfiles: a terminal environment (shell, editor, tmux, git, terminal) plus a Claude Code agent configuration, symlinked into `$HOME` with GNU Stow.**
+**My personal macOS dotfiles: a terminal environment (shell, editor, tmux, git, terminal) plus a Claude Code agent configuration, symlinked into `$HOME` from a link manifest.**
 
 ## What's in here
 
@@ -17,7 +17,7 @@ __      _(_)_ __   __| |/ _|_   _| |       ___   ___ ___  __ _ _ __
 .windful-ocean/
 ├── .claude/          Claude Code agent configuration
 │   ├── CLAUDE.md         always-loaded global instructions summary
-│   ├── settings.json     hook wiring, tool permissions, enabled plugins
+│   ├── settings.json     base of hooks, permissions and environment that sync merges into ~/.claude/settings.json
 │   ├── rules/            standing coding, testing, and security rules
 │   ├── agents/           subagent definitions
 │   ├── skills/           procedures a session can invoke by name
@@ -30,42 +30,59 @@ __      _(_)_ __   __| |/ _|_   _| |       ___   ___ ___  __ _ _ __
 │   ├── git/              git's XDG global ignore file
 │   └── starship.toml     Starship prompt configuration
 ├── .githooks/        this repo's git pre-commit hook (runs the test suite before a commit)
-├── .github/          GitHub Actions CI workflows and the PR labeler
-├── .semgrep/         Semgrep static-analysis helper files
+├── .github/          the one ci workflow and the ruleset payload that makes it required
 ├── docs/             longer reference docs
-├── scripts/          install, update, and CI helper scripts
+├── scripts/          the dotfiles command line, the git-hook installer and repo checks
 ├── .zshrc                Zsh shell config: prompt, plugins, aliases, CLI tool wiring
 ├── .wezterm.lua          WezTerm terminal emulator config
-├── .gitconfig            global git config; tracked here but not linked by the installer
+├── .gitconfig            global git config; linked to ~/.gitconfig.dotfiles
 ├── .gitattributes_global global gitattributes
-├── .stow-local-ignore    files GNU Stow skips when linking
-├── .semgrepignore        paths Semgrep skips
-├── package.json          defines the npm test command
-├── receipts.config.json  config for the receipts CI check
+├── package.json          defines the npm test and test:ci commands
+├── receipts.config.json  config for the locally enabled receipts plugin
 ├── LICENSE               Apache 2.0 license text
 └── NOTICE                attribution notice
 ```
 
-`.gitconfig` is tracked here but not linked by the installer. If you want it, apply it by hand.
+`.gitconfig` is linked to `~/.gitconfig.dotfiles`. Git does not read that name by itself; pull it into your own `~/.gitconfig` with `git config --global include.path ~/.gitconfig.dotfiles`.
 
 For the deeper detail, see [`.config/nvim/README.md`](.config/nvim/README.md) for the full Neovim reference, and [`.claude/README.md`](.claude/README.md) for the full agent-config reference.
 
+## How it works
+
+One command line, `node scripts/dotfiles/cli.mjs`, with four commands. It reads the link manifest, `scripts/dotfiles/links.json`, which lists each link as a source inside the clone and a target inside the home folder. Only configuration is listed: no `LICENSE`, `NOTICE`, `package.json`, `docs/` or other repository files are linked into `$HOME`.
+
+| Command | What it does |
+|---|---|
+| `node scripts/dotfiles/cli.mjs install` | Links every entry of `scripts/dotfiles/links.json` from the clone it runs in into the home folder. Anything in the way is moved to `~/.dotfiles-backup/<time>/`. |
+| `node scripts/dotfiles/cli.mjs check` | Reports missing links, links replaced by real files or folders, links pointing elsewhere, dangling links into the clone and stray `.claude` folders. It changes nothing. A SessionStart hook runs it in every new Claude Code session. |
+| `node scripts/dotfiles/cli.mjs sync` | Merges the tracked `.claude/settings.json` (repository keys such as hooks, permissions and env) into the real `~/.claude/settings.json`. Machine keys such as model, enabledPlugins, theme and effortLevel stay in that real file. |
+| `node scripts/dotfiles/cli.mjs cutover` | Switches the links from the development checkout to the live clone. One time only; see [Cutover](#cutover). |
+
+Two folders matter:
+
+- **The live clone**, `~/.windful-ocean`, only tracks `main` and is never edited. After the cutover, `~/.claude` and the dotfile links resolve into it.
+- **The development checkout**, wherever you cloned the repository to work in. Every change is made, committed and pushed from there.
+
+A write guard enforces this: it refuses Edit and Write into `~/.claude` config and into `~/.windful-ocean`, and names the development-checkout path to edit instead.
+
 ## Install
 
-1. Clone the repo. It can live anywhere; the installer always links into `$HOME`.
+On a fresh machine:
+
+1. Clone the repo to `~/.windful-ocean`.
 
    ```bash
-   git clone https://github.com/SatanshuMishra/.windful-ocean.git ~/.dotfiles
-   cd ~/.dotfiles
+   git clone https://github.com/SatanshuMishra/.windful-ocean.git ~/.windful-ocean
    ```
 
-2. Run the installer.
+2. Link the config into `$HOME`, then merge the settings base into `~/.claude/settings.json`.
 
    ```bash
-   ./scripts/install_config.sh
+   node ~/.windful-ocean/scripts/dotfiles/cli.mjs install
+   node ~/.windful-ocean/scripts/dotfiles/cli.mjs sync
    ```
 
-   It installs GNU Stow if it's missing, backs up any file it would overwrite into a timestamped backup folder, then symlinks everything into `$HOME`.
+   `install` moves anything it would overwrite into `~/.dotfiles-backup/<time>/` and prints one line per link it places. `sync` creates `~/.claude/settings.json` from the base when it is absent and keeps every machine key it already holds.
 
 3. (Optional) Point git at this repo's own pre-commit hook, only needed if you'll be editing this repo.
 
@@ -81,40 +98,64 @@ For the deeper detail, see [`.config/nvim/README.md`](.config/nvim/README.md) fo
    brew install eza bat fd ripgrep zoxide starship delta
    ```
 
-6. Set your git identity, since `.gitconfig` is not linked automatically.
+6. Set your git identity, either in `~/.gitconfig` or through the `~/.gitconfig.dotfiles` link described above.
 
    ```bash
    git config --global user.name "Your Name"
    git config --global user.email "you@example.com"
    ```
 
-7. Confirm it worked: `ls -la ~/.zshrc ~/.claude/CLAUDE.md`. Both should show as symlinks (`->`) pointing back into the clone.
+7. Confirm it worked: `node ~/.windful-ocean/scripts/dotfiles/cli.mjs check` prints `check: all 17 links in place`.
 
 ## Update
 
-**Pull repo changes onto this machine.** Run `git pull` inside the repo. Since the live files are symlinks into the repo, anything already linked updates instantly, no re-install needed.
+Keep the live clone current with a fast-forward pull, then relink and resync:
 
-**Link new files.** If the pull added brand-new files or directories, re-run `./scripts/install_config.sh` to link them in. Re-running it is safe.
+```bash
+git -C ~/.windful-ocean pull --ff-only
+node ~/.windful-ocean/scripts/dotfiles/cli.mjs install
+node ~/.windful-ocean/scripts/dotfiles/cli.mjs sync
+```
 
-**Push machine-side edits back into the repo.** Run `./scripts/update_config.sh`. It copies your live Neovim, tmux, `.zshrc`, and `.wezterm.lua` config back into the repo, shows what changed, then asks before committing and pushing.
+`install` leaves links that are already in place untouched and links any entry the pull added. `sync` adds new hooks, permissions and environment keys from the base without touching your machine keys.
+
+Never edit the live clone. Make changes in the development checkout, merge them to `main`, then run the three commands above.
+
+## Cutover
+
+Until the cutover, `~/.claude` and the dotfile links point into the development checkout, so a half-finished edit there is live in every running session. The cutover is a one-time move to the live clone. It refuses and lists every difference unless the content every link resolves to is identical in both copies, so running sessions see no change.
+
+In order:
+
+1. Merge the roster and tooling pull requests.
+2. In the development checkout, commit or discard the changes under linked folders and `git pull`.
+3. Next, run node scripts/dotfiles/cli.mjs check in the development checkout and fix the problems it reports, deleting each dangling link it names. Today those are `~/.gitignore_global` and the `~/.config` links `autostart`, `fish`, `github-copilot`, `silicon` and `wezterm`, whose sources no longer exist.
+4. `git clone https://github.com/SatanshuMishra/.windful-ocean.git ~/.windful-ocean`.
+5. Run `node ~/.windful-ocean/scripts/dotfiles/cli.mjs cutover`. It refuses and lists every difference until the two copies match, and it copies untracked files such as `.claude/skills/synced` across. When it succeeds it repoints each link to the live clone and ends with `cutover: done`.
+6. In the development checkout, run `git restore --staged --worktree .claude/settings.json`, since `~/.claude/settings.json` is now a real file.
+7. Merge the hooks pull request, then update the live clone as described in [Update](#update).
+
+Going back is `node <development checkout>/scripts/dotfiles/cli.mjs install`.
+
+## CI
+
+CI is one workflow, `ci`: gitleaks over the pushed range, then `install`, `sync` and `check` into an empty home, then `npm run test:ci`. The payload `.github/rulesets/require-ci.json` makes it a required check on the default branch once you apply it:
+
+```bash
+gh api --method POST repos/SatanshuMishra/.windful-ocean/rulesets --input .github/rulesets/require-ci.json
+```
 
 ## Uninstall
 
-There's no uninstall script, so do it by hand.
+1. Delete each link that `scripts/dotfiles/links.json` lists: for every entry, remove its target under `$HOME` (for example `~/.zshrc`, `~/.claude/CLAUDE.md` and `~/.config/nvim`) when it is a symlink into the clone.
 
-1. Remove the symlinks Stow created, run from inside the repo:
+2. Restore anything the installer moved aside, from the `~/.dotfiles-backup/<time>/` folder it created.
 
-   ```bash
-   stow -D -d "$(dirname "$PWD")" -t "$HOME" "$(basename "$PWD")"
-   ```
-
-2. `~/.claude` and `~/.config` are real folders whose contents were linked individually, so check for and remove any leftover symlinks that still point into the repo, for example `~/.claude/CLAUDE.md` and `~/.config/nvim`.
-
-3. Restore anything the installer moved aside, from the timestamped `~/.dotfiles-backup-YYYYMMDD_HHMMSS/` folder it created.
+3. `~/.claude/settings.json` is a real file that holds your machine choices; delete it only if you want those gone too.
 
 4. If you ran the hooks installer, undo it from inside the repo: `git config --unset core.hooksPath`.
 
-5. `.gitconfig` was never linked, so there's nothing to undo there. Delete the clone itself when you want it fully gone.
+5. Remove the `include.path` line for `~/.gitconfig.dotfiles` from `~/.gitconfig` if you added it. Delete the clone itself, `~/.windful-ocean`, when you want it fully gone.
 
 ## Docs
 

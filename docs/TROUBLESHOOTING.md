@@ -4,25 +4,19 @@ This guide covers common issues and their solutions when using my dotfiles.
 
 ## Installation Issues
 
-### GNU Stow Not Found
-Problem: `stow: command not found` during installation
+### Install Prints "cannot link"
+Problem: `install: cannot link ~/<target>: <error code>` during install
+
+The target's parent path is not a folder you can write to, for example `~/.config` is a regular file. install still places the other links and exits 1.
 
 Solutions:
 ```bash
-# macOS
-brew install stow
+# Look at what is in the way
+ls -la ~/.config ~/.claude
 
-# Ubuntu/Debian
-sudo apt update && sudo apt install stow
-
-# Arch Linux
-sudo pacman -S stow
-
-# Fedora
-sudo dnf install stow
-
-# CentOS/RHEL
-sudo yum install stow
+# Move the blocking file aside, then run install again
+mv ~/.config ~/.config.moved
+node scripts/dotfiles/cli.mjs install
 ```
 
 ### Permission Denied Errors
@@ -41,32 +35,68 @@ chmod u+w ~/.zshrc ~/.gitconfig ~/.wezterm.lua
 ```
 
 ### Existing Config Conflicts
-Problem: Stow fails due to existing configuration files
+Problem: A file or folder already sits where a link should go
+
+install keeps it for you. A real file or folder, or a link to another place, is moved or copied to `~/.dotfiles-backup/<time>/<target>` and the link is placed; the line `install: backed up ~/<target> to <backup path>` names where it went.
 
 Solutions:
 ```bash
-# Backup existing configs
-mkdir -p ~/.config-backup-$(date +%Y%m%d)
-mv ~/.zshrc ~/.config-backup-$(date +%Y%m%d)/
-mv ~/.gitconfig ~/.config-backup-$(date +%Y%m%d)/
-mv ~/.config/nvim ~/.config-backup-$(date +%Y%m%d)/
+# See what install kept
+ls -la ~/.dotfiles-backup/
 
-# Then run stow again
-stow . -t ~
+# Put one back by hand if you want it, for example
+cp ~/.dotfiles-backup/<time>/.zshrc ~/.zshrc.old
 ```
 
-### New Hook or Rule File Doesn't Take Effect
-Problem: A script just added to `.claude/hooks/` doesn't run, or a file just added to `.claude/rules/` is missing from context — no error, it just silently doesn't fire.
+### check Reports Problems
+Problem: `node scripts/dotfiles/cli.mjs check` prints one line per problem and exits 1. It changes nothing; a SessionStart hook runs it in every new Claude Code session and shows the same lines under `dotfiles check found problems:`.
 
-Trigger: `~/.claude/hooks` and `~/.claude/rules` are the two exceptions to "everything under `~/.claude` is a live symlink." Both contain files that exist only in the home tree and not in the repo — a `graphify-out/` cache in each, plus `rules/context7.md`. GNU Stow cannot collapse a directory into a single symlink when it has to coexist with content it does not own, so it links each child individually instead. A new top-level file dropped directly into `.claude/hooks/` or `.claude/rules/` therefore has no live symlink until Stow runs again. Files added inside an already-linked subdirectory (`hooks/lib/`, `hooks/tests/`, `rules/common/`, `rules/typescript/`) are unaffected, because those subdirectories are themselves whole-directory symlinks.
+| Line | Meaning | Fix |
+|---|---|---|
+| `check: ~/<target> is missing; run install` | The link does not exist. | Run `node scripts/dotfiles/cli.mjs install`. |
+| `check: ~/<target> is a real file, not a link; move your changes into <clone>/<source>, then run install` | A real file replaced the link, so edits to it never reach the repository. A real folder gives the same line with "folder". | Copy your changes into the clone's source, then run install, which keeps the file under `~/.dotfiles-backup/<time>/`. |
+| `check: ~/<target> links to <destination>, not <clone>/<source>; run install` | The link points somewhere else, such as the development checkout after the cutover. | Run install from the clone you want live. |
+| `check: ~/<path> links to <destination>, which does not exist; delete the link` | A dangling link into the clone, left by an old install. | Delete the link it names, for example `rm ~/.gitignore_global`. |
+| `check: <path> is a stray .claude folder; move what it holds and delete it` | A session whose working folder was inside a linked folder created `.claude` there. | Move what the folder holds, then delete it. |
+| `check: cannot read <path>: <error code>` | A path could not be read, usually a permission problem. | Fix the mode on the path it names and run check again. |
+
+### Update Fails: "untracked working tree files would be overwritten"
+Problem: `git -C ~/.windful-ocean pull --ff-only` refuses because an untracked file that cutover copied into the live clone would be overwritten by a file the pull brings in.
 
 Solutions:
 ```bash
-# Re-run the installer to link the new file
-./scripts/install_config.sh
+# The refusal lists the files; delete exactly those from the live clone
+rm ~/.windful-ocean/<listed file>
 
-# Confirm the symlink now exists
-ls -la ~/.claude/hooks/<new-script>.sh
+# Pull again, then relink and resync
+git -C ~/.windful-ocean pull --ff-only
+node ~/.windful-ocean/scripts/dotfiles/cli.mjs install
+node ~/.windful-ocean/scripts/dotfiles/cli.mjs sync
+```
+
+### sync Refuses the Settings File
+Problem: `node scripts/dotfiles/cli.mjs sync` exits 1 and leaves `~/.claude/settings.json` untouched.
+
+| Line | Fix |
+|---|---|
+| `sync: ~/.claude/settings.json is a symbolic link; run cutover first` | The settings file is still a link into a checkout. Run the cutover described in the root README, which turns it into a real file, then sync again. |
+| `sync: ~/.claude/settings.json is not valid JSON; fix it and run sync again` | Open the file, repair the JSON, then run sync again. |
+| `sync: ~/.claude/settings.json is not a JSON object; fix it and run sync again` | The file must hold one JSON object. Fix it, then run sync again. |
+
+### New Hook or Rule File Doesn't Take Effect
+Problem: A script just added to `.claude/hooks/` doesn't run, or a file just added to `.claude/rules/` is missing from context.
+
+Cause: `~/.claude/hooks` and `~/.claude/rules` are links to the clone's folders, so a new file shows up only in the clone that the links point into. Edits made in the development checkout reach `~/.claude` only after the cutover and after the live clone is updated.
+
+Solutions:
+```bash
+# Confirm where the links point
+readlink ~/.claude/hooks
+
+# Update the live clone and relink
+git -C ~/.windful-ocean pull --ff-only
+node ~/.windful-ocean/scripts/dotfiles/cli.mjs install
+node ~/.windful-ocean/scripts/dotfiles/cli.mjs sync
 ```
 
 ---
@@ -305,7 +335,7 @@ Neovim-specific health checks (`:checkhealth lsp`, `:checkhealth treesitter`, an
 ### Check My System Health
 ```bash
 # Check essential tools
-for tool in nvim tmux git zsh stow; do
+for tool in nvim tmux git zsh node; do
   if command -v $tool &> /dev/null; then
     echo "OK: $tool: $(which $tool)"
   else
@@ -364,7 +394,7 @@ mv ~/.zshrc ~/.zshrc.disabled
 # Test with fresh install of my dotfiles
 git clone https://github.com/SatanshuMishra/.windful-ocean.git /tmp/dotfiles-test
 cd /tmp/dotfiles-test
-./scripts/install_config.sh
+HOME="$(mktemp -d)" node scripts/dotfiles/cli.mjs install
 ```
 
 ### Getting Help

@@ -8,24 +8,28 @@
 
 # scripts
 
-The scripts that install, update, and check this repository. See the [root README](../README.md) for how this fits into the repository as a whole.
+The scripts that install, check and keep this repository live. See the [root README](../README.md) for how this fits into the repository as a whole.
 
 ## What a human runs
 
-- **`install_config.sh`** — the one command from a fresh clone. Detects the OS, installs GNU Stow if missing, backs up conflicting files, and symlinks the repository into `$HOME`. Detail: [root README, Install](../README.md#install) and [How it works](../README.md#how-it-works).
-- **`update_config.sh`** — the reverse direction: copies live config from `$HOME` back into the repository (`rsync --delete` for Neovim and tmux, a plain copy for `.zshrc` and `.wezterm.lua`), shows what changed, then asks before committing or pushing.
+- **`dotfiles/cli.mjs`** — the one command line, `node scripts/dotfiles/cli.mjs`, with four commands. Detail: [root README, How it works](../README.md#how-it-works).
+  - `install` links every entry of `dotfiles/links.json` from the clone it runs in into the home folder, moving anything in the way to `~/.dotfiles-backup/<time>/`.
+  - `check` reports missing links, links replaced by real files or folders, links pointing elsewhere, dangling links into the clone and stray `.claude` folders, and changes nothing. A SessionStart hook runs it in every new Claude Code session.
+  - `sync` merges the tracked `.claude/settings.json` into the real `~/.claude/settings.json`, where machine keys such as model, enabledPlugins, theme and effortLevel stay.
+  - `cutover` switches the links from the development checkout to the live clone `~/.windful-ocean`, and refuses and lists every difference until the two copies match.
+- **`dotfiles/links.json`** — the link manifest: each link is a source inside the clone and a target inside the home folder.
+- **`dotfiles/tests/`** — the test suite for the command line, run by `npm test` at the repository root.
 
 ## Hooks installer
 
 - **`install-hooks.sh`** — 9 lines. Points git at this repository's own hooks by running `git config core.hooksPath .githooks`, so `.githooks/pre-commit` runs on commit.
 
-## Repo tooling (what CI runs)
+## Repo tooling
 
-`scripts/repo/` holds the checks and archival tools GitHub Actions runs against this repository, not anything a person runs by hand day to day:
+`scripts/repo/` holds checks that no CI workflow runs; `npm test` at the repository root runs their tests, and a person can run a script by hand:
 
 - **`skill-router-lint.mjs`** — lints every `SKILL.md` under `.claude/skills/`: required frontmatter fields, a routing table shaped correctly, and a size ceiling of 4096 bytes per skill file.
-- **`archive-agent-ledger.mjs`** and **`agent-ledger-archive-verify.mjs`** — write and then verify a manifest (`agent-ledger-archive-manifest.json`) recording the SHA-256 of every archived agent-ledger event file, so an archive round can be checked for completeness and integrity rather than trusted on sight.
-- **`tests/`** — the test suite for the four scripts above (`gitlink-census.test.mjs`, `control-byte-census.test.mjs`, `stripstrings-hang-census.test.mjs`, `confirmation-claim-census.test.mjs`), run by `npm test` at the repository root.
+- **`tests/`** — the test suite for that script and the repository censuses (`skill-router-lint.test.mjs`, `gitlink-census.test.mjs`, `control-byte-census.test.mjs`, `stripstrings-hang-census.test.mjs`, `confirmation-claim-census.test.mjs`), run by `npm test` at the repository root.
 
 ## Regenerating the banners
 
