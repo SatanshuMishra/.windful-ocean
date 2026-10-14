@@ -60,3 +60,25 @@ test('the docs describe install, check, sync, cutover and the live clone and not
     }
   }
 });
+
+test('the docs describe only the problems check reports', () => {
+  for (const doc of ['README.md', 'scripts/README.md', 'docs/TROUBLESHOOTING.md']) {
+    const text = read(doc);
+    assert.ok(!/stray\W+\.claude/i.test(text), `${doc} still mentions a stray .claude folder`);
+    for (const retired of [
+      'dangling links into the clone',
+      'which does not exist; delete the link',
+      'deleting each dangling link it names',
+    ]) {
+      assert.ok(!text.includes(retired), `${doc} still contains: ${retired}`);
+    }
+  }
+
+  const readme = read('README.md');
+  for (const required of [
+    'rm ~/.gitignore_global ~/.config/autostart ~/.config/fish ~/.config/github-copilot ~/.config/silicon ~/.config/wezterm',
+    'run node scripts/dotfiles/cli.mjs check in the development checkout and fix the problems it reports',
+  ]) {
+    assert.ok(readme.includes(required), `README.md is missing: ${required}`);
+  }
+});
