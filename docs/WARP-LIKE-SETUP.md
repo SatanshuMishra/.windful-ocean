@@ -107,13 +107,14 @@ sudo pacman -S eza bat fd ripgrep
 
 1. **Clone the dotfiles repository** (if not already done):
    ```bash
-   git clone https://github.com/satanshumishra/.windful-ocean.git ~/.dotfiles
-   cd ~/.dotfiles
+   git clone https://github.com/SatanshuMishra/.windful-ocean.git ~/.windful-ocean
+   cd ~/.windful-ocean
    ```
 
 2. **Install the dotfiles**:
    ```bash
-   ./scripts/install_config.sh
+   node scripts/dotfiles/cli.mjs install
+   node scripts/dotfiles/cli.mjs sync
    ```
 
 3. **Install dependencies** (see Prerequisites above)
@@ -194,10 +195,11 @@ If WezTerm styling is not being applied:
    rm ~/.config  # Only if it's a broken symlink!
    ```
 
-4. **Re-run Stow installation**:
+4. **Re-run the install and check**:
    ```bash
-   cd ~/.dotfiles
-   ./scripts/install_config.sh
+   cd ~/.windful-ocean
+   node scripts/dotfiles/cli.mjs install
+   node scripts/dotfiles/cli.mjs check
    ```
 
 5. **Verify WezTerm can find the config**:

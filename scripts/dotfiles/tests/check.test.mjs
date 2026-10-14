@@ -124,3 +124,53 @@ test('check reports paths it cannot read', () => withClone(async ({ clone, home 
   assert.equal(second.status, 1);
   assert.deepEqual(second.lines, [`check: cannot read ${clone}/.claude/agents/sub: EACCES`]);
 }));
+
+test('check reports a nearby folder it cannot list', () => withClone(async ({ clone, home }) => {
+  await installInto(clone, home);
+  const configFolder = path.join(home, '.config');
+  fs.mkdirSync(configFolder);
+  fs.symlinkSync(path.join(clone, '.config/fish'), path.join(configFolder, 'fish'));
+  const { run } = await import('../check.mjs');
+  fs.chmodSync(configFolder, 0o311);
+  const result = (() => {
+    try {
+      return run({ clone, home });
+    } finally {
+      fs.chmodSync(configFolder, 0o755);
+    }
+  })();
+  assert.equal(result.status, 1);
+  assert.ok(result.lines.includes('check: cannot read ~/.config: EACCES'), result.lines.join('\n'));
+}));
+
+test('check reports nearby links it cannot look up', () => withClone(async ({ clone, home }) => {
+  await installInto(clone, home);
+  const configFolder = path.join(home, '.config');
+  fs.mkdirSync(configFolder);
+  fs.symlinkSync(path.join(clone, '.config/fish'), path.join(configFolder, 'fish'));
+  const { run } = await import('../check.mjs');
+  fs.chmodSync(configFolder, 0o644);
+  const first = (() => {
+    try {
+      return run({ clone, home });
+    } finally {
+      fs.chmodSync(configFolder, 0o755);
+    }
+  })();
+  assert.equal(first.status, 1);
+  assert.ok(first.lines.includes('check: cannot read ~/.config/fish: EACCES'), first.lines.join('\n'));
+  assert.ok(first.lines.every((line) => !line.endsWith('delete the link')), first.lines.join('\n'));
+  const cloneConfig = path.join(clone, '.config');
+  fs.mkdirSync(cloneConfig);
+  fs.chmodSync(cloneConfig, 0o000);
+  const second = (() => {
+    try {
+      return run({ clone, home });
+    } finally {
+      fs.chmodSync(cloneConfig, 0o755);
+    }
+  })();
+  assert.equal(second.status, 1);
+  assert.ok(second.lines.includes('check: cannot read ~/.config/fish: EACCES'), second.lines.join('\n'));
+  assert.ok(second.lines.every((line) => !line.endsWith('delete the link')), second.lines.join('\n'));
+}));

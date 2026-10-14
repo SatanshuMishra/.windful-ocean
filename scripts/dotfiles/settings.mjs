@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeAtomically } from './manifest.mjs';
 
 const NAME = '~/.claude/settings.json';
 const LISTS = ['allow', 'ask', 'deny', 'additionalDirectories'];
@@ -27,12 +28,15 @@ function unionList(base, live) {
 }
 
 function mergePermissions(base, live) {
-  return Object.keys(base).reduce((result, key) => {
+  const fromBase = Object.keys(base).reduce((result, key) => {
     const value = LISTS.includes(key) && Array.isArray(base[key]) && Array.isArray(live[key])
       ? unionList(base[key], live[key])
       : base[key];
     return { ...result, [key]: value };
-  }, { ...live });
+  }, {});
+  return Object.keys(live)
+    .filter((key) => LISTS.includes(key) && !Object.hasOwn(base, key) && Array.isArray(live[key]))
+    .reduce((result, key) => ({ ...result, [key]: live[key] }), fromBase);
 }
 
 export function merge(base, live) {
@@ -42,17 +46,6 @@ export function merge(base, live) {
       : base[key];
     return { ...result, [key]: value };
   }, { ...live });
-}
-
-function writeAtomically(file, value) {
-  const temporary = file + '.dotfiles-tmp-' + process.pid;
-  fs.writeFileSync(temporary, JSON.stringify(value, null, 2) + '\n');
-  try {
-    fs.renameSync(temporary, file);
-  } catch (error) {
-    fs.rmSync(temporary, { force: true });
-    throw error;
-  }
 }
 
 function lookAt(file) {
@@ -79,7 +72,7 @@ export function run({ clone, home }) {
   if (state === 'link') return { status: 1, lines: [`sync: ${NAME} is a symbolic link; run cutover first`] };
   if (state === 'missing') {
     fs.mkdirSync(path.dirname(liveFile), { recursive: true });
-    writeAtomically(liveFile, base);
+    writeAtomically(liveFile, JSON.stringify(base, null, 2) + '\n');
     return { status: 0, lines: [`sync: created ${NAME} from the base`] };
   }
   const parsed = parse(fs.readFileSync(liveFile, 'utf8'));
@@ -90,7 +83,7 @@ export function run({ clone, home }) {
   const live = parsed.value;
   const merged = merge(base, live);
   if (deepEqual(merged, live)) return { status: 0, lines: [`sync: ${NAME} needs no change`] };
-  writeAtomically(liveFile, merged);
+  writeAtomically(liveFile, JSON.stringify(merged, null, 2) + '\n');
   const changed = Object.keys(base).filter((key) => !deepEqual(merged[key], live[key]));
   return { status: 0, lines: [`sync: updated ${changed.join(', ')} in ${NAME}`] };
 }
