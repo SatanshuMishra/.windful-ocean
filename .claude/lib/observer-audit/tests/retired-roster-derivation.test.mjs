@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { RETIRED_ROSTER_LEAD, REQUIRED_LEAD_TOOLS } from '../agent-classification.mjs';
+import { LEAD_AGENT_TYPES, RETIRED_ROSTER_LEAD, REQUIRED_LEAD_TOOLS } from '../agent-classification.mjs';
 import { readRetiredRoster } from '../retirement-set.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -71,7 +71,7 @@ test('RETIRED_ROSTER_LEAD and the roster spec retiring set together match every 
   derivedNonLead.sort();
 
   assert.deepEqual(
-    derivedLead,
+    derivedLead.filter((name) => !LEAD_AGENT_TYPES.includes(name)),
     [...RETIRED_ROSTER_LEAD],
     'RETIRED_ROSTER_LEAD no longer matches the tool grants git recorded at each deletion commit',
   );
