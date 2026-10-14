@@ -76,101 +76,37 @@ test('check reports a target that links to another place', () => withClone(async
   assert.deepEqual(result.lines, [`check: ~/.zshrc links to /nonexistent/other, not ${clone}/.zshrc; run install`]);
 }));
 
-test('check reports a dangling link into the clone and ignores one that points elsewhere', () => withClone(async ({ clone, home }) => {
-  await installInto(clone, home);
-  fs.mkdirSync(path.join(home, '.config'));
-  fs.symlinkSync(path.join(clone, '.config/fish'), path.join(home, '.config', 'fish'));
-  fs.symlinkSync('/nonexistent/other', path.join(home, '.config', 'other'));
-  const { run } = await import('../check.mjs');
-  const result = run({ clone, home });
-  assert.equal(result.status, 1);
-  assert.deepEqual(result.lines, [`check: ~/.config/fish links to ${clone}/.config/fish, which does not exist; delete the link`]);
-}));
-
-test('check reports a stray .claude folder inside a linked source folder', () => withClone(async ({ clone, home }) => {
-  fs.mkdirSync(path.join(clone, '.claude', 'agents', '.claude'));
-  await installInto(clone, home);
-  const { run } = await import('../check.mjs');
-  const result = run({ clone, home });
-  assert.equal(result.status, 1);
-  assert.deepEqual(result.lines, [`check: ${clone}/.claude/agents/.claude is a stray .claude folder; move what it holds and delete it`]);
-  assert.ok(fs.statSync(path.join(clone, '.claude', 'agents', '.claude')).isDirectory());
-}));
+function withMode(target, mode, action) {
+  fs.chmodSync(target, mode);
+  try {
+    return action();
+  } finally {
+    fs.chmodSync(target, 0o755);
+  }
+}
 
 test('check reports paths it cannot read', () => withClone(async ({ clone, home }) => {
   await installInto(clone, home);
   const { run } = await import('../check.mjs');
   const claudeFolder = path.join(home, '.claude');
-  fs.chmodSync(claudeFolder, 0o000);
-  const first = (() => {
-    try {
-      return run({ clone, home });
-    } finally {
-      fs.chmodSync(claudeFolder, 0o755);
-    }
-  })();
+  const first = withMode(claudeFolder, 0o000, () => run({ clone, home }));
   assert.equal(first.status, 1);
-  assert.ok(first.lines.includes('check: cannot read ~/.claude/agents: EACCES'), first.lines.join('\n'));
-  const sub = path.join(clone, '.claude', 'agents', 'sub');
-  fs.mkdirSync(sub);
-  fs.chmodSync(sub, 0o000);
-  const second = (() => {
-    try {
-      return run({ clone, home });
-    } finally {
-      fs.chmodSync(sub, 0o755);
-    }
-  })();
+  assert.deepEqual(first.lines, ['check: cannot read ~/.claude/agents: EACCES']);
+  const second = withMode(claudeFolder, 0o644, () => run({ clone, home }));
   assert.equal(second.status, 1);
-  assert.deepEqual(second.lines, [`check: cannot read ${clone}/.claude/agents/sub: EACCES`]);
+  assert.deepEqual(second.lines, ['check: cannot read ~/.claude/agents: EACCES']);
 }));
 
-test('check reports a nearby folder it cannot list', () => withClone(async ({ clone, home }) => {
+test("check looks only at the manifest's targets", () => withClone(async ({ clone, home }) => {
   await installInto(clone, home);
+  fs.symlinkSync(path.join(clone, 'gone'), path.join(home, 'gone'));
+  fs.mkdirSync(path.join(clone, '.claude', 'agents', '.claude'));
   const configFolder = path.join(home, '.config');
   fs.mkdirSync(configFolder);
-  fs.symlinkSync(path.join(clone, '.config/fish'), path.join(configFolder, 'fish'));
   const { run } = await import('../check.mjs');
-  fs.chmodSync(configFolder, 0o311);
-  const result = (() => {
-    try {
-      return run({ clone, home });
-    } finally {
-      fs.chmodSync(configFolder, 0o755);
-    }
-  })();
-  assert.equal(result.status, 1);
-  assert.ok(result.lines.includes('check: cannot read ~/.config: EACCES'), result.lines.join('\n'));
-}));
-
-test('check reports nearby links it cannot look up', () => withClone(async ({ clone, home }) => {
-  await installInto(clone, home);
-  const configFolder = path.join(home, '.config');
-  fs.mkdirSync(configFolder);
-  fs.symlinkSync(path.join(clone, '.config/fish'), path.join(configFolder, 'fish'));
-  const { run } = await import('../check.mjs');
-  fs.chmodSync(configFolder, 0o644);
-  const first = (() => {
-    try {
-      return run({ clone, home });
-    } finally {
-      fs.chmodSync(configFolder, 0o755);
-    }
-  })();
-  assert.equal(first.status, 1);
-  assert.ok(first.lines.includes('check: cannot read ~/.config/fish: EACCES'), first.lines.join('\n'));
-  assert.ok(first.lines.every((line) => !line.endsWith('delete the link')), first.lines.join('\n'));
-  const cloneConfig = path.join(clone, '.config');
-  fs.mkdirSync(cloneConfig);
-  fs.chmodSync(cloneConfig, 0o000);
-  const second = (() => {
-    try {
-      return run({ clone, home });
-    } finally {
-      fs.chmodSync(cloneConfig, 0o755);
-    }
-  })();
-  assert.equal(second.status, 1);
-  assert.ok(second.lines.includes('check: cannot read ~/.config/fish: EACCES'), second.lines.join('\n'));
-  assert.ok(second.lines.every((line) => !line.endsWith('delete the link')), second.lines.join('\n'));
+  const result = withMode(configFolder, 0o311, () => run({ clone, home }));
+  assert.equal(result.status, 0);
+  assert.deepEqual(result.lines, ['check: all 2 links in place']);
+  assert.ok(fs.lstatSync(path.join(home, 'gone')).isSymbolicLink());
+  assert.ok(fs.statSync(path.join(clone, '.claude', 'agents', '.claude')).isDirectory());
 }));

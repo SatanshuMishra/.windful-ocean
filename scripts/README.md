@@ -14,7 +14,7 @@ The scripts that install, check and keep this repository live. See the [root REA
 
 - **`dotfiles/cli.mjs`** — the one command line, `node scripts/dotfiles/cli.mjs`, with four commands. Detail: [root README, How it works](../README.md#how-it-works).
   - `install` links every entry of `dotfiles/links.json` from the clone it runs in into the home folder, moving anything in the way to `~/.dotfiles-backup/<time>/`.
-  - `check` reports missing links, links replaced by real files or folders, links pointing elsewhere, dangling links into the clone and stray `.claude` folders, and changes nothing. A SessionStart hook runs it in every new Claude Code session.
+  - `check` reports missing links, links replaced by real files or folders, links pointing elsewhere and links it cannot read, and changes nothing. A SessionStart hook runs it in every new Claude Code session.
   - `sync` merges the tracked `.claude/settings.json` into the real `~/.claude/settings.json`, where machine keys such as model, enabledPlugins, theme and effortLevel stay.
   - `cutover` switches the links from the development checkout to the live clone `~/.windful-ocean`, and refuses and lists every difference until the two copies match.
 - **`dotfiles/links.json`** — the link manifest: each link is a source inside the clone and a target inside the home folder.

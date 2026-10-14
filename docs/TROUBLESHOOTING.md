@@ -56,9 +56,7 @@ Problem: `node scripts/dotfiles/cli.mjs check` prints one line per problem and e
 | `check: ~/<target> is missing; run install` | The link does not exist. | Run `node scripts/dotfiles/cli.mjs install`. |
 | `check: ~/<target> is a real file, not a link; move your changes into <clone>/<source>, then run install` | A real file replaced the link, so edits to it never reach the repository. A real folder gives the same line with "folder". | Copy your changes into the clone's source, then run install, which keeps the file under `~/.dotfiles-backup/<time>/`. |
 | `check: ~/<target> links to <destination>, not <clone>/<source>; run install` | The link points somewhere else, such as the development checkout after the cutover. | Run install from the clone you want live. |
-| `check: ~/<path> links to <destination>, which does not exist; delete the link` | A dangling link into the clone, left by an old install. | Delete the link it names, for example `rm ~/.gitignore_global`. |
-| `check: <path> is a stray .claude folder; move what it holds and delete it` | A session whose working folder was inside a linked folder created `.claude` there. | Move what the folder holds, then delete it. |
-| `check: cannot read <path>: <error code>` | A path could not be read, usually a permission problem. | Fix the mode on the path it names and run check again. |
+| `check: cannot read ~/<target>: <error code>` | A link target could not be looked up, usually because a folder above it lost its permissions. | Restore that folder's mode, for example `chmod 755 ~/.claude`, and run check again. |
 
 ### Update Fails: "untracked working tree files would be overwritten"
 Problem: `git -C ~/.windful-ocean pull --ff-only` refuses because an untracked file that cutover copied into the live clone would be overwritten by a file the pull brings in.
