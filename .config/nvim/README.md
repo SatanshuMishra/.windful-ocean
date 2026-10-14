@@ -93,13 +93,13 @@ A comprehensive, modular Neovim configuration optimized for full-stack developme
 
 ### Installation Steps
 
-This directory is not cloned or installed on its own. It arrives at `~/.config/nvim` as a byproduct of installing the whole repository with GNU Stow — there is no separate `.config/nvim`-only install path. From the repository root:
+This directory is not cloned or installed on its own. It arrives at `~/.config/nvim` as a byproduct of installing the whole repository from its link manifest — there is no separate `.config/nvim`-only install path. From the repository root:
 
 ```bash
-./scripts/install_config.sh
+node scripts/dotfiles/cli.mjs install
 ```
 
-See [Install](../../README.md#install) and [How it works](../../README.md#how-it-works) in the root README for the full procedure: prerequisites, what the script does, and how to confirm `~/.config/nvim` is really a tree of symlinks back into this repository rather than a copy.
+See [Install](../../README.md#install) and [How it works](../../README.md#how-it-works) in the root README for the full procedure: prerequisites, what the command does, and how `node scripts/dotfiles/cli.mjs check` confirms `~/.config/nvim` is a link back into this repository rather than a copy.
 
 Once that's done:
 
@@ -550,7 +550,7 @@ vim.opt.swapfile = false    -- Disable swap files
 - r/neovim: Community support
 - Plugin documentation: Each plugin's README
 
-For install, stow, shell, font and other system-level problems that are not specific to Neovim, see [docs/TROUBLESHOOTING.md](../../docs/TROUBLESHOOTING.md).
+For install, shell, font and other system-level problems that are not specific to Neovim, see [docs/TROUBLESHOOTING.md](../../docs/TROUBLESHOOTING.md).
 
 ---
 
