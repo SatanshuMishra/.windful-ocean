@@ -21,32 +21,43 @@ function insideClone(file, clone) {
   return file === clone || file.startsWith(clone + path.sep);
 }
 
-function listFolder(folder) {
+function attempt(action) {
   try {
-    return fs.readdirSync(folder, { withFileTypes: true });
-  } catch {
-    return [];
+    return { value: action() };
+  } catch (error) {
+    return { error };
   }
 }
 
+function shownName(file, home) {
+  const relative = path.relative(home, file);
+  return relative === '' ? '~' : `~/${relative}`;
+}
+
+function linkProblems(file, folder, clone, home) {
+  const shown = shownName(file, home);
+  const read = attempt(() => readEntry(file));
+  if (read.error) return [`check: cannot read ${shown}: ${read.error.code}`];
+  if (read.value.kind !== 'link') return [];
+  const destination = path.resolve(folder, read.value.text);
+  if (!insideClone(destination, clone)) return [];
+  const looked = attempt(() => fs.statSync(file));
+  if (!looked.error) return [];
+  if (looked.error.code === 'ENOENT') {
+    return [`check: ${shown} links to ${destination}, which does not exist; delete the link`];
+  }
+  return [`check: cannot read ${shown}: ${looked.error.code}`];
+}
+
 function danglingProblems(folder, clone, home) {
-  if (!fs.existsSync(folder)) return [];
-  return listFolder(folder)
+  const listed = attempt(() => fs.readdirSync(folder, { withFileTypes: true }));
+  if (listed.error) {
+    if (listed.error.code === 'ENOENT') return [];
+    return [`check: cannot read ${shownName(folder, home)}: ${listed.error.code}`];
+  }
+  return listed.value
     .filter((dirent) => dirent.isSymbolicLink())
-    .flatMap((dirent) => {
-      const file = path.join(folder, dirent.name);
-      const entry = (() => {
-        try {
-          return readEntry(file);
-        } catch {
-          return { kind: 'unreadable' };
-        }
-      })();
-      if (entry.kind !== 'link') return [];
-      const destination = path.resolve(folder, entry.text);
-      if (!insideClone(destination, clone) || fs.existsSync(file)) return [];
-      return [`check: ~/${path.relative(home, file)} links to ${destination}, which does not exist; delete the link`];
-    });
+    .flatMap((dirent) => linkProblems(path.join(folder, dirent.name), folder, clone, home));
 }
 
 function strayProblems(folder) {
