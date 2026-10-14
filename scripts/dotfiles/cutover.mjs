@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { liveClonePath, loadLinks, placeLink, readEntry } from './manifest.mjs';
+import { liveClonePath, loadLinks, placeLink, readEntry, writeAtomically } from './manifest.mjs';
 
 const SETTINGS = path.join('.claude', 'settings.json');
 
@@ -178,27 +178,47 @@ function copyContent(checkout, clone, plan) {
       return { failed: true, lines: [`cutover: cannot copy ${path.join(checkout, rel)}: ${error.code}`] };
     }
   }
-  const exclude = path.join(checkout, '.git', 'info', 'exclude');
-  try {
-    if (readEntry(exclude).kind === 'file') {
-      fs.mkdirSync(path.join(clone, '.git', 'info'), { recursive: true });
-      fs.copyFileSync(exclude, path.join(clone, '.git', 'info', 'exclude'));
-    }
-  } catch (error) {
-    return { failed: true, lines: [`cutover: cannot copy ${exclude}: ${error.code}`] };
-  }
   if (plan.count === 0) return { failed: false, lines: [] };
   return { failed: false, lines: [`cutover: copied ${plan.count} untracked or ignored files`] };
 }
 
-function replaceSettings(home, bytes) {
-  const file = path.join(home, SETTINGS);
-  const temporary = file + '.dotfiles-tmp-' + process.pid;
+function excludePath(dir) {
+  const result = spawnSync('git', ['-C', dir, 'rev-parse', '--path-format=absolute', '--git-path', 'info'], {
+    encoding: 'utf8',
+  });
+  if (result.error || result.status !== 0) return null;
+  return path.join(result.stdout.trim(), 'exclude');
+}
+
+function readExclude(checkout, clone) {
+  if (checkout === undefined) return {};
+  const from = excludePath(checkout);
+  if (from === null) return { failure: `cutover: ${checkout} is not a git work tree` };
+  const to = excludePath(clone);
+  if (to === null) return { failure: `cutover: ${clone} is not a git work tree` };
   try {
-    fs.writeFileSync(temporary, bytes);
-    fs.renameSync(temporary, file);
+    return { bytes: fs.readFileSync(from), to };
   } catch (error) {
-    fs.rmSync(temporary, { force: true });
+    if (error.code === 'ENOENT') return {};
+    return { failure: cannotRead(from, error) };
+  }
+}
+
+function writeExclude(exclude) {
+  if (exclude.bytes === undefined) return { failed: false, lines: [] };
+  try {
+    fs.mkdirSync(path.dirname(exclude.to), { recursive: true });
+    writeAtomically(exclude.to, exclude.bytes);
+  } catch (error) {
+    return { failed: true, lines: [`cutover: cannot write ${exclude.to}: ${error.code}`] };
+  }
+  return { failed: false, lines: [] };
+}
+
+function replaceSettings(home, bytes) {
+  try {
+    writeAtomically(path.join(home, SETTINGS), bytes);
+  } catch (error) {
     return { failed: true, lines: [`cutover: cannot replace ~/.claude/settings.json: ${error.code}`] };
   }
   return { failed: false, lines: ['cutover: made ~/.claude/settings.json a real file'] };
@@ -226,6 +246,7 @@ export function run({ clone, home }) {
   const live = liveClonePath(home);
   const here = path.resolve(clone);
   if (here !== live) return refuse([`cutover: run cutover from ${live}, not ${here}`]);
+  if (!isWorkTree(live)) return refuse([`cutover: ${live} is not a git work tree`]);
   const links = loadLinks(live);
   const attributed = links.map((link) => ({ link, ...attribute(link, home, live) }));
   const failures = attributed.flatMap((entry) => (entry.failure ? [entry.failure] : []));
@@ -237,8 +258,15 @@ export function run({ clone, home }) {
   const content = checkContent(checkout, live, pending);
   if (content.refused) return refuse(content.refused);
   const settings = readSettings(home);
-  const problems = [...content.lines, ...(settings.failure ? [settings.failure] : [])];
+  const exclude = readExclude(checkout, live);
+  const problems = [
+    ...content.lines,
+    ...(settings.failure ? [settings.failure] : []),
+    ...(exclude.failure ? [exclude.failure] : []),
+  ];
   if (problems.length > 0) return refuse(problems);
+  const carried = writeExclude(exclude);
+  if (carried.failed) return refuse(carried.lines);
   const copied = checkout === undefined ? { failed: false, lines: [] } : copyContent(checkout, live, content.plan);
   if (copied.failed) return { status: 1, lines: copied.lines };
   const made = settings.bytes ? replaceSettings(home, settings.bytes) : { failed: false, lines: [] };

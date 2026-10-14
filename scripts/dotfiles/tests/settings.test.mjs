@@ -121,3 +121,21 @@ test("sync replaces malformed live permissions with the base's", () => withFolde
     assert.deepEqual(JSON.parse(fs.readFileSync(live, 'utf8')).permissions, { allow: ['Read'] });
   },
 ));
+
+test('sync keeps live-only permissions lists and drops other live-only permissions keys', () => withFolders(
+  { permissions: { allow: ['Read'] } },
+  async ({ clone, home, live }) => {
+    fs.writeFileSync(live, JSON.stringify({
+      permissions: { allow: ['Read'], deny: ['Bash(x)'], additionalDirectories: ['/notes'], ask: 'y', defaultMode: 'plan' },
+      model: 'opus',
+    }, null, 2) + '\n');
+    const { run } = await import('../settings.mjs');
+    const result = run({ clone, home });
+    assert.equal(result.status, 0);
+    assert.deepEqual(result.lines, ['sync: updated permissions in ~/.claude/settings.json']);
+    assert.deepEqual(JSON.parse(fs.readFileSync(live, 'utf8')), {
+      permissions: { allow: ['Read'], deny: ['Bash(x)'], additionalDirectories: ['/notes'] },
+      model: 'opus',
+    });
+  },
+));
