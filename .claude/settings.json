@@ -92,11 +92,12 @@
     "deny": [
       "Read(~/VMLab/keys/**)",
       "Read(~/VMLab/config/**)",
-      "Bash(supabase db push:*)",
-      "Bash(supabase db pull:*)",
-      "Bash(supabase migration up:*)",
-      "Bash(supabase functions deploy:*)",
-      "Bash(supabase link:*)",
+      "Read(~/.pgpass)",
+      "Edit(~/.pgpass)",
+      "Write(~/.pgpass)",
+      "Read(~/.pg_service.conf)",
+      "Edit(~/.pg_service.conf)",
+      "Write(~/.pg_service.conf)",
       "Bash(gh pr merge:*)",
       "Bash(gh pr create:*)",
       "mcp__github__create_pull_request_with_copilot",
@@ -236,6 +237,15 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/block-destructive-bash.sh",
             "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/db-gate.mjs\""
           }
         ]
       },

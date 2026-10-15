@@ -107,14 +107,6 @@ classify_segment() {
   local ghfileref='(^|[[:space:]])(-f|--field|--raw-field)[[:space:]=]+[a-z_]+=@'
   local gqlsub='(\$\(|`)'
 
-  local supatok="${ghpos}(${ghwrap}[[:space:]]+[\"']?[[:space:]]*)*([[:alnum:]_./-]*/)?supabase([[:space:]]+${ghopt})*[[:space:]]+"
-  local suparemote="(db[[:space:]]+(push|pull)|migration[[:space:]]+up|functions[[:space:]]+deploy|link)([^[:alnum:]_-]|$)"
-
-  if has "${supatok}${suparemote}"; then
-    set_deny "connecting to a hosted Supabase project is human-gated: the agent authors migration SQL and a human applies it in the dashboard, which keeps the audit trail and the approval in human hands. Local disposable containers (supabase start, supabase db reset, supabase test db) are unrestricted. Rule: .claude/rules/common/no-direct-db-access.md"
-    return 0
-  fi
-
   if has "${ghtok}pr[[:space:]]+merge([[:space:]]|$)" \
     || { has "$ghapi" && has 'pulls/[^/[:space:]]+/merge([^[:alnum:]]|$)'; } \
     || { has "$ghapi" && has "$graphql" && has '(mergepullrequest|enablepullrequestautomerge|enqueuepullrequest)'; }; then

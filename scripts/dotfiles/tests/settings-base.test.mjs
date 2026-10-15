@@ -83,8 +83,28 @@ test('the tracked settings base holds only repository keys and registers the dot
   );
 
   for (const hook of [...hookCommands(settings.hooks.PreToolUse), ...hookCommands(settings.hooks.SessionStart)]) {
-    if (hook.command.includes('config-write-guard.mjs') || hook.command.includes('dotfiles-check.mjs')) {
+    if (hook.command.includes('config-write-guard.mjs') || hook.command.includes('dotfiles-check.mjs')
+      || hook.command.includes('db-gate.mjs')) {
       assert.equal(hook.command.includes('|| exit 2'), false);
     }
   }
+});
+
+test('registers the database gate and denies credential files', () => {
+  const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+
+  const gate = hookCommands(settings.hooks.PreToolUse, 'Bash|mcp__.*')
+    .filter((hook) => hook.command.includes('db-gate.mjs'));
+  assert.equal(gate.length, 1, 'PreToolUse Bash|mcp__.* must register db-gate.mjs once');
+  assert.equal(gate[0].type, 'command');
+  assert.equal(gate[0].command, 'node "$HOME/.claude/hooks/db-gate.mjs"');
+  assert.equal(gate[0].command.includes('|| exit 2'), false);
+
+  const deny = settings.permissions.deny;
+  for (const tool of ['Read', 'Edit', 'Write']) {
+    for (const file of ['~/.pgpass', '~/.pg_service.conf']) {
+      assert.ok(deny.includes(`${tool}(${file})`), `permissions.deny must hold ${tool}(${file})`);
+    }
+  }
+  assert.deepEqual(deny.filter((rule) => rule.startsWith('Bash(supabase')), []);
 });
