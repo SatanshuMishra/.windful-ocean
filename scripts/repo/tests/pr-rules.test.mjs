@@ -3,16 +3,8 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { FLAG_SPEC } from '../../../lib/git/pr.mjs';
-import {
-  PR_MULTI_LIMITS,
-  PR_TITLE_CAP,
-  PR_TITLE_TYPES,
-  PR_VALUE_CAP,
-  RECEIPT_LINE_TOKENS,
-} from '../../../lib/git/pr-format.mjs';
 
-const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url)).replace(/\/$/, '');
+const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\/$/, '');
 
 const G1_ROW = '| G1 | No pull request in this environment is merged by an agent-issued command; `gh pr merge`, the `gh api .../pulls/<n>/merge` REST call, and the `mergePullRequest` / `enablePullRequestAutomerge` / `enqueuePullRequest` GraphQL mutations are all denied. | Hook deny, sole control (decision 0255). Branch protection is deliberately not deployed: the agent\'s token carries `repo` scope on a repo the owner owns, so it could delete the rule as easily as merge — the "primary control outside the agent\'s reach" this cell previously claimed did not exist. If branch protection is ever enabled, a protection-tampering deny must land in the same change. `settings.json`\'s `Bash(gh pr merge:*)` rule is not a second layer either: prefix matching cannot express a flag between `gh` and its subcommand, so it misses exactly the phrasings the hook had to be widened for (decision 0257). `enqueuePullRequest` added per decision 0258. |';
 
@@ -20,7 +12,7 @@ const ROUND_1_MATCHER = 'mcp__github__create_pull_request|mcp__plugin_github_git
 const ROUND_2_MATCHER = '^mcp__.+__(create_pull_request|merge_pull_request)$';
 const NEVER_MERGE = 'Never merge and never mark a pull request ready.';
 
-const PR_LINE = '- Open every pull request through the GitHub MCP `create_pull_request` tool, with the title and body `node ~/.claude/lib/git/pr.mjs pr-render` prints; a hook refuses any other title or body, and ad-hoc `gh pr create` stays denied. Only a human merges. The `pr` skill carries the title grammar and body fields.';
+const PR_LINE = '- Open every pull request through the GitHub MCP `create_pull_request` tool, with the title and body `pull-request render` prints; a hook refuses any other title or body, and ad-hoc `gh pr create` stays denied. Only a human merges. The `pull-request:open` skill carries the title grammar and body fields.';
 const PIPELINE_LINE = '- Every request that changes a git repository runs the pipeline autonomously: interphase specs it, mitosis builds it, independent reviewers judge it, and every confirmed blocker returns to interphase until a round is green, a round makes no progress or a hard failure stops it, with no round limit and no question to the user. Rule: `~/.claude/rules/common/pipeline.md`.';
 
 function repoPath(relativePath) {
@@ -39,37 +31,7 @@ function sectionOf(content, heading) {
   return next === -1 ? rest : rest.slice(0, next);
 }
 
-function namesNumber(content, number) {
-  return new RegExp(`(^|[^0-9])${number}([^0-9]|$)`).test(content);
-}
-
-test('the pr skill composes with pr-render and opens with the MCP create tool', () => {
-  const skill = read('.claude/skills/pr/SKILL.md');
-  for (const term of ['pr-render', 'create_pull_request', 'get_me', 'issue_write', 'template']) {
-    assert.ok(skill.includes(term), `SKILL.md does not name ${term}`);
-  }
-  const spec = FLAG_SPEC['pr-render'];
-  for (const flag of new Set([...spec.required, ...spec.single, ...spec.multiple])) {
-    assert.ok(skill.includes(flag), `SKILL.md does not name the flag ${flag}`);
-  }
-  assert.ok(skill.includes(PR_TITLE_TYPES.join(' ')), 'SKILL.md does not list the eight title types');
-  for (const type of PR_TITLE_TYPES) {
-    assert.match(skill, new RegExp(`(^|[^a-z-])${type}([^a-z-]|$)`), `SKILL.md does not name the type ${type}`);
-  }
-  for (const number of [PR_TITLE_CAP, 16, ...new Set(Object.values(PR_MULTI_LIMITS)), PR_VALUE_CAP]) {
-    assert.ok(namesNumber(skill, number), `SKILL.md does not name ${number}`);
-  }
-  for (const token of RECEIPT_LINE_TOKENS) {
-    assert.ok(skill.includes(token), `SKILL.md does not name the receipts token ${token}`);
-  }
-  assert.match(skill, /uppercase letter/);
-  assert.ok(skill.includes('. ? or !'), 'SKILL.md does not name the sentence terminators');
-  assert.match(skill, /only `=` and `-` characters/);
-  assert.ok(!skill.includes('pr-create'), 'SKILL.md still names pr-create');
-  assert.ok(!skill.includes('pull-requests.md'), 'SKILL.md still names pull-requests.md');
-});
-
-test('CLAUDE.md names pr-render, the MCP create tool and the pipeline rule', () => {
+test('CLAUDE.md names pull-request render, the MCP create tool and the pipeline rule', () => {
   const lines = read('.claude/CLAUDE.md').split('\n');
   assert.ok(lines.includes(PR_LINE), 'CLAUDE.md does not hold the pull-request line');
   const pipelineIndex = lines.indexOf(PIPELINE_LINE);
@@ -77,25 +39,36 @@ test('CLAUDE.md names pr-render, the MCP create tool and the pipeline rule', () 
   const memoryIndex = lines.findIndex((line) => line.startsWith('- Persistent memory'));
   assert.notEqual(memoryIndex, -1, 'CLAUDE.md has no Persistent memory line');
   assert.equal(pipelineIndex, memoryIndex - 1);
-  assert.deepEqual(lines.filter((line) => line.includes('pr.mjs pr-create')), []);
+  assert.deepEqual(lines.filter((line) => line.includes('pr.mjs') || line.includes('pr-create')), []);
 });
 
 test("the threat model's G3 describes the MCP create tool behind the format hook", () => {
   const model = read('docs/security/bash-gate-threat-model.md');
   const lines = model.split('\n');
+  for (const term of ['`hooks/pr_format_gate.py`', '`hooks/hooks.json`']) {
+    assert.ok(lines[13].includes(term), `line 14 does not name ${term}`);
+  }
   const g3 = lines.filter((line) => line.startsWith('| G3 |'));
   assert.equal(g3.length, 1);
-  assert.ok(g3[0].includes('create_pull_request'), 'G3 does not name create_pull_request');
-  assert.ok(g3[0].includes('pr-format-gate.mjs'), 'G3 does not name pr-format-gate.mjs');
+  for (const term of ['create_pull_request', '`hooks/pr_format_gate.py`', '`hooks/hooks.json`', '`check_pull_request`', '`pull-request render`', '^mcp__.+__(create_pull_request\\|merge_pull_request)$']) {
+    assert.ok(g3[0].includes(term), `G3 does not name ${term}`);
+  }
   assert.ok(!model.includes('pr-create'), 'the threat model still names pr-create');
   assert.ok(!model.includes('pull-requests.md'), 'the threat model still names pull-requests.md');
   assert.match(model, /`~\/\.claude\/settings\.json` is a symlink/);
   const residual = sectionOf(model, '## 6. ').split('\n').filter((line) => /^\| \d+ \|/.test(line));
   assert.ok(
-    residual.some((line) => line.includes('pr-format-gate.mjs') && /10-second timeout/.test(line)),
+    residual.some((line) => line.includes('pr_format_gate.py') && /10-second timeout/.test(line)),
     'no section 6 row names the hook timeout',
   );
+  assert.ok(
+    residual.some((line) => line.includes('pull-request plugin') && line.includes('not installed') && line.includes('disabled')),
+    'no section 6 row names the pull-request plugin as not installed or disabled',
+  );
   assert.ok(lines.includes(G1_ROW), 'the G1 row changed');
+  for (const term of ['pr-format-gate.mjs', 'pr-render', 'pr.mjs', 'skills/pr/']) {
+    assert.ok(!model.includes(term), `the threat model still names ${term}`);
+  }
 });
 
 test("the pipeline rule ships through mitosis's pushed state and the MCP create tool", () => {
@@ -119,14 +92,14 @@ test("the pipeline rule ships through mitosis's pushed state and the MCP create 
 });
 
 test('the attribution census and the auditor route pull requests to files that exist', () => {
-  const census = read('.claude/lib/git/tests/attribution-census.test.mjs');
-  assert.ok(census.includes("'.claude/hooks/pr-format-gate.mjs'"), 'the census does not list pr-format-gate.mjs');
+  const census = read('scripts/repo/tests/attribution-census.test.mjs');
+  assert.ok(census.includes("'.claude/hooks/block-destructive-bash.sh'"), 'the census does not list block-destructive-bash.sh');
   assert.ok(!census.includes('pull-requests.md'), 'the census still lists pull-requests.md');
   const rows = read('.claude/skills/conformance-auditor/reference/binding-rules.md')
     .split('\n')
     .filter((line) => line.startsWith('| a pull request |'));
   assert.equal(rows.length, 1);
-  assert.match(rows[0], /the pr skill/);
+  assert.ok(rows[0].includes('`pull-request:open`'), 'the pull request row does not name pull-request:open');
   assert.ok(rows[0].includes('create_pull_request'), 'the pull request row does not name create_pull_request');
   assert.ok(!rows[0].includes('pull-requests.md'), 'the pull request row still names pull-requests.md');
 });
@@ -151,8 +124,12 @@ test("round 2: the auditor's pull-request row passes the skill-router lint", () 
   );
   assert.equal(lint.status, 0, `the skill-router lint failed: ${lint.stderr}`);
   const row = pullRequestRow();
-  assert.ok(row.includes('the pr skill'), 'the pull request row does not name the pr skill');
-  assert.ok(row.includes('`.claude/skills/pr/SKILL.md`'), 'the pull request row does not name .claude/skills/pr/SKILL.md');
+  for (const term of ['`pull-request:open`', '`pull-request render`', 'create_pull_request']) {
+    assert.ok(row.includes(term), `the pull request row does not name ${term}`);
+  }
+  for (const term of ['.claude/skills/pr/SKILL.md', 'pr-render', 'pull-requests.md']) {
+    assert.ok(!row.includes(term), `the pull request row still names ${term}`);
+  }
   assert.ok(!row.includes('`pr`'), 'the pull request row still backticks the bare name pr');
 });
 
@@ -175,38 +152,6 @@ test('round 2: the threat model records the hook switch-off and the any-server g
   assert.ok(lines.includes(G1_ROW), 'the G1 row changed');
 });
 
-test('round 2: the pr skill states the round-2 refusals', () => {
-  const skill = read('.claude/skills/pr/SKILL.md');
-  const linkRows = skill.split('\n').filter((line) => line.startsWith('| `--link` |'));
-  assert.equal(linkRows.length, 1);
-  assert.ok(linkRows[0].includes('An issue reference'), 'the --link row does not name the issue reference shape');
-  assert.ok(linkRows[0].includes('URL with no whitespace'), 'the --link row does not name the URL shape');
-  const refusals = skill.slice(skill.indexOf('Any value is refused when it:'));
-  for (const term of ['`<?`', 'character reference', '`&#x...;`', '`&name;`', 'tag characters', 'variation selectors', 'flag name']) {
-    assert.ok(refusals.includes(term), `the refusal list does not name ${term}`);
-  }
-});
-
-test('round 3: the pr skill states the closed grammars', () => {
-  const skill = read('.claude/skills/pr/SKILL.md');
-  const linkRows = skill.split('\n').filter((line) => line.startsWith('| `--link` |'));
-  assert.equal(linkRows.length, 1);
-  for (const term of ['`https`', '`closes`', '`fixes`', '`resolves`', '`refs`', '`OWNER/REPO`', 'closes OWNER/REPO#12']) {
-    assert.ok(linkRows[0].includes(term), `the --link row does not name ${term}`);
-  }
-  assert.match(linkRows[0], /OWNER\/REPO#[0-9]+/);
-  assert.ok(!linkRows[0].includes('may not begin with'), 'the --link row still names the leading [ rule');
-  const refusals = skill.slice(skill.indexOf('Any value is refused when it:'));
-  const inline = refusals.split('\n').filter((line) => line.startsWith('- holds a backslash'));
-  assert.equal(inline.length, 1, 'the refusal list has no single backslash item');
-  for (const term of ['backslash', '`](`', '`![`', '`]:`', 'any `$`', 'two dollar signs', 'math']) {
-    assert.ok(inline[0].includes(term), `the refusal list does not name ${term}`);
-  }
-  const block = refusals.split('\n').filter((line) => line.startsWith('- begins with a markdown block character'));
-  assert.equal(block.length, 1);
-  assert.ok(block[0].includes('`#12`') && block[0].includes('exempt'), 'the block-character item does not exempt a Links issue reference');
-});
-
 test("round 3: the threat model's G3 states the closed grammars", () => {
   const model = read('docs/security/bash-gate-threat-model.md');
   const lines = model.split('\n');
@@ -224,20 +169,6 @@ test("Unchanged: the pipeline rule's Ship section keeps never merging", () => {
   assert.ok(ship.includes(NEVER_MERGE), 'the Ship section does not hold the never-merge sentence');
 });
 
-test('round 4: the pr skill states the URL and character rules', () => {
-  const skill = read('.claude/skills/pr/SKILL.md');
-  const linkRows = skill.split('\n').filter((line) => line.startsWith('| `--link` |'));
-  assert.equal(linkRows.length, 1);
-  for (const term of ['query', 'fragment', '`github.com`', '`githubusercontent.com`', 'URL with no whitespace']) {
-    assert.ok(linkRows[0].includes(term), `the --link row does not name ${term}`);
-  }
-  assert.ok(!linkRows[0].includes('https://github.com/OWNER/REPO/issues/12'), 'the --link row still steers to a github.com URL');
-  const refusals = skill.slice(skill.indexOf('Any value is refused when it:'));
-  for (const term of ['`://`', '`www.`', '`github.com/`', '`--supersedes` URL are exempt', '`~`', 'backticks', 'plain space', 'U+2800']) {
-    assert.ok(refusals.includes(term), `the refusal list does not name ${term}`);
-  }
-});
-
 test("round 4: the threat model's G3 states the URL rule", () => {
   const lines = read('docs/security/bash-gate-threat-model.md').split('\n');
   const g3 = lines.filter((line) => line.startsWith('| G3 |'));
@@ -246,4 +177,28 @@ test("round 4: the threat model's G3 states the URL rule", () => {
     assert.ok(g3[0].includes(term), `G3 does not name ${term}`);
   }
   assert.ok(lines.includes(G1_ROW), 'the G1 row changed');
+});
+
+const KEPT_TESTS = Object.freeze([
+  'CLAUDE.md names pull-request render, the MCP create tool and the pipeline rule',
+  "the threat model's G3 describes the MCP create tool behind the format hook",
+  "the pipeline rule ships through mitosis's pushed state and the MCP create tool",
+  'the attribution census and the auditor route pull requests to files that exist',
+  "round 2: the auditor's pull-request row passes the skill-router lint",
+  'round 2: the threat model records the hook switch-off and the any-server gate',
+  "round 3: the threat model's G3 states the closed grammars",
+  "Unchanged: the pipeline rule's Ship section keeps never merging",
+  "round 4: the threat model's G3 states the URL rule",
+  'Unchanged: the moved pr rules keep their other checks',
+]);
+
+test('Unchanged: the moved pr rules keep their other checks', () => {
+  const ownPath = fileURLToPath(import.meta.url);
+  assert.equal(ownPath, repoPath('scripts/repo/tests/pr-rules.test.mjs'), 'the repository root is not computed from scripts/repo/tests/');
+  const source = readFileSync(ownPath, 'utf8');
+  const names = [...source.matchAll(/^test\((['"])(.+?)\1, /gm)].map((match) => match[2]);
+  assert.deepEqual(names, KEPT_TESTS);
+  const specifiers = [...source.matchAll(/^import\s[\s\S]*?from\s*'([^']+)';/gm)].map((match) => match[1]);
+  assert.ok(specifiers.length > 0, 'no import was found');
+  assert.deepEqual(specifiers.filter((specifier) => !specifier.startsWith('node:')), [], 'the file imports a module outside node');
 });

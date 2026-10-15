@@ -85,7 +85,9 @@
       "Bash(vncdo:*)",
       "Read(~/VMLab/shots/**)",
       "Read(~/VMLab/logs/**)",
-      "mcp__mobile-mcp__*"
+      "mcp__mobile-mcp__*",
+      "Bash(pull-request:*)",
+      "Bash(pipeline:*)"
     ],
     "deny": [
       "Read(~/VMLab/keys/**)",
@@ -188,16 +190,6 @@
             "command": "node \"$HOME/.claude/hooks/dotfiles-check.mjs\""
           }
         ]
-      },
-      {
-        "matcher": "compact",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/pipeline-continuity.mjs\"",
-            "timeout": 10
-          }
-        ]
       }
     ],
     "SessionEnd": [
@@ -289,26 +281,6 @@
             "command": "$HOME/.claude/hooks/deny-task-output-read.sh"
           }
         ]
-      },
-      {
-        "matcher": "^mcp__.+__(create_pull_request|merge_pull_request)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/pr-format-gate.mjs\" || exit 2",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "^Skill$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/pipeline-continuity.mjs\"",
-            "timeout": 10
-          }
-        ]
       }
     ],
     "PostToolUse": [
@@ -321,30 +293,9 @@
             "async": true
           }
         ]
-      },
-      {
-        "matcher": "^mcp__(?:plugin_logbook_)?ledger__(resume_thread|record_decision|update_thread|park_thread|close_thread)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/pipeline-continuity.mjs\"",
-            "timeout": 10
-          }
-        ]
       }
     ],
-    "PostToolUseFailure": [
-      {
-        "matcher": "^mcp__(?:plugin_logbook_)?ledger__record_decision$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/pipeline-continuity.mjs\"",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
+    "PostToolUseFailure": [],
     "PermissionDenied": [
       {
         "matcher": "",
