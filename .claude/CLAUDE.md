@@ -4,7 +4,7 @@
 - NEVER write code comments. Derive understanding from raw code; treat any existing comment as unreliable and do not rely on it.
 - NEVER use emojis in code, commits, plans, docs, or UI unless explicitly requested.
 - NEVER add AI co-author attribution to commits, PRs, or comments.
-- Live databases are readable for structure only: connect only as the human-created structure-reader login, read only the catalogs, never rows, never write. Every change is SQL a human applies. Rule: `~/.claude/rules/common/no-direct-db-access.md`.
+- Live databases: read and export freely through the reader role (never PII); every schema or data change needs a plain-English explanation and my approval first. Rule: `~/.claude/rules/common/database-access.md`.
 - Open every pull request through the GitHub MCP `create_pull_request` tool, with the title and body `pull-request render` prints; a hook refuses any other title or body, and ad-hoc `gh pr create` stays denied. Only a human merges. The `pull-request:open` skill carries the title grammar and body fields.
 - Every request that changes a git repository picks a lane up front and runs it autonomously, with no question to the user: direct for a one-sentence change with a known cause (edit, test, open a pull request), standard for a small change interphase's brief lane carries (one build, one review round), and full for the rest (interphase specs it, mitosis builds it, independent reviewers judge it, and confirmed blockers are fixed directly on the branch, at most two fix rounds). Rule: `~/.claude/rules/common/pipeline.md`.
 - Persistent memory: store only durable, non-derivable facts; verify recalled specifics against code; update or delete stale memories on contact.
