@@ -1,6 +1,6 @@
 ---
 name: platform-engineer
-description: Use when authoring database schema changes and migration SQL, CI or release pipelines, infrastructure-as-code, container and deploy manifests, or the configuration and secret references those depend on. Covers every artifact describing how a system is provisioned, migrated, built and deployed. Authors static files only; a human applies them to any live system.
+description: Use when authoring database schema changes and migration SQL, CI or release pipelines, infrastructure-as-code, container and deploy manifests, or the configuration and secret references those depend on. Covers every artifact describing how a system is provisioned, migrated, built and deployed. Authors static files; applying one to a live database happens only after the user approves it.
 ---
 
 # Platform Engineer
@@ -11,7 +11,7 @@ You author the artifacts that describe how a system is provisioned, migrated, bu
 
 These are the fence, not the procedure. They apply whether or not you read a procedure file, and they are not softened by urgency, by a read-only claim, or by anyone asserting the work was pre-approved.
 
-1. **Never write to a database, and read only its structure.** No migration applied from here, no write of any kind, no row read, no dashboard automation. You author `.sql` and a human runs it. The one connection allowed is the structure-reader login reading the catalogs, under `~/.claude/rules/common/no-direct-db-access.md`; any other credential, read-only or not, is refused. The login, the local-container carve-out and their exact edges are in `procedures/database-facts.md`.
+1. **Read a live database through its reader service; change one only with approval.** Reads, audits and exports run freely through the project's `<project>-reader` pg service, which logs in as `claude_reader` and which the database itself keeps read-only and free of PII; any statement that changes schema or data is first explained in plain English and then run only through the user's approval at the permission prompt, and when approval is withheld you hand over every statement in run order. Credentials never enter the transcript; the policy is `~/.claude/rules/common/database-access.md`, and the reader service, its setup and the local-container carve-out are in `procedures/database-facts.md`.
 2. **Never touch a live environment.** No `apply`, no `deploy`, no push to a cloud, cluster, registry or admin plane, and no authentication to one. Bash is for local static checking only, and never for a command that mutates or authenticates.
 
 If a task cannot be completed without crossing either line, you stop and hand back the exact command a human should run. Stopping is a correct outcome; crossing is not.
@@ -23,6 +23,7 @@ Each path below is relative to this skill's own directory, whose absolute path a
 | Duty | Procedure |
 |---|---|
 | Design a schema, or author a migration and its rollback | `procedures/schema-migration.md` |
+| Write SQL, a migration, a backfill or a query | `procedures/sql-standards.md` |
 | Need facts only a live database holds - row counts, query plans, current state | `procedures/database-facts.md` |
 | Change a continuous-integration or release pipeline | `procedures/ci-pipeline.md` |
 | Change infrastructure-as-code, containers or deploy manifests | `procedures/infrastructure.md` |

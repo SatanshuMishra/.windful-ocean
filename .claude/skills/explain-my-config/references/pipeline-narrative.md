@@ -35,5 +35,5 @@ gap — never assert a piece that no longer exists.
 ## Cross-cutting throughout
 
 - Tool routing (graphify -> Serena -> grep) governs how every read happens.
-- no-direct-db-access forbids touching live databases/cloud at any step.
+- database-access lets any step read through the reader role and stops every live database change for the user's approval.
 - Permissions (allow/deny/ask) gate which tool actions run, block, or prompt.

@@ -71,5 +71,5 @@ The generated file must contain a glob routing table (the `verifier` agent match
 
 ## Boundaries
 
-- Never connect to databases or deployed environments (global no-direct-db-access rule).
+- Never connect to deployed environments, and reach a database only as the global database-access rule allows.
 - Never modify package.json or project source; the only file written is the verify command.

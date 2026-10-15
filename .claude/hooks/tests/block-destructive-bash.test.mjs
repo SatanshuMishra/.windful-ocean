@@ -2,11 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { existsSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
 const hookPath = fileURLToPath(new URL('../block-destructive-bash.sh', import.meta.url));
+const threatModelPath = fileURLToPath(new URL('../../../docs/security/bash-gate-threat-model.md', import.meta.url));
 
 function realisticPayload(command) {
   return JSON.stringify({
@@ -50,9 +51,6 @@ const CREATION_DENY_REASON =
 
 const RENDER_FLAGS = Object.freeze(['--title', '--risk', '--supersedes', '--why', '--what', '--verified', '--not-verified', '--link']);
 const RENDER_REQUIRED_FLAGS = Object.freeze(['--title', '--why', '--what']);
-
-const SUPABASE_DENY_REASON =
-  'connecting to a hosted Supabase project is human-gated: the agent authors migration SQL and a human applies it in the dashboard, which keeps the audit trail and the approval in human hands. Local disposable containers (supabase start, supabase db reset, supabase test db) are unrestricted. Rule: .claude/rules/common/no-direct-db-access.md';
 
 function assertAbstains(r, command) {
   assert.equal(r.status, 0);
@@ -98,13 +96,9 @@ const corporaByGoal = {
     'g5GuardrailExfiltrationCommands',
     'g5NoNetworkCredentialCommands',
   ],
-  G6: [
-    'supabaseDenyCommands',
-    'supabaseLocalCommands',
-  ],
 };
 
-const corporaOutsideTheGoalSet = ['askCommands'];
+const corporaOutsideTheGoalSet = ['askCommands', 'supabaseAbstainCommands'];
 
 function goalsFor(corpusName) {
   return Object.keys(corporaByGoal)
@@ -447,44 +441,32 @@ for (const [command, label] of askCommands) {
   });
 }
 
-const supabaseDenyCommands = [
+const supabaseAbstainCommands = [
   'supabase db push',
-  'supabase db pull',
-  'supabase migration up',
-  'supabase functions deploy my-fn',
-  'supabase link --project-ref abcdefgh',
-  'supabase --workdir /repo db push',
   'sudo supabase db push',
-  'env SUPABASE_ACCESS_TOKEN=x supabase db push',
   'sh -c "supabase migration up"',
-  'git status && supabase db push',
-];
-
-for (const command of supabaseDenyCommands) {
-  test(`${goalsFor('supabaseDenyCommands')}: denies a command that reaches a hosted Supabase project: ${command}`, () => {
-    const r = runHook(command);
-    assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'deny');
-    assert.equal(reasonOf(r), SUPABASE_DENY_REASON);
-  });
-}
-
-const supabaseLocalCommands = [
+  'supabase link --project-ref abc',
   'supabase start',
-  'supabase stop',
-  'supabase status',
-  'supabase db reset',
-  'supabase test db',
-  'supabase gen types typescript --local',
-  'supabase migration new add_users',
-  'echo "run supabase db push in the dashboard"',
 ];
 
-for (const command of supabaseLocalCommands) {
-  test(`${goalsFor('supabaseLocalCommands')}: allows the local disposable-container carve-out: ${command}`, () => {
+test('the bash gate abstains on supabase commands', () => {
+  for (const command of supabaseAbstainCommands) {
     assertAbstains(runHook(command), command);
-  });
-}
+  }
+});
+
+test('the bash gate threat model hands G6 over', () => {
+  const lines = readFileSync(threatModelPath, 'utf8').split('\n');
+  const g6 = lines.find((line) => line.startsWith('| G6 |'));
+  assert.ok(g6 !== undefined, 'the threat model has no G6 row');
+  assert.ok(g6.includes('docs/security/db-gate-threat-model.md'), 'the G6 row does not name the database gate threat model');
+  const doneItem = lines.find((line) => line.startsWith('1. Closes '));
+  assert.ok(doneItem !== undefined, 'Definition of done item 1 is missing');
+  assert.ok(doneItem.includes('G1') && doneItem.includes('G3'), 'Definition of done item 1 must name G1 and G3');
+  assert.ok(!/^1\. Closes [^(]*G6/.test(doneItem), 'Definition of done item 1 must not close G6');
+  const symlinkLines = lines.filter((line) => line.includes('~/.claude/settings.json') && /symlink/i.test(line));
+  assert.deepEqual(symlinkLines, [], 'a line still calls ~/.claude/settings.json a symlink');
+});
 
 const guardrailWriteCommands = [
   'echo x > .claude/lib/observer-audit/census.mjs',
@@ -737,8 +719,7 @@ const corpusByName = {
   allowCommands,
   g1ReadOnlyGhCommands,
   askCommands,
-  supabaseDenyCommands,
-  supabaseLocalCommands,
+  supabaseAbstainCommands,
   guardrailWriteCommands,
   g4GuardrailWriteCommands,
   g4SubdirectoryCommands,

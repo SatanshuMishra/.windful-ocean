@@ -55,7 +55,7 @@ test("the threat model's G3 describes the MCP create tool behind the format hook
   }
   assert.ok(!model.includes('pr-create'), 'the threat model still names pr-create');
   assert.ok(!model.includes('pull-requests.md'), 'the threat model still names pull-requests.md');
-  assert.match(model, /`~\/\.claude\/settings\.json` is a symlink/);
+  assert.doesNotMatch(model, /`~\/\.claude\/settings\.json` is a symlink/);
   const residual = sectionOf(model, '## 6. ').split('\n').filter((line) => /^\| \d+ \|/.test(line));
   assert.ok(
     residual.some((line) => line.includes('pr_format_gate.py') && /10-second timeout/.test(line)),
