@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\/$/, '');
@@ -99,9 +99,10 @@ test('the attribution census and the auditor route pull requests to files that e
     .split('\n')
     .filter((line) => line.startsWith('| a pull request |'));
   assert.equal(rows.length, 1);
-  assert.ok(rows[0].includes('`pull-request:open`'), 'the pull request row does not name pull-request:open');
+  assert.ok(rows[0].includes('`pull-request render`'), 'the pull request row does not name pull-request render');
   assert.ok(rows[0].includes('create_pull_request'), 'the pull request row does not name create_pull_request');
   assert.ok(!rows[0].includes('pull-requests.md'), 'the pull request row still names pull-requests.md');
+  assert.ok(!rows[0].includes('`pull-request:open`'), 'the pull request row still names pull-request:open');
 });
 
 function tableCell(text) {
@@ -124,10 +125,10 @@ test("round 2: the auditor's pull-request row passes the skill-router lint", () 
   );
   assert.equal(lint.status, 0, `the skill-router lint failed: ${lint.stderr}`);
   const row = pullRequestRow();
-  for (const term of ['`pull-request:open`', '`pull-request render`', 'create_pull_request']) {
+  for (const term of ['pull-request plugin', '`pull-request render`', 'create_pull_request']) {
     assert.ok(row.includes(term), `the pull request row does not name ${term}`);
   }
-  for (const term of ['.claude/skills/pr/SKILL.md', 'pr-render', 'pull-requests.md']) {
+  for (const term of ['`pull-request:open`', '.claude/skills/pr/SKILL.md', 'pr-render', 'pull-requests.md']) {
     assert.ok(!row.includes(term), `the pull request row still names ${term}`);
   }
   assert.ok(!row.includes('`pr`'), 'the pull request row still backticks the bare name pr');
@@ -190,6 +191,7 @@ const KEPT_TESTS = Object.freeze([
   "Unchanged: the pipeline rule's Ship section keeps never merging",
   "round 4: the threat model's G3 states the URL rule",
   'Unchanged: the moved pr rules keep their other checks',
+  'the auditor names no skill of a plugin the cutover installs',
 ]);
 
 test('Unchanged: the moved pr rules keep their other checks', () => {
@@ -201,4 +203,35 @@ test('Unchanged: the moved pr rules keep their other checks', () => {
   const specifiers = [...source.matchAll(/^import\s[\s\S]*?from\s*'([^']+)';/gm)].map((match) => match[1]);
   assert.ok(specifiers.length > 0, 'no import was found');
   assert.deepEqual(specifiers.filter((specifier) => !specifier.startsWith('node:')), [], 'the file imports a module outside node');
+});
+
+function auditorMarkdownFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const full = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) return entry.name === 'tests' ? [] : auditorMarkdownFiles(full);
+    return entry.name.endsWith('.md') ? [full] : [];
+  });
+}
+
+function codeSpansOutsideFences(text) {
+  let fenced = false;
+  const kept = [];
+  for (const line of text.split('\n')) {
+    if (line.trimStart().startsWith('```')) {
+      fenced = !fenced;
+      continue;
+    }
+    if (!fenced) kept.push(line);
+  }
+  return [...kept.join('\n').matchAll(/`([^`\n]+)`/g)].map((match) => match[1].trim());
+}
+
+test('the auditor names no skill of a plugin the cutover installs', () => {
+  const files = auditorMarkdownFiles(repoPath('.claude/skills/conformance-auditor'));
+  assert.ok(files.length > 0, 'no auditor markdown file was read');
+  for (const file of files) {
+    for (const span of codeSpansOutsideFences(readFileSync(file, 'utf8'))) {
+      assert.doesNotMatch(span, /^(pull-request|pipeline):[a-z0-9][a-z0-9-]*$/, `${file} names ${span}`);
+    }
+  }
 });
