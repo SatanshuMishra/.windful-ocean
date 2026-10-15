@@ -158,6 +158,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "node \"$HOME/.claude/hooks/branch-sync.mjs\"",
+            "timeout": 20
+          },
+          {
+            "type": "command",
             "command": "$HOME/.claude/hooks/dep-audit.sh",
             "timeout": 15
           },

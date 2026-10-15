@@ -71,6 +71,17 @@ test('the tracked settings base holds only repository keys and registers the dot
     'SessionStart must register dotfiles-check.mjs',
   );
 
+  const sync = {
+    type: 'command',
+    command: 'node "$HOME/.claude/hooks/branch-sync.mjs"',
+  };
+  assert.ok(
+    hookCommands(settings.hooks.SessionStart).some(
+      (hook) => hook.type === sync.type && hook.command === sync.command,
+    ),
+    'SessionStart must register branch-sync.mjs',
+  );
+
   for (const hook of [...hookCommands(settings.hooks.PreToolUse), ...hookCommands(settings.hooks.SessionStart)]) {
     if (hook.command.includes('config-write-guard.mjs') || hook.command.includes('dotfiles-check.mjs')) {
       assert.equal(hook.command.includes('|| exit 2'), false);

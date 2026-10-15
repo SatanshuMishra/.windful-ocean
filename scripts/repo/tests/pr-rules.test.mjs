@@ -13,7 +13,7 @@ const ROUND_2_MATCHER = '^mcp__.+__(create_pull_request|merge_pull_request)$';
 const NEVER_MERGE = 'Never merge and never mark a pull request ready.';
 
 const PR_LINE = '- Open every pull request through the GitHub MCP `create_pull_request` tool, with the title and body `pull-request render` prints; a hook refuses any other title or body, and ad-hoc `gh pr create` stays denied. Only a human merges. The `pull-request:open` skill carries the title grammar and body fields.';
-const PIPELINE_LINE = '- Every request that changes a git repository runs the pipeline autonomously: interphase specs it, mitosis builds it, independent reviewers judge it, and every confirmed blocker returns to interphase until a round is green, a round makes no progress or a hard failure stops it, with no round limit and no question to the user. Rule: `~/.claude/rules/common/pipeline.md`.';
+const PIPELINE_LINE = '- Every request that changes a git repository picks a lane up front and runs it autonomously, with no question to the user: direct for a one-sentence change with a known cause (edit, test, open a pull request), standard for a small change interphase\'s brief lane carries (one build, one review round), and full for the rest (interphase specs it, mitosis builds it, independent reviewers judge it, and confirmed blockers are fixed directly on the branch, at most two fix rounds). Rule: `~/.claude/rules/common/pipeline.md`.';
 
 function repoPath(relativePath) {
   return `${REPO_ROOT}/${relativePath}`;
@@ -87,7 +87,7 @@ test("the pipeline rule ships through mitosis's pushed state and the MCP create 
   }
   assert.ok(!rule.includes('pr_adapter'), 'pipeline.md still names pr_adapter');
   assert.ok(!rule.includes('pr/<msp>.json'), 'pipeline.md still names pr/<msp>.json');
-  assert.ok(sectionOf(rule, '## Green').includes('The one exception is an `inert` verdict'));
+  assert.ok(sectionOf(rule, '## Stage 3: review').includes('for each gate verdict `inert` and each listed file left unwritten, a LOW finding with source `mitosis`, since neither blocks.'));
   assert.ok(sectionOf(rule, '## Stop').includes('The loop ends at green, at a stop verdict, or at a hard failure.'));
 });
 

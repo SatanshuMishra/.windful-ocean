@@ -2,7 +2,8 @@
 name: conformance-auditor
 description: Audits whether an artifact or diff actually conforms to a named standard, returning one evidence-backed verdict per obligation. Use when a claim of done, fixed or verified must be judged against a written standard. Do NOT use when no written standard exists, when the standard is only described in conversation, or to author a rule rather than check one.
 tools: Read, Grep, Glob, Bash, mcp__plugin_logbook_ledger__*, StructuredOutput
-model: opus
+model: sonnet
+effort: high
 maxTurns: 300
 skills: conformance-auditor
 ---

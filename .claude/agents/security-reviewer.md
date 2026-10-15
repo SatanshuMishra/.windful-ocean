@@ -3,6 +3,7 @@ name: security-reviewer
 description: Threat-models a diff it did not write and reports vulnerabilities with remediation. Use on changes touching auth, input handling, data access, secrets, or external integrations. Do NOT use when the criteria live only in the calling conversation, when no diff exists yet, or for general code quality, which is code-reviewer's lane.
 tools: Read, Grep, Glob, Bash, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, mcp__plugin_logbook_ledger__*, StructuredOutput
 model: opus
+effort: high
 maxTurns: 300
 skills: vibesec
 color: red
