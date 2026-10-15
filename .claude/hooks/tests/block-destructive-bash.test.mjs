@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 import { existsSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { FLAG_SPEC, parsePrToolArgv } from '../../lib/git/pr.mjs';
 
 const hookPath = fileURLToPath(new URL('../block-destructive-bash.sh', import.meta.url));
 
@@ -47,7 +46,10 @@ const MERGE_DENY_REASON =
   'merging a PR is human-gated: gh pr merge and the gh api pulls/*/merge REST endpoint are both blocked; a human merges via the PR after review';
 
 const CREATION_DENY_REASON =
-  'opening a pull request goes through the GitHub MCP create_pull_request tool, in one format. Compose the title and body with this, quoting every value: node "$HOME"/.claude/lib/git/pr.mjs pr-render --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --what THE BEHAVIOR THAT IS DIFFERENT NOW. --why THE PROBLEM THAT EXISTED BEFORE. --not-verified THING YOU DID NOT CHECK - not run. Then call create_pull_request with the printed title and body unchanged; a hook refuses any other title or body, and pr-render\'s body replaces any repository pull-request template. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. A --why, --what or --risk value starts with a capital letter and ends with a full stop. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: the pr skill.';
+  'opening a pull request goes through the GitHub MCP create_pull_request tool, in one format. Compose the title and body with this, quoting every value: pull-request render --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --what THE BEHAVIOR THAT IS DIFFERENT NOW. --why THE PROBLEM THAT EXISTED BEFORE. --not-verified THING YOU DID NOT CHECK - not run. Then call create_pull_request with the printed title and body unchanged; a hook refuses any other title or body, and pull-request render\'s body replaces any repository pull-request template. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. A --why, --what or --risk value starts with a capital letter and ends with a full stop. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: the pull-request:open skill.';
+
+const RENDER_FLAGS = Object.freeze(['--title', '--risk', '--supersedes', '--why', '--what', '--verified', '--not-verified', '--link']);
+const RENDER_REQUIRED_FLAGS = Object.freeze(['--title', '--why', '--what']);
 
 const SUPABASE_DENY_REASON =
   'connecting to a hosted Supabase project is human-gated: the agent authors migration SQL and a human applies it in the dashboard, which keeps the audit trail and the approval in human hands. Local disposable containers (supabase start, supabase db reset, supabase test db) are unrestricted. Rule: .claude/rules/common/no-direct-db-access.md';
@@ -253,32 +255,35 @@ for (const command of g1ReadOnlyGhCommands) {
   });
 }
 
-test('the creation deny reason names every required pr-render flag and the MCP create tool', () => {
-  const reason = reasonOf(runHook('gh pr create --fill'));
-  for (const flag of FLAG_SPEC['pr-render'].required) {
+test('the creation deny reason names every required pull-request render flag and the MCP create tool', () => {
+  const r = runHook('gh pr create --fill');
+  assert.equal(decisionOf(r), 'deny');
+  const reason = reasonOf(r);
+  assert.equal(reason, CREATION_DENY_REASON);
+  for (const flag of RENDER_REQUIRED_FLAGS) {
     assert.ok(reason.includes(flag), `deny reason omits ${flag}`);
   }
-  assert.equal(reason, CREATION_DENY_REASON);
-  assert.match(reason, /lib\/git\/pr\.mjs pr-render/);
+  assert.match(reason, /pull-request render/);
   assert.match(reason, /create_pull_request/);
+  assert.match(reason, /pull-request:open/);
+  assert.doesNotMatch(reason, /pr\.mjs/);
+  assert.doesNotMatch(reason, /pr-render/);
   assert.doesNotMatch(reason, /pr-create/);
   assert.doesNotMatch(reason, /pull-requests\.md/);
   assert.match(reason, /NEVER write a --verified line for a check you did not run/);
   assert.match(reason, /pull\/new URL printed by git push is not an approved path/);
 });
 
-const PR_TOOL_PATH = '/Users/satanshumishra/.claude/lib/git/pr.mjs';
-
 const prRenderAllowArgvs = Object.freeze([
   Object.freeze([
-    'pr-render',
+    'render',
     '--title', 'fix(gate): deny raw pull-request creation',
     '--why', 'Raw creation bypassed the format.',
     '--what', 'The gate denies raw creation.',
     '--not-verified', 'CI - not run.',
   ]),
   Object.freeze([
-    'pr-render',
+    'render',
     '--title', 'fix(gate): deny raw pull-request creation',
     '--why', 'The raw creation path is blocked at the gate.',
     '--what', 'The gate denies raw creation.',
@@ -287,7 +292,7 @@ const prRenderAllowArgvs = Object.freeze([
 ]);
 
 const prRenderWrapperArgv = Object.freeze([
-  'pr-render',
+  'render',
   '--title', 'fix(gate): deny chained creation',
   '--why', 'Chained creation bypassed the format.',
   '--what', 'The gate denies chained creation.',
@@ -295,8 +300,8 @@ const prRenderWrapperArgv = Object.freeze([
 ]);
 
 function prRenderCommand(argv) {
-  const words = argv.map((token) => (token === 'pr-render' || token.startsWith('--') ? token : `"${token}"`));
-  return ['node', PR_TOOL_PATH, ...words].join(' ');
+  const words = argv.map((token) => (token === 'render' || token.startsWith('--') ? token : `"${token}"`));
+  return ['pull-request', ...words].join(' ');
 }
 
 const prRenderWrapperCommand = `${prRenderCommand(prRenderWrapperArgv)} && gh pr create --fill`;
@@ -321,7 +326,7 @@ const allowCommands = [
   'git -C /repo push --force-with-lease origin main',
   'git -C /repo branch -d feature',
   'echo x > .claude/skills/example/SKILL.md',
-  'cat .claude/lib/git/pr.mjs',
+  'cat .claude/lib/observer-audit/census.mjs',
   'ls -la',
   'npm test',
 ];
@@ -338,21 +343,32 @@ test('the wrapper loses its own exemption the moment anything is chained onto it
   assert.equal(reasonOf(r), CREATION_DENY_REASON);
 });
 
-test('round 3: every pr-render example in the gate\'s tests is a command pr-render accepts', () => {
+test('round 3: every pull-request render example in the gate\'s tests uses only render flags', () => {
   for (const argv of [...prRenderAllowArgvs, prRenderWrapperArgv]) {
-    const parsed = parsePrToolArgv([...argv]);
-    assert.equal(parsed.ok, true, parsed.error ?? '');
-    assert.equal(parsed.verb, 'pr-render');
-    assert.ok(!argv.includes('--origin') && !argv.includes('--provenance'));
-    for (const token of argv) {
-      assert.doesNotMatch(token, /["$\\`]/, `value ${token} holds a character the command string cannot carry`);
+    assert.equal(argv[0], 'render');
+    assert.equal(argv.length % 2, 1, `${argv.join(' ')} does not pair every flag with a value`);
+    for (let index = 1; index < argv.length; index += 2) {
+      const flag = argv[index];
+      const value = argv[index + 1];
+      assert.ok(RENDER_FLAGS.includes(flag), `${flag} is not a render flag`);
+      assert.ok(!value.startsWith('--'), `${flag} has no value`);
+      assert.doesNotMatch(value, /["$\\`]/, `value ${value} holds a character the command string cannot carry`);
     }
+    for (const flag of RENDER_REQUIRED_FLAGS) {
+      assert.ok(argv.includes(flag), `${argv.join(' ')} omits ${flag}`);
+    }
+    const command = prRenderCommand(argv);
+    assert.ok(command.startsWith('pull-request render '), command);
+    assertAbstains(runHook(command), command);
   }
   for (const argv of prRenderAllowArgvs) {
     assert.ok(allowCommands.includes(prRenderCommand(argv)));
   }
   assert.ok(prRenderWrapperCommand.startsWith(`${prRenderCommand(prRenderWrapperArgv)} && `));
   assert.ok(prRenderWrapperCommand.endsWith(' && gh pr create --fill'));
+  const chained = runHook(prRenderWrapperCommand);
+  assert.equal(decisionOf(chained), 'deny');
+  assert.equal(reasonOf(chained), CREATION_DENY_REASON);
 });
 
 test('the superseded superpowers-parallel path carries no exemption, so exactly one path is canonical', () => {
@@ -471,9 +487,9 @@ for (const command of supabaseLocalCommands) {
 }
 
 const guardrailWriteCommands = [
-  'echo x > .claude/lib/git/pr.mjs',
+  'echo x > .claude/lib/observer-audit/census.mjs',
   'sed -i "" s/a/b/ .claude/lib/example/engine-args.mjs',
-  'cp /tmp/patched.mjs .claude/lib/git/pr.mjs',
+  'cp /tmp/patched.mjs .claude/lib/observer-audit/census.mjs',
   'echo x > .claude/workflows/example.js',
   'mv /tmp/example.js .claude/workflows/example.js',
   'rm .claude/workflows/example.js',
@@ -548,7 +564,7 @@ for (const command of g4RecursiveRemoveCommands) {
 const g4CreationVerbCommands = [
   'ln -sfn /tmp/evil ~/.claude/hooks',
   'ln -s /tmp/evil .claude/rules',
-  'mkdir -p .claude/lib/git',
+  'mkdir -p .claude/lib/observer-audit',
 ];
 
 for (const command of g4CreationVerbCommands) {
@@ -556,6 +572,25 @@ for (const command of g4CreationVerbCommands) {
     assertAbstains(runHook(command), command);
   });
 }
+
+const STILL_EXISTING_MODULE_EXAMPLES = Object.freeze([
+  Object.freeze(['allowCommands', 'cat .claude/lib/observer-audit/census.mjs']),
+  Object.freeze(['guardrailWriteCommands', 'echo x > .claude/lib/observer-audit/census.mjs']),
+  Object.freeze(['guardrailWriteCommands', 'cp /tmp/patched.mjs .claude/lib/observer-audit/census.mjs']),
+  Object.freeze(['g4CreationVerbCommands', 'mkdir -p .claude/lib/observer-audit']),
+]);
+
+test('the guardrail write examples name a module that still exists', () => {
+  assert.ok(existsSync(fileURLToPath(new URL('../../lib/observer-audit/census.mjs', import.meta.url))), '.claude/lib/observer-audit/census.mjs does not exist');
+  const lists = { allowCommands, guardrailWriteCommands, g4CreationVerbCommands };
+  for (const [name, command] of STILL_EXISTING_MODULE_EXAMPLES) {
+    assert.ok(lists[name].includes(command), `${name} does not hold ${command}`);
+    assertAbstains(runHook(command), command);
+  }
+  for (const command of Object.values(lists).flat()) {
+    assert.ok(!command.includes('.claude/lib/git'), `${command} still names .claude/lib/git`);
+  }
+});
 
 const g4NonGuardrailCommands = [
   'git checkout main',

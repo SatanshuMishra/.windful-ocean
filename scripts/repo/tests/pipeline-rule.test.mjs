@@ -1,16 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url)).replace(/\/$/, '');
+const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\/$/, '');
 const RULE_PATH = '.claude/rules/common/pipeline.md';
-const TOOL_PATH = '.claude/lib/pipeline/pipeline.mjs';
 
 const WHEN_IT_DOES_NOT_APPLY = '## When it does not apply\n\n- The request changes nothing: a question, an explanation, a review or research.\n- The user says to skip the pipeline for this request, or names another workflow for it.\n- The session is itself part of a pipeline. A prompt that begins `Lane <n> of MSP`, a system prompt that names the session a mitosis Worker, and any agent a stage below dispatches each do their own task directly and never start a pipeline.\n- The request points at an interphase package whose record says `handed-off`: start at stage 2.\n';
 const STAGE_1 = '## Stage 1: interphase\n\n- Classify the request with interphase\'s Phase 2 rules, say the pathway in one sentence, and invoke `interphase:feature`, `interphase:bug`, `interphase:prototype` or `interphase:project` with the request followed by `Work autonomously.` `/interphase` is the user\'s to type; each pathway skill reroutes itself when its own classification differs.\n- interphase works autonomously in every run of this pipeline: it asks nothing, seeks no approval and records each choice as an assumption.\n- interphase\'s rules govern until its Phase 10 report. Nothing from this rule enters the spec, the decisions file or the Steps.\n- Its Phase 10 stop ends the interphase run, not the pipeline: go on to stage 2 in the same turn. Every decision it lists as a top risk goes to the final report.\n';
-const STAGE_2 = '## Stage 2: mitosis\n\n- One pipeline keeps everything in its run home, `~/.mitosis/<repo>/<slug>/`: `<repo>` is the repository folder\'s name and `<slug>` is the slug interphase chose. `<home>/rounds.md` holds one line per round: the round, the spec paths, the mitosis run directory and the verdict. A later session resumes from the run home alone.\n- Build from the repository root, with the branch the user\'s checkout is on as `--feature-branch`. Workers see only committed work: when the checkout has uncommitted changes in a file a Step touches, build from the committed state and name those files as a top risk in the final report. Never commit, stash or check out in the user\'s checkout.\n- `~/.mitosis/<repo>/accept.zsh` maps the one-test command interphase recorded onto mitosis\'s acceptance contract: exit 0 passes, 1 fails, anything else is inconclusive, and a module missing because the work was reverted is a failure. Write it once per repository and reuse it.\n- `<home>/worker-rules.txt` opens with `You are a mitosis Worker building one Lane` and binds every Worker to: its brief and charter as its whole instruction, its write-set only, every command in the foreground, no change to the git index, stash or history, no question to the user, the project\'s full test suite run once, after its last change, and the one-line JSON return as its last line.\n- `<home>/dispatch.zsh` runs `claude -p "$task" --model "$model" --permission-mode bypassPermissions --append-system-prompt "$(cat <home>/worker-rules.txt)"` with the environment the project needs.\n- `<home>/CHARTER.md` names the spec, the decisions file and the record by absolute path in the user\'s checkout, to be read there and never edited, and states the project facts every Worker needs.\n- Copy the interphase items file to `<home>/items.json` before each `--plan-only` until the run\'s first build starts, and never refresh the copy after that, so an amendment that renders the spec\'s items file again leaves every resume and the ship planning from the same items.\n- When `graphify-out/graph.json` exists, copy it to `<home>/graph.json` once, before the run\'s first `--plan-only`, and never refresh the copy during the run, so every resume and the ship plan from the same graph.\n- `<home>/run.zsh` holds the whole invocation, so every resume and the ship reuse the same flags: `--items <home>/items.json`, `--run-dir ~/.mitosis/runs/<repo>/<slug>`, `--charter`, `--decisions` the interphase decisions file, `--feature-branch`, the dispatch and acceptance templates, `--tier-model top=` the newest Opus and `cheap=` the newest Sonnet, `--timeout`, and `--graph <home>/graph.json` when the run home holds that copy. It passes `--pr-type`, `--pr-scope`, `--pr-subject` and `--pr-why` on every run (the type that names the change, `feat` for a new capability and `fix` for a bug; the scope the area the spec changes; the subject the spec\'s title as a lowercase imperative phrase; one to eight Why lines, each a sentence, from the spec\'s problem section), `--no-push` unless `SHIP` is set, and never `--pr-command`. Its first command is `node ~/.claude/lib/pipeline/check-run.mjs "${0:A}" "$@" || exit $?`, which refuses a run whose boundary the session has not recorded.\n- Run `--plan-only` first. A fatal plan finding is a defect in the Steps: hand the report to interphase, which reopens its Phase 9.\n- Read mitosis\'s last stdout line, the JSON result, not its report.\n';
+const STAGE_2 = '## Stage 2: mitosis\n\n- One pipeline keeps everything in its run home, `~/.mitosis/<repo>/<slug>/`: `<repo>` is the repository folder\'s name and `<slug>` is the slug interphase chose. `<home>/rounds.md` holds one line per round: the round, the spec paths, the mitosis run directory and the verdict. A later session resumes from the run home alone.\n- Build from the repository root, with the branch the user\'s checkout is on as `--feature-branch`. Workers see only committed work: when the checkout has uncommitted changes in a file a Step touches, build from the committed state and name those files as a top risk in the final report. Never commit, stash or check out in the user\'s checkout.\n- `~/.mitosis/<repo>/accept.zsh` maps the one-test command interphase recorded onto mitosis\'s acceptance contract: exit 0 passes, 1 fails, anything else is inconclusive, and a module missing because the work was reverted is a failure. Write it once per repository and reuse it.\n- `<home>/worker-rules.txt` opens with `You are a mitosis Worker building one Lane` and binds every Worker to: its brief and charter as its whole instruction, its write-set only, every command in the foreground, no change to the git index, stash or history, no question to the user, the project\'s full test suite run once, after its last change, and the one-line JSON return as its last line.\n- `<home>/dispatch.zsh` runs `claude -p "$task" --model "$model" --permission-mode bypassPermissions --append-system-prompt "$(cat <home>/worker-rules.txt)"` with the environment the project needs.\n- `<home>/CHARTER.md` names the spec, the decisions file and the record by absolute path in the user\'s checkout, to be read there and never edited, and states the project facts every Worker needs.\n- Copy the interphase items file to `<home>/items.json` before each `--plan-only` until the run\'s first build starts, and never refresh the copy after that, so an amendment that renders the spec\'s items file again leaves every resume and the ship planning from the same items.\n- When `graphify-out/graph.json` exists, copy it to `<home>/graph.json` once, before the run\'s first `--plan-only`, and never refresh the copy during the run, so every resume and the ship plan from the same graph.\n- `<home>/run.zsh` holds the whole invocation, so every resume and the ship reuse the same flags: `--items <home>/items.json`, `--run-dir ~/.mitosis/runs/<repo>/<slug>`, `--charter`, `--decisions` the interphase decisions file, `--feature-branch`, the dispatch and acceptance templates, `--tier-model top=` the newest Opus and `cheap=` the newest Sonnet, `--timeout`, and `--graph <home>/graph.json` when the run home holds that copy. It passes `--pr-type`, `--pr-scope`, `--pr-subject` and `--pr-why` on every run (the type that names the change, `feat` for a new capability and `fix` for a bug; the scope the area the spec changes; the subject the spec\'s title as a lowercase imperative phrase; one to eight Why lines, each a sentence, from the spec\'s problem section), `--no-push` unless `SHIP` is set, and never `--pr-command`. Its first command is `pipeline check-run "${0:A}" "$@" || exit $?`, which refuses a run whose boundary the session has not recorded.\n- Run `--plan-only` first. A fatal plan finding is a defect in the Steps: hand the report to interphase, which reopens its Phase 9.\n- Read mitosis\'s last stdout line, the JSON result, not its report.\n';
 
 const PIPELINE_LINE = '- Every request that changes a git repository runs the pipeline autonomously: interphase specs it, mitosis builds it, independent reviewers judge it, and every confirmed blocker returns to interphase until a round is green, a round makes no progress or a hard failure stops it, with no round limit and no question to the user. Rule: `~/.claude/rules/common/pipeline.md`.';
 const STOP_OPENING = 'The loop ends at green, at a stop verdict, or at a hard failure.';
@@ -22,9 +20,9 @@ const RETIRED = Object.freeze([
   'The loop ends only at green or at a hard failure',
 ]);
 const TEMPLATE_AGENTS = Object.freeze(['code-reviewer', 'conformance-auditor', 'security-reviewer', 'validator']);
-const TEMPLATE_PATHS = Object.freeze(TEMPLATE_AGENTS.map((agent) => `~/.claude/lib/pipeline/briefs/${agent}.md`));
-const PLACEHOLDER = /\{\{([a-z_]+)\}\}/g;
-const BRIEF_PATH = /briefs\/([a-z][a-z-]*)\.md/g;
+const TEMPLATE_PATHS = Object.freeze(['`code-reviewer`', '`conformance-auditor`', '`security-reviewer`', '`validator`']);
+const BUNDLED_BRIEFS = "The templates are the plugin's bundled briefs";
+const TEMPLATE_WORD = /pipeline brief --template ([^\s`]+)/g;
 
 function repoPath(relativePath) {
   return `${REPO_ROOT}/${relativePath}`;
@@ -77,7 +75,7 @@ test("the pipeline rule sizes review, renders fixed briefs, validates findings a
     '.diff',
     'Lane: brief.',
     ...TEMPLATE_PATHS,
-    'pipeline.mjs brief',
+    'pipeline brief --template',
     'whole prompt',
     'previous_head',
     'earlier_findings',
@@ -94,17 +92,17 @@ test("the pipeline rule sizes review, renders fixed briefs, validates findings a
   assert.equal(headings[validateAt - 1], '## Stage 3: review', 'Validate does not follow Stage 3');
   assert.equal(headings[validateAt + 1], '## Green', 'Validate does not come before Green');
   assertNames(sectionOf(rule, '## Validate'), 'Validate', [
-    'pipeline.mjs candidates',
+    'pipeline candidates',
     'candidates.md',
     'conformance-auditor',
-    'briefs/validator.md',
+    'pipeline brief --template validator',
     'verdicts.json',
-    'pipeline.mjs record',
+    'pipeline record',
     'once more',
-    'pipeline.mjs verdict',
+    'pipeline verdict',
   ]);
 
-  assertNames(sectionOf(rule, '## Green'), 'Green', ['verdict', INERT_SENTENCE]);
+  assertNames(sectionOf(rule, '## Green'), 'Green', ['verdict', '`pipeline verdict`', INERT_SENTENCE]);
 
   const loopBack = sectionOf(rule, '## Loop back');
   assertNames(loopBack, 'Loop back', [
@@ -121,20 +119,23 @@ test("the pipeline rule sizes review, renders fixed briefs, validates findings a
   assert.ok(rule.includes('Unresolved'), 'pipeline.md does not name Unresolved');
 
   assertNames(sectionOf(rule, '## Ship'), 'Ship', [
-    'pipeline.mjs comment',
+    'pipeline comment',
     'comment.md',
     'Write tool',
     'add_issue_comment',
-    'pipeline.mjs promote',
+    'pipeline promote',
     NEVER_MERGE,
   ]);
 
   const stop = sectionOf(rule, '## Stop');
   assert.ok(stop.startsWith(`## Stop\n\n${STOP_OPENING}`), 'Stop does not begin with its new sentence');
-  assertNames(stop, 'Stop', ['hard-failure', 'retry']);
+  assertNames(stop, 'Stop', ['hard-failure', 'retry', 'an exit 2 from `pipeline`']);
 
   for (const sentence of RETIRED) {
     assert.ok(!rule.includes(sentence), `pipeline.md still holds ${sentence}`);
+  }
+  for (const term of ['pipeline.mjs', 'check-run.mjs', 'lib/pipeline']) {
+    assert.ok(!rule.includes(term), `pipeline.md still names ${term}`);
   }
 });
 
@@ -176,7 +177,7 @@ test('the rule gives every finding the main conversation adds a security flag an
   );
 });
 
-test('CLAUDE.md states the new endings and every brief the rule names renders', () => {
+test('CLAUDE.md states the new endings and the rule renders only bundled briefs', () => {
   const claude = read('.claude/CLAUDE.md');
   const lines = claude.split('\n');
   const pipelineIndex = lines.indexOf(PIPELINE_LINE);
@@ -187,24 +188,17 @@ test('CLAUDE.md states the new endings and every brief the rule names renders', 
   assert.ok(!claude.includes('every concern returns to interphase'), 'CLAUDE.md still says every concern returns to interphase');
 
   const rule = read(RULE_PATH);
-  const agents = [...new Set([...rule.matchAll(BRIEF_PATH)].map((match) => match[1]))];
+  const words = [...rule.matchAll(TEMPLATE_WORD)].map((match) => match[1]);
+  assert.ok(words.length > 0, 'pipeline.md names no pipeline brief --template');
+  assert.deepEqual(words.filter((word) => word !== '<agent>' && word !== 'validator'), [], 'pipeline brief --template names a brief other than <agent> or validator');
+  const stage3 = sectionOf(rule, '## Stage 3: review');
+  const bundledAt = stage3.indexOf(BUNDLED_BRIEFS);
+  assert.notEqual(bundledAt, -1, 'Stage 3 does not name the plugin\'s bundled briefs');
+  const bundled = stage3.slice(bundledAt + BUNDLED_BRIEFS.length);
   for (const agent of TEMPLATE_AGENTS) {
-    assert.ok(agents.includes(agent), `pipeline.md does not name briefs/${agent}.md`);
+    assert.ok(bundled.includes(`\`${agent}\``), `Stage 3 does not name the bundled brief ${agent}`);
   }
-  for (const agent of agents) {
-    const templatePath = `.claude/lib/pipeline/briefs/${agent}.md`;
-    assert.ok(existsSync(repoPath(templatePath)), `${templatePath} is not in the repository`);
-    const names = [...new Set([...read(templatePath).matchAll(PLACEHOLDER)].map((match) => match[1]))]
-      .filter((name) => name !== 'review_bar');
-    const sets = names.flatMap((name) => ['--set', `${name}=value-of-${name}`]);
-    const result = spawnSync(
-      process.execPath,
-      [repoPath(TOOL_PATH), 'brief', '--template', repoPath(templatePath), ...sets],
-      { encoding: 'utf8' },
-    );
-    assert.equal(result.status, 0, `brief for ${templatePath} failed: ${result.stderr}`);
-    assert.ok(!result.stdout.includes('{{'), `brief for ${templatePath} left a placeholder unfilled`);
-  }
+  assert.ok(!rule.includes('briefs/'), 'pipeline.md still names a briefs/ path');
 });
 
 const GRAPH_COPY = "- When `graphify-out/graph.json` exists, copy it to `<home>/graph.json` once, before the run's first `--plan-only`, and never refresh the copy during the run, so every resume and the ship plan from the same graph.";
@@ -367,4 +361,25 @@ test('CLAUDE.md tells compaction what to keep', () => {
   for (const word of ['fires', 'hook', 'harness', 'Claude Code']) {
     assert.ok(!section.toLowerCase().includes(word.toLowerCase()), `Compact instructions contains ${word}`);
   }
+});
+
+const KEPT_TESTS = Object.freeze([
+  "the pipeline rule sizes review, renders fixed briefs, validates findings and ends on the tool's verdict",
+  'the rule gives every finding the main conversation adds a security flag and carries every non-measured confirmed finding',
+  'CLAUDE.md states the new endings and the rule renders only bundled briefs',
+  "the pipeline rule pins each run's graph in its run home",
+  'Stage 2 pins the items file in the run home',
+  'Stage 3 runs the full suite once before any reviewer',
+  "the values give the reviewers the suite output and the amendments' criteria",
+  "Loop back amends the original spec and builds each amendment on the MSP's branch",
+  'the pipeline rule records to logbook at every boundary',
+  'CLAUDE.md tells compaction what to keep',
+  'Unchanged: the moved rule tests keep their other checks',
+]);
+
+test('Unchanged: the moved rule tests keep their other checks', () => {
+  const ownPath = fileURLToPath(import.meta.url);
+  assert.equal(ownPath, repoPath('scripts/repo/tests/pipeline-rule.test.mjs'), 'the repository root is not computed from scripts/repo/tests/');
+  const names = [...readFileSync(ownPath, 'utf8').matchAll(/^test\((['"])(.+?)\1, /gm)].map((match) => match[2]);
+  assert.deepEqual(names, KEPT_TESTS);
 });
