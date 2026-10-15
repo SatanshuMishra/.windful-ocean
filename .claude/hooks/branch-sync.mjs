@@ -7,10 +7,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const FETCH_TIMEOUT_MS = 8000;
 const GIT_TIMEOUT_MS = 4000;
 const SKIPPED_SOURCES = new Set(['compact']);
+const NO_REPO_CODE = ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false'];
 
 function git(dir, args, timeout = GIT_TIMEOUT_MS) {
   try {
-    const out = execFileSync('git', ['-C', dir, ...args], {
+    const out = execFileSync('git', ['-C', dir, ...NO_REPO_CODE, ...args], {
       encoding: 'utf8',
       timeout,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -37,7 +38,7 @@ export function syncRepo(top) {
   if (!upstream.ok) return null;
   const remote = git(top, ['config', `branch.${branch.out}.remote`]);
   if (remote.ok && remote.out !== '.') {
-    const fetched = git(top, ['fetch', '--quiet', remote.out], FETCH_TIMEOUT_MS);
+    const fetched = git(top, ['fetch', '--quiet', '--end-of-options', remote.out], FETCH_TIMEOUT_MS);
     if (!fetched.ok) return `branch-sync: ${name} ${branch.out}: could not fetch ${remote.out}: ${fetched.err}`;
   }
   const counts = git(top, ['rev-list', '--left-right', '--count', 'HEAD...@{u}']);

@@ -136,6 +136,34 @@ test('the session folder and the dotfiles clone are each synced once', () => {
   }
 });
 
+test('a repository cannot run its own hooks, fsmonitor or a dash-leading remote through the sync', () => {
+  const repos = fixture();
+  const marker = path.join(repos.root, 'ran');
+  try {
+    advanceOrigin(repos, 1);
+    const hooks = path.join(repos.work, '.git', 'hooks');
+    for (const hook of ['post-merge', 'reference-transaction']) {
+      fs.writeFileSync(path.join(hooks, hook), `#!/bin/sh\necho ${hook} >> "${marker}"\n`, { mode: 0o755 });
+    }
+    git(repos.work, 'config', 'core.fsmonitor', `echo fsmonitor >> "${marker}"`);
+    assert.deepEqual(run({ cwd: repos.work, source: 'startup' }), ['branch-sync: work main fast-forwarded 1 commit to origin/main']);
+    assert.equal(fs.existsSync(marker) ? fs.readFileSync(marker, 'utf8') : '', '');
+    commit(repos.other, 'b.txt', 'next\n');
+    git(repos.other, 'push', '--quiet', 'origin', 'main');
+    const script = path.join(repos.root, 'upload-pack.sh');
+    fs.writeFileSync(script, `#!/bin/sh\necho upload-pack >> "${marker}"\nexec git-upload-pack "$@"\n`, { mode: 0o755 });
+    const evil = `--upload-pack=${script}`;
+    git(repos.work, 'config', `remote.${evil}.url`, repos.origin);
+    git(repos.work, 'config', `remote.${evil}.fetch`, `+refs/heads/*:refs/remotes/${evil}/*`);
+    git(repos.work, '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', 'fetch', '--quiet', '--end-of-options', evil);
+    git(repos.work, 'config', 'branch.main.remote', evil);
+    assert.deepEqual(run({ cwd: repos.work, source: 'startup' }), [`branch-sync: work main fast-forwarded 1 commit to ${evil}/main`]);
+    assert.equal(fs.existsSync(marker) ? fs.readFileSync(marker, 'utf8') : '', '');
+  } finally {
+    cleanup(repos);
+  }
+});
+
 test('a compaction syncs nothing', () => {
   const repos = fixture();
   try {
