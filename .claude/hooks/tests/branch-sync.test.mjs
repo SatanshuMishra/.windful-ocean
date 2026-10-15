@@ -127,10 +127,11 @@ test('the session folder and the dotfiles clone are each synced once', () => {
   const repos = fixture();
   try {
     advanceOrigin(repos, 1);
+    commit(repos.work, 'c.txt', 'local\n');
     const nested = path.join(repos.work, 'sub');
     fs.mkdirSync(nested);
     const lines = run({ cwd: nested, clone: repos.work, source: 'resume' });
-    assert.deepEqual(lines, ['branch-sync: work main fast-forwarded 1 commit to origin/main']);
+    assert.deepEqual(lines, ['branch-sync: work main has diverged from origin/main (1 ahead, 1 behind); not synced']);
   } finally {
     cleanup(repos);
   }
