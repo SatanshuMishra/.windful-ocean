@@ -106,5 +106,8 @@ test('registers the database gate and denies credential files', () => {
       assert.ok(deny.includes(`${tool}(${file})`), `permissions.deny must hold ${tool}(${file})`);
     }
   }
+  for (const tool of ['Edit', 'Write']) {
+    assert.ok(deny.includes(`${tool}(~/.psqlrc*)`), `permissions.deny must hold ${tool}(~/.psqlrc*)`);
+  }
   assert.deepEqual(deny.filter((rule) => rule.startsWith('Bash(supabase')), []);
 });

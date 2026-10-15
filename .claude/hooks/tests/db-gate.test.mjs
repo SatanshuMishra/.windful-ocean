@@ -426,3 +426,144 @@ test('the hook script prints one decision and exits 0', () => {
   assert.equal(deniedOutput.hookSpecificOutput.permissionDecision, 'deny');
   assert.match(deniedOutput.hookSpecificOutput.permissionDecisionReason, /^database gate fault/);
 });
+
+function project(scripts, nested = {}) {
+  const dir = fs.mkdtempSync(path.join(root, 'project-'));
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts }));
+  for (const [sub, subScripts] of Object.entries(nested)) {
+    fs.mkdirSync(path.join(dir, sub));
+    fs.writeFileSync(path.join(dir, sub, 'package.json'), JSON.stringify({ scripts: subScripts }));
+  }
+  return dir;
+}
+
+function decisionsIn(dir, commands) {
+  return commands.map((command) => [command, decisionOf(bash(command, dir))]);
+}
+
+function expectIn(dir, commands, decision) {
+  for (const [command, actual] of decisionsIn(dir, commands)) {
+    assert.equal(actual, decision, command);
+  }
+}
+
+test('round 1: package managers that run a tool or a lifecycle script ask', () => {
+  const dir = project({
+    start: 'prisma migrate deploy && node server.js',
+    'db:migrate': 'prisma migrate deploy',
+    build: 'tsc',
+  });
+  expectIn(dir, [
+    'pnpm prisma migrate deploy',
+    'yarn supabase db push',
+    'yarn prisma db push',
+    'bun db:migrate',
+    'bun run prisma migrate deploy',
+    'npm start',
+    'pnpm start',
+    'yarn start',
+    'npm restart',
+  ], 'ask');
+  expectIn(dir, ['pnpm build', 'yarn install', 'bun test', 'pnpm lint', 'npm test', 'yarn'], null);
+});
+
+test('round 1: versioned and scoped runner names are matched', () => {
+  expectAsk([
+    'npx prisma@5.22.0 migrate deploy',
+    'npx prisma@latest migrate reset --force',
+    'npx supabase@latest db push',
+    'bunx drizzle-kit@latest push',
+    'uvx alembic@1.13 upgrade head',
+    'npx @railway/cli up',
+  ]);
+  expectBash(['npx @railway/cli variables', 'npx @railway/cli@3 vars'], 'deny');
+  expectBash(['npx prisma@5.22.0 generate', 'npx @railway/cli status'], null);
+});
+
+test('round 1: env loader wrappers are stripped', () => {
+  const dir = project({
+    'migrate:prod': 'dotenv -e .env.production -- prisma migrate deploy',
+    'migrate:env': 'cross-env NODE_ENV=production prisma migrate deploy',
+  });
+  expectAsk([
+    'dotenv -e .env.production -- prisma migrate deploy',
+    'dotenv -e .env.production prisma migrate deploy',
+    'cross-env X=1 prisma migrate deploy',
+    'cross-env-shell X=1 prisma migrate deploy',
+    'env-cmd -f .env prisma migrate deploy',
+    'pipenv run alembic upgrade head',
+    'pdm run alembic upgrade head',
+  ]);
+  expectIn(dir, ['npm run migrate:prod', 'npm run migrate:env'], 'ask');
+  expectBash(['dotenv -e .env -- node server.js', 'cross-env X=1 node build.js'], null);
+});
+
+test('round 1: scripts in another package directory are found or asked about', () => {
+  const dir = project({}, { api: { 'db:deploy-api': 'prisma migrate deploy', build: 'tsc' } });
+  expectIn(dir, [
+    'cd api && npm run db:deploy-api',
+    'cd api; npm run db:deploy-api',
+    'npm --prefix api run db:deploy-api',
+    'npm --prefix=api run db:deploy-api',
+    'pnpm -C api db:deploy-api',
+    'pnpm --dir api db:deploy-api',
+    'pnpm --filter api db:migrate',
+    'yarn workspace api db:migrate',
+    'npm --workspace api run db:migrate',
+    'cd "$SOME_DIR" && npm run db:migrate',
+  ], 'ask');
+  expectIn(dir, ['cd api && npm run build', 'pnpm --filter api build', 'pnpm -C api build'], null);
+});
+
+test('round 1: script chains deeper than the inspection limit ask', () => {
+  const dir = project({ a: 'npm run b', b: 'npm run c', c: 'npm run d', d: 'prisma migrate deploy', e: 'npm run f', f: 'npm run g', g: 'npm run h', h: 'tsc' });
+  expectIn(dir, ['npm run a', 'npm run e'], 'ask');
+  expectIn(dir, ['npm run g'], null);
+});
+
+test('round 1: abbreviated psql options are resolved before the reader and local checks', () => {
+  expectAsk([
+    'psql service=chinook-reader --user=postgres -c "drop table customers"',
+    'psql service=chinook-reader --use=postgres -c "drop table customers"',
+    'psql service=chinook-reader --hos=db.example.com -c "select 1"',
+    'psql service=chinook-reader --por=6543 -c "select 1"',
+    'psql service=chinook-reader -v x=1 -c "select 1"',
+    'psql service=chinook-reader --set=x=1 -c "select 1"',
+    'psql service=chinook-reader --zzz -c "select 1"',
+    'psql -h localhost --hos=db.example.com -U postgres -c "drop table t"',
+    'psql -h localhost --ho db.example.com -c "drop table t"',
+    'pg_dump service=chinook-reader --rol=postgres --schema-only',
+    'psql service=chinook-reader --out="|sh" -c "select 1"',
+  ]);
+  expectBash([
+    'psql service=chinook-reader --no-psqlrc --tuples-only -c "select 1"',
+    'psql "service=chinook-reader" --no-ps --csv -c "select id from customers"',
+    'psql -h localhost --user=postgres -c "drop table t"',
+  ], null);
+});
+
+test('round 1: psql start-up files and variables ask', () => {
+  expectAsk([
+    'PSQLRC=rc.sql psql service=chinook-reader -c "select 1"',
+    'export PSQLRC=rc.sql; psql service=chinook-reader -c "select 1"',
+    'echo "\\\\c service=chinook-owner" >> ~/.psqlrc',
+    'cp rc.sql ~/.psqlrc-17',
+    'psql service=chinook-reader -c "select \'read\' || \' write\' as b \\\\gset"',
+    'psql service=chinook-reader -c "begin :b; select bump(); commit"',
+    'psql service=chinook-reader -c "set x = :\'v\'"',
+  ]);
+});
+
+test('round 1: comments, escapes and dynamic SQL cannot hide a read-only override', () => {
+  expectAsk([
+    'psql service=chinook-reader -c "begin read/**/write; select bump(); commit"',
+    'psql service=chinook-reader -c "begin read /* x */ write; select bump(); commit"',
+    'psql service=chinook-reader -c "set U&\\"default\\\\005ftransaction\\\\005fread\\\\005fonly\\" = off"',
+    'psql service=chinook-reader -c "do $$ begin execute \'set default_\' || \'transaction_read_only = off\'; end $$; select bump()"',
+    'psql service=chinook-reader -c "prepare p as select 1; execute p"',
+  ]);
+  expectBash([
+    'psql service=chinook-reader -c "select id::text, created_at::date from customers -- recent first"',
+    'psql service=chinook-reader -c "select \'10:30\'::time, \'a--b\' as s"',
+  ], null);
+});

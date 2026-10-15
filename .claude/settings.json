@@ -98,6 +98,8 @@
       "Read(~/.pg_service.conf)",
       "Edit(~/.pg_service.conf)",
       "Write(~/.pg_service.conf)",
+      "Edit(~/.psqlrc*)",
+      "Write(~/.psqlrc*)",
       "Bash(gh pr merge:*)",
       "Bash(gh pr create:*)",
       "mcp__github__create_pull_request_with_copilot",
