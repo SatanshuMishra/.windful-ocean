@@ -1,6 +1,12 @@
 # Schema design and migration authoring
 
-You produce files. A human runs them. Nothing in this procedure connects to a database.
+You produce files, and a statement that changes schema or data reaches a live database only through the approval flow:
+
+1. Explain each statement in plain English before it runs: what it changes; the objects and the rows it affects, with counts measured by a read through the reader service; the data it destroys or rewrites, or the words no data is lost; its lock and downtime impact; how to undo it; and the verification read you will run afterwards.
+2. Run it only through the user's approval at the permission prompt, then run the verification read and report it per `procedures/handback.md`.
+3. When approval is withheld, run nothing: hand over every statement or migration file in run order, per `procedures/handback.md`.
+
+Reads go through the reader service in `procedures/database-facts.md`, and credentials never enter the transcript.
 
 ## 1. Read the current state from artifacts, not from a server
 
@@ -19,6 +25,7 @@ Schema is the hardest thing in a system to reverse, so the design decision gets 
 
 ## 3. Author the forward migration
 
+- Follow `procedures/sql-standards.md` for naming, types, constraints, indexes, locking, backfills and proof on the destination.
 - One migration per logical change. A rename and a behavioural change do not share a file.
 - Write explicit, parameterized, deterministic DDL and DML. No string-concatenated identifiers, no values interpolated from anywhere.
 - Make it idempotent where the dialect allows it, so a partially-applied run can be re-run safely.
@@ -33,8 +40,8 @@ A destructive change - dropping a column, dropping a table, narrowing a type, re
 
 ## 5. What you never do here
 
-- Connect to, query, or apply against any database, local remote or otherwise, outside the narrow carve-out in `procedures/database-facts.md`.
-- Run a migration tool's apply, push, pull, or reset verb against a project.
+- Run a statement that changes schema or data on a live database before explaining it in plain English and before the user approves it at the permission prompt, or reach a database by any path `procedures/database-facts.md` does not describe.
+- Run a migration tool's apply, push, pull, or reset verb against a live project without the user's approval at the permission prompt.
 - Put a credential or connection string in a migration file.
 - Author a destructive statement without both a rollback and a stated callout.
 
