@@ -567,3 +567,62 @@ test('round 1: comments, escapes and dynamic SQL cannot hide a read-only overrid
     'psql service=chinook-reader -c "select \'10:30\'::time, \'a--b\' as s"',
   ], null);
 });
+
+test('round 2: string literals cannot hide a read-only override or unclosed text', () => {
+  expectAsk([
+    'psql service=chinook-reader -c "select \'/*\'; commit; begin read write; select bump(); select \'*/\'"',
+    'psql service=chinook-reader -c "select \'/*\'; select set_config(\'default_transaction_read_only\', \'off\', false); select \'*/\'"',
+    'psql service=chinook-reader -c "select \'--\'; begin read/**/write; select bump()"',
+    'psql service=chinook-reader -c "set standard_conforming_strings = off; select 1"',
+    'psql service=chinook-reader -c "select \'unclosed"',
+    'psql service=chinook-reader -c "select 1 /* unclosed"',
+    "psql service=chinook-reader -c 'select $q$ unclosed'",
+    "psql service=chinook-reader -c 'select $q$ x $q$; do $$ begin perform bump(); end $$'",
+  ]);
+});
+
+test('round 2: words inside string literals do not block reads', () => {
+  expectBash([
+    'psql service=chinook-reader -c "select id from orders where meta @> \'{\\"status\\":\\"paid\\"}\'"',
+    'psql service=chinook-reader -c "select has_function_privilege(\'claude_reader\', \'bump()\', \'execute\')"',
+    'psql service=chinook-reader -c "select count(*) from tasks where status = \'to do\'"',
+    'psql service=chinook-reader -c "select E\'it\\\\\'s\' as s"',
+    "psql service=chinook-reader -c 'select \"a`b\" as s'",
+    "psql service=chinook-reader -c 'select $q$ do execute $q$ as s, \"execute\" from t'",
+  ], null);
+});
+
+test('round 2: flags after run do not hide the script name', () => {
+  const dir = project({ 'db:migrate': 'prisma migrate deploy', build: 'tsc' });
+  expectIn(dir, [
+    'npm run -s db:migrate',
+    'npm run --silent db:migrate',
+    'npm run --if-present db:migrate',
+    'npm run --script-shell bash db:migrate',
+    'pnpm run --silent db:migrate',
+    'yarn run -s db:migrate',
+    'bun run --bun db:migrate',
+  ], 'ask');
+  expectIn(dir, ['npm run -s build', 'pnpm run --silent build'], null);
+});
+
+test('round 2: arguments forwarded to a package script are classified', () => {
+  const dir = project({ prisma: 'prisma', db: 'dotenv -e .env.production -- prisma', e: 'echo' });
+  expectIn(dir, [
+    'npm run prisma -- migrate deploy',
+    'npm run db -- migrate deploy',
+    'npm run db migrate deploy',
+    'pnpm prisma migrate deploy',
+    'yarn db migrate reset --force',
+    'bun run db migrate deploy',
+  ], 'ask');
+  expectIn(dir, ['npm run prisma -- generate', 'pnpm prisma generate', 'npm run e -- hello'], null);
+});
+
+test('round 2: package scripts are found from a subdirectory and after cd options', () => {
+  const dir = project({ release: 'prisma migrate deploy', build: 'tsc' }, { api: { deploy: 'prisma migrate deploy' } });
+  fs.mkdirSync(path.join(dir, 'src'));
+  assert.equal(decisionOf(bash('npm run release', path.join(dir, 'src'))), 'ask');
+  assert.equal(decisionOf(bash('npm run build', path.join(dir, 'src'))), null);
+  expectIn(dir, ['cd src && npm run release', 'cd -P api && npm run deploy', 'cd -- api && npm run deploy'], 'ask');
+});

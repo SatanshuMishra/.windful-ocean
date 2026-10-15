@@ -33,7 +33,9 @@ const META_ALLOWED = new Set([
   'l', 'sf', 'sv', 'conninfo', 'echo', 'qecho', 'warn', 'set', 'unset', 'pset',
   'a', 't', 'x', 'f', 'H', 'C', 'timing', 'q', 'crosstabview',
 ]);
-const SQL_COMMENT = /\/\*[\s\S]*?\*\/|--[^\n]*/g;
+const LEXER_SETTINGS = ['standard_conforming_strings', 'client_encoding'];
+const DOLLAR_TAG = /^\$(?:[A-Za-z_\u0080-￿][A-Za-z0-9_\u0080-￿]*)?\$/;
+const IDENTIFIER_CHAR = /[A-Za-z0-9_$\u0080-￿]/;
 const SQL_NOT_CLEAN = [
   /\bu&\s*['"]/i,
   /(^|[^:A-Za-z0-9_]):['"]?[A-Za-z_]/,
@@ -146,6 +148,8 @@ const LIFECYCLE_SCRIPTS = new Map([
 const PACKAGE_DIR_OPTIONS = new Set(['--prefix', '-C', '--dir', '--cwd']);
 const WORKSPACE_OPTIONS = new Set(['--filter', '-F', '--workspace', '-w']);
 const RECURSIVE_OPTIONS = new Set(['-r', '--recursive', '-ws', '--workspaces']);
+const RUN_VALUE_OPTIONS = new Set(['--script-shell', '--resume-from', '--shell', '--elide-lines', '--reporter']);
+const CD_OPTION = /^(-[LPe@]+|--)$/;
 const DB_SCRIPT_NAME = /migrat|db|prisma|drizzle|knex|sequelize|typeorm|alembic|supabase|seed|schema|sql/i;
 const RUNNER_VALUE_OPTIONS = new Set([
   '-p', '--package', '--with', '--with-requirements', '--python', '--from', '--env-file', '--project',
@@ -788,12 +792,100 @@ function metaCommandsClean(sql) {
   return true;
 }
 
+function quotedEnd(sql, start, quote, escapes) {
+  let cursor = start + 1;
+  while (cursor < sql.length) {
+    if (escapes && sql[cursor] === '\\') {
+      cursor += 2;
+    } else if (sql[cursor] === quote && sql[cursor + 1] === quote) {
+      cursor += 2;
+    } else if (sql[cursor] === quote) {
+      return cursor + 1;
+    } else {
+      cursor += 1;
+    }
+  }
+  return -1;
+}
+
+function blockCommentEnd(sql, start) {
+  let depth = 0;
+  let cursor = start;
+  while (cursor < sql.length) {
+    if (sql.startsWith('/*', cursor)) {
+      depth += 1;
+      cursor += 2;
+    } else if (sql.startsWith('*/', cursor)) {
+      depth -= 1;
+      cursor += 2;
+      if (depth === 0) return cursor;
+    } else {
+      cursor += 1;
+    }
+  }
+  return -1;
+}
+
+function lineEnd(sql, start) {
+  const end = sql.indexOf('\n', start);
+  return end === -1 ? sql.length : end;
+}
+
+function scanSql(sql) {
+  const code = [];
+  const blanked = [];
+  let index = 0;
+  while (index < sql.length) {
+    const char = sql[index];
+    const previous = sql[index - 1] ?? '';
+    let end = index + 1;
+    let blank = null;
+    let comment = false;
+    if (sql.startsWith('--', index)) {
+      end = lineEnd(sql, index);
+      comment = true;
+    } else if (sql.startsWith('/*', index)) {
+      end = blockCommentEnd(sql, index);
+      if (end === -1) return null;
+      comment = true;
+    } else if (char === '\\') {
+      end = lineEnd(sql, index);
+    } else if (char === "'" || char === '"') {
+      const escapes = char === "'" && /[eE]/.test(previous) && !IDENTIFIER_CHAR.test(sql[index - 2] ?? '');
+      end = quotedEnd(sql, index, char, escapes);
+      if (end === -1) return null;
+      const variable = previous === ':' && sql[index - 2] !== ':';
+      if (!variable) blank = char + char;
+    } else if (char === '$' && !IDENTIFIER_CHAR.test(previous) && DOLLAR_TAG.test(sql.slice(index))) {
+      const tag = DOLLAR_TAG.exec(sql.slice(index))[0];
+      const close = sql.indexOf(tag, index + tag.length);
+      if (close === -1) return null;
+      end = close + tag.length;
+      blank = tag + tag;
+    }
+    const text = comment ? ' ' : sql.slice(index, end);
+    code.push(text);
+    blanked.push(blank ?? text);
+    index = end;
+  }
+  return { code: code.join(''), blanked: blanked.join('') };
+}
+
+function flatten(text) {
+  return text.toLowerCase().replace(/\s+/g, ' ');
+}
+
 function sqlClean(sql) {
-  const flat = sql.replace(SQL_COMMENT, ' ').toLowerCase().replace(/\s+/g, ' ');
-  if (READ_ONLY_OVERRIDES.some((phrase) => flat.includes(phrase))) return false;
-  if (SQL_NOT_CLEAN.some((pattern) => pattern.test(flat))) return false;
-  if (sql.includes('\\!') || sql.includes('`')) return false;
-  return metaCommandsClean(sql);
+  const scanned = scanSql(sql);
+  if (scanned === null) return false;
+  const raw = flatten(sql);
+  const code = flatten(scanned.code);
+  if (READ_ONLY_OVERRIDES.some((phrase) => raw.includes(phrase) || code.includes(phrase))) return false;
+  if (LEXER_SETTINGS.some((phrase) => raw.includes(phrase))) return false;
+  const visible = scanned.blanked;
+  if (SQL_NOT_CLEAN.some((pattern) => pattern.test(flatten(visible)))) return false;
+  if (visible.includes('\\!') || visible.includes('`')) return false;
+  return metaCommandsClean(visible);
 }
 
 function hostOf(text) {
@@ -910,15 +1002,15 @@ function classifyRailway(segment) {
   return ask('Railway command outside the read list', label);
 }
 
-function packageInvocation(segment) {
-  let rest = segment.args;
-  let dir = null;
-  let unresolved = false;
+function readPackageOptions(words, state) {
+  let rest = words;
+  let { dir, unresolved } = state;
   while (rest.length > 0 && rest[0].text.startsWith('-') && rest[0].text !== '-') {
     const option = rest[0].text;
     const equals = option.indexOf('=');
     const name = equals === -1 ? option : option.slice(0, equals);
-    const takesValue = equals === -1 && (PACKAGE_DIR_OPTIONS.has(name) || WORKSPACE_OPTIONS.has(name) || RUNNER_VALUE_OPTIONS.has(name));
+    const takesValue = equals === -1 && (PACKAGE_DIR_OPTIONS.has(name) || WORKSPACE_OPTIONS.has(name)
+      || RUNNER_VALUE_OPTIONS.has(name) || RUN_VALUE_OPTIONS.has(name));
     const value = equals === -1 ? rest[1] : { text: option.slice(equals + 1), expands: rest[0].expands };
     if (PACKAGE_DIR_OPTIONS.has(name)) {
       if (value === undefined || value.expands) unresolved = true;
@@ -927,50 +1019,80 @@ function packageInvocation(segment) {
     if (WORKSPACE_OPTIONS.has(name) || RECURSIVE_OPTIONS.has(name)) unresolved = true;
     rest = rest.slice(takesValue ? 2 : 1);
   }
-  if (rest[0]?.text === 'workspace' && segment.command === 'yarn') {
-    return { dir, unresolved: true, rest: rest.slice(2) };
-  }
   return { dir, unresolved, rest };
 }
 
-function scriptCall(segment, rest) {
+function packageInvocation(segment) {
+  const invocation = readPackageOptions(segment.args, { dir: null, unresolved: false });
+  if (invocation.rest[0]?.text === 'workspace' && segment.command === 'yarn') {
+    return { ...invocation, unresolved: true, rest: invocation.rest.slice(2) };
+  }
+  return invocation;
+}
+
+function lifecycleNames(first) {
+  const name = LIFECYCLE_SCRIPTS.get(first);
+  return name === 'restart' ? ['restart', 'stop', 'start'] : [name];
+}
+
+function scriptCall(segment, invocation) {
+  const rest = invocation.rest;
   const first = rest[0]?.text;
   if (first === undefined) return null;
-  const command = segment.command;
-  if (command === 'npm') {
-    if (NPM_RUN.has(first)) return { names: [rest[1]?.text], fallback: [], hooks: true };
-    if (LIFECYCLE_SCRIPTS.has(first)) {
-      const name = LIFECYCLE_SCRIPTS.get(first);
-      return { names: name === 'restart' ? ['restart', 'stop', 'start'] : [name], fallback: [], hooks: true };
+  const npm = segment.command === 'npm';
+  if (npm ? NPM_RUN.has(first) : first === 'run') {
+    const options = readPackageOptions(rest.slice(1), invocation);
+    return {
+      ...options,
+      names: [options.rest[0]?.text],
+      args: options.rest.slice(1),
+      fallback: npm ? [] : options.rest,
+      hooks: npm,
+    };
+  }
+  if (LIFECYCLE_SCRIPTS.has(first) && !(segment.command === 'bun' && first === 'test')) {
+    return { ...invocation, names: lifecycleNames(first), args: rest.slice(1), fallback: [], hooks: npm };
+  }
+  if (npm || (segment.command === 'bun' && first === 'test') || PACKAGE_BUILTINS.has(first)) return null;
+  return { ...invocation, names: [first], args: rest.slice(1), fallback: rest, hooks: false };
+}
+
+function quoteWord(word) {
+  return word.expands
+    ? `"${word.text.replace(/["\\]/g, '\\$&')}"`
+    : `'${word.text.replace(/'/g, "'\\''")}'`;
+}
+
+function ancestors(dir) {
+  const parent = path.dirname(dir);
+  return parent === dir ? [dir] : [dir, ...ancestors(parent)];
+}
+
+function packageManifest(dir, context) {
+  for (const current of ancestors(dir)) {
+    try {
+      return { dir: current, text: context.io.readFile(path.join(current, 'package.json')) };
+    } catch {
+      continue;
     }
-    return null;
   }
-  if (first === 'run') return { names: [rest[1]?.text], fallback: rest.slice(1), hooks: false };
-  if (command === 'bun' && first === 'test') return null;
-  if (LIFECYCLE_SCRIPTS.has(first)) {
-    const name = LIFECYCLE_SCRIPTS.get(first);
-    return { names: name === 'restart' ? ['restart', 'stop', 'start'] : [name], fallback: [], hooks: false };
-  }
-  if (PACKAGE_BUILTINS.has(first)) return null;
-  return { names: [first], fallback: rest, hooks: false };
+  return null;
 }
 
 function readScripts(dir, context) {
   if (typeof dir !== 'string' || dir === '') return null;
-  let text;
-  try {
-    text = context.io.readFile(path.join(dir, 'package.json'));
-  } catch {
-    return {};
-  }
+  const found = packageManifest(dir, context);
+  if (found === null) return { dir, scripts: {} };
+  const text = found.text;
   let manifest;
   try {
     manifest = JSON.parse(text);
   } catch {
     throw new GateFault('package.json is not valid JSON');
   }
-  return manifest !== null && typeof manifest === 'object' && manifest.scripts !== null
+  const scripts = manifest !== null && typeof manifest === 'object' && manifest.scripts !== null
     && typeof manifest.scripts === 'object' ? manifest.scripts : {};
+  return { dir: found.dir, scripts };
 }
 
 function classifyFallback(segment, words, context) {
@@ -979,27 +1101,32 @@ function classifyFallback(segment, words, context) {
 }
 
 function classifyPackageScript(segment, context) {
-  const invocation = packageInvocation(segment);
-  const call = scriptCall(segment, invocation.rest);
+  const call = scriptCall(segment, packageInvocation(segment));
   if (call === null) return null;
   const names = call.names.filter((name) => typeof name === 'string' && name !== '');
+  const args = call.args.filter((word) => word.text !== '--');
   const label = [segment.command, ...names].join(' ');
   const fallback = classifyFallback(segment, call.fallback, context);
   if (context.depth >= MAX_SCRIPT_DEPTH) {
     return combine([fallback, ask('package scripts nested too deeply to inspect', label)]);
   }
-  const dir = invocation.dir === null ? context.cwd : resolveFile(invocation.dir, context);
-  const scripts = invocation.unresolved ? null : readScripts(dir, context);
-  if (scripts === null) {
-    const unseen = names.some((name) => DB_SCRIPT_NAME.test(name))
+  const dir = call.dir === null ? context.cwd : resolveFile(call.dir, context);
+  const found = call.unresolved ? null : readScripts(dir, context);
+  if (found === null) {
+    const unseen = [...names, ...args.map((word) => word.text)].some((text) => DB_SCRIPT_NAME.test(text))
       ? ask('package script whose package.json the gate cannot locate', label)
       : null;
     return combine([fallback, unseen]);
   }
-  const withHooks = call.hooks ? names.flatMap((name) => [`pre${name}`, name, `post${name}`]) : names;
-  const bodies = withHooks.map((name) => scripts[name]).filter((body) => typeof body === 'string');
-  if (bodies.length === 0) return fallback;
-  const inner = { ...context, cwd: dir, depth: context.depth + 1 };
+  const forwarded = args.map(quoteWord).join(' ');
+  const named = names.map((name) => found.scripts[name]).filter((body) => typeof body === 'string');
+  if (named.length === 0) return fallback;
+  const hooks = call.hooks ? names.flatMap((name) => [found.scripts[`pre${name}`], found.scripts[`post${name}`]]) : [];
+  const bodies = [
+    ...named.map((body) => (forwarded === '' ? body : `${body} ${forwarded}`)),
+    ...hooks.filter((body) => typeof body === 'string'),
+  ];
+  const inner = { ...context, cwd: found.dir, depth: context.depth + 1 };
   return combine(bodies.map((body) => classifyCommand(body, inner)));
 }
 
@@ -1069,7 +1196,7 @@ function classifyCommand(text, context) {
     if (stripped.rest.length === 0) return null;
     const head = commandName(stripped.rest[0].text);
     if (head === 'cd' || head === 'pushd') {
-      const target = stripped.rest[1];
+      const target = stripped.rest.slice(1).find((word) => !CD_OPTION.test(word.text));
       cwd = target === undefined || target.expands || target.text === '-' ? null : resolveFile(target.text, inner);
       return null;
     }
