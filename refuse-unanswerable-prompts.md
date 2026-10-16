@@ -1,6 +1,6 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: parked
-Updated: 2026-10-16T23:42:18.731Z
+Updated: 2026-10-16T23:54:16.075Z
 Next ids: c4 D4 R1 S1
 
 ## Goal
@@ -12,17 +12,15 @@ Ship one MSP pull request into the FEATURE branch that adds a PermissionRequest 
 - [x] c1 The MSP pull requests (refusal-hook and rule-text, per D2) into the FEATURE branch are open, ready for review unless a diagnosis classed a blocker blocked, assigned to the owner, with the title and body mitosis wrote. evidence: https://github.com/SatanshuMishra/.windful-ocean/pull/338 (mitosis/refusal-hook) and https://github.com/SatanshuMishra/.windful-ocean/pull/339 (mitosis/rule-text) are open into feat/refuse-unanswerable-prompts, draft=false, assigned to SatanshuMishra, opened through the GitHub MCP tool with mitosis's titles and bodies; the review comment is posted on #338.
 - [x] c2 Every confirmed blocker is fixed with a receipt test that failed first, or named at the top of a draft pull request after a diagnosis classed it blocked. evidence: C1/U1 (stale test:ci pin) fixed in b472d5b9 with node --test scripts/dotfiles/tests/ci.test.mjs red at 4c3b5c41 and green after; validator round 2 marked P1 fixed; suite 695/695; advisory C2 fixed in the same commit; no blocker diagnosed blocked.
 
-- [ ] c3 lighthouse has tested feat/refuse-unanswerable-prompts against main and the FEATURE pull request is open, with every confirmed failure fixed after a diagnosis or named after a diagnosis classed it blocked.
+- [x] c3 lighthouse has tested feat/refuse-unanswerable-prompts against main and the FEATURE pull request is open, with every confirmed failure fixed after a diagnosis or named after a diagnosis classed it blocked. evidence: lighthouse verdict green with no failures (suite passed on both builds, 6 paths passed, spec 5.4 unproven by design) in ~/.mitosis/.windful-ocean/refuse-unanswerable-prompts/lighthouse/verdict.json; https://github.com/SatanshuMishra/.windful-ocean/pull/341 is open main <- feat/refuse-unanswerable-prompts, ready for review, assigned to SatanshuMishra, mergeable.
 
 ## Where things stand
 
-Integration is running: #338 and #339 merged into feat/refuse-unanswerable-prompts (tip 931b6c71); main is at 47cb12bc, two commits past the FEATURE branch's base. The new hook is not installed in the live configuration; it reaches the owner only after the FEATURE pull request merges and the live clone pulls.
+The FEATURE pull request #341 waits for the owner to merge it. FEATURE lacks main's #340 and merges cleanly over it. The new hook is not installed in the live configuration; it reaches the owner only after #341 merges and the live clone pulls.
 
 ## Next step
 
-The owner starts Integration by saying the MSP pull requests (#338 and #339) merged; then resume_thread refuse-unanswerable-prompts, read ~/.mitosis/.windful-ocean/refuse-unanswerable-prompts/CHARTER.md, Sync, run pipeline integration-ready --repo /Users/satanshumishra/Documents/DevLabs/.windful-ocean --slug refuse-unanswerable-prompts, and invoke lighthouse:test with the core and FEATURE branches from feature.json.
-
-Needs: D2, D3.
+The owner starts Clean-up by saying the FEATURE pull request merged; then resume_thread refuse-unanswerable-prompts, read ~/.mitosis/.windful-ocean/refuse-unanswerable-prompts/CHARTER.md, Sync, and run pipeline clean --repo /Users/satanshumishra/Documents/DevLabs/.windful-ocean --slug refuse-unanswerable-prompts.
 
 ## Decisions in force
 
