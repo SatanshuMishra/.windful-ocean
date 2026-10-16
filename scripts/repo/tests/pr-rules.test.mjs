@@ -13,7 +13,7 @@ const ROUND_2_MATCHER = '^mcp__.+__(create_pull_request|merge_pull_request)$';
 const NEVER_MERGE = 'Never merge and never mark a pull request ready.';
 
 const PR_LINE = '- Open every pull request through the GitHub MCP `create_pull_request` tool, with the title and body `pull-request render` prints; a hook refuses any other title or body, and ad-hoc `gh pr create` stays denied. Only a human merges. The `pull-request:open` skill carries the title grammar and body fields.';
-const PIPELINE_LINE = '- Every request that changes a git repository picks a lane up front and runs it autonomously, with no question to the user: direct for a one-sentence change with a known cause (edit, test, open a pull request), standard for a small change interphase\'s brief lane carries (one build, one review round), and full for the rest (interphase specs it, mitosis builds it, independent reviewers judge it, and confirmed blockers are fixed directly on the branch, at most two fix rounds). Rule: `~/.claude/rules/common/pipeline.md`.';
+const PIPELINE_LINE = '- Every request that changes a git repository picks a lane up front: direct for a one-sentence change with a known cause (edit, test, open a pull request), standard for a small change interphase\'s brief lane carries (one build, one review round), and full for the rest (an interview up front, then interphase specs it, mitosis builds it, independent reviewers judge it, and confirmed blockers and advisories are fixed directly on the branch, at most two fix rounds). Only the full lane\'s interview asks the user anything; after its read-back is approved, the run goes to the last pull request without a question, filling any later gap from the recorded intent. Rule: `~/.claude/rules/common/pipeline.md`.';
 
 function repoPath(relativePath) {
   return `${REPO_ROOT}/${relativePath}`;
@@ -71,24 +71,15 @@ test("the threat model's G3 describes the MCP create tool behind the format hook
   }
 });
 
-test("the pipeline rule ships through mitosis's pushed state and the MCP create tool", () => {
+test('the pipeline rule hands shipping to the pipeline:run skill', () => {
   const relativePath = '.claude/rules/common/pipeline.md';
   assert.ok(existsSync(repoPath(relativePath)), 'pipeline.md is not in the repository');
   const rule = read(relativePath);
-  const stage2 = sectionOf(rule, '## Stage 2: mitosis');
-  for (const flag of ['--pr-type', '--pr-scope', '--pr-subject', '--pr-why']) {
-    assert.ok(stage2.includes(flag), `Stage 2 does not name ${flag}`);
+  assert.ok(rule.includes('`pipeline:run` skill'), 'pipeline.md does not name the pipeline:run skill');
+  assert.ok(rule.includes('`pull-request render`'), 'pipeline.md does not name pull-request render for the direct lane');
+  for (const term of ['pr_adapter', 'pr/<msp>.json', '--pr-command']) {
+    assert.ok(!rule.includes(term), `pipeline.md still names ${term}`);
   }
-  assert.equal(stage2.split('--pr-command').length - 1, stage2.split('never `--pr-command`').length - 1);
-  assert.doesNotMatch(stage2, /adapter/i);
-  const ship = sectionOf(rule, '## Ship');
-  for (const term of ['SHIP=1', '--resume', 'pushed', 'stack order', 'create_pull_request', 'draft', 'get_me', 'issue_write', 'ship failure']) {
-    assert.ok(ship.includes(term), `the Ship section does not name ${term}`);
-  }
-  assert.ok(!rule.includes('pr_adapter'), 'pipeline.md still names pr_adapter');
-  assert.ok(!rule.includes('pr/<msp>.json'), 'pipeline.md still names pr/<msp>.json');
-  assert.ok(sectionOf(rule, '## Stage 3: review').includes('for each gate verdict `inert` and each listed file left unwritten, a LOW finding with source `mitosis`, since neither blocks.'));
-  assert.ok(sectionOf(rule, '## Stop').includes('The loop ends at green, at a stop verdict, or at a hard failure.'));
 });
 
 test('the attribution census and the auditor route pull requests to files that exist', () => {
@@ -165,9 +156,9 @@ test("round 3: the threat model's G3 states the closed grammars", () => {
   assert.ok(lines.includes(G1_ROW), 'the G1 row changed');
 });
 
-test("Unchanged: the pipeline rule's Ship section keeps never merging", () => {
-  const ship = sectionOf(read('.claude/rules/common/pipeline.md'), '## Ship');
-  assert.ok(ship.includes(NEVER_MERGE), 'the Ship section does not hold the never-merge sentence');
+test('Unchanged: the pipeline rule keeps never merging', () => {
+  const rule = read('.claude/rules/common/pipeline.md');
+  assert.ok(rule.includes(NEVER_MERGE), 'the pipeline rule does not hold the never-merge sentence');
 });
 
 test("round 4: the threat model's G3 states the URL rule", () => {
@@ -183,12 +174,12 @@ test("round 4: the threat model's G3 states the URL rule", () => {
 const KEPT_TESTS = Object.freeze([
   'CLAUDE.md names pull-request render, the MCP create tool and the pipeline rule',
   "the threat model's G3 describes the MCP create tool behind the format hook",
-  "the pipeline rule ships through mitosis's pushed state and the MCP create tool",
+  'the pipeline rule hands shipping to the pipeline:run skill',
   'the attribution census and the auditor route pull requests to files that exist',
   "round 2: the auditor's pull-request row passes the skill-router lint",
   'round 2: the threat model records the hook switch-off and the any-server gate',
   "round 3: the threat model's G3 states the closed grammars",
-  "Unchanged: the pipeline rule's Ship section keeps never merging",
+  'Unchanged: the pipeline rule keeps never merging',
   "round 4: the threat model's G3 states the URL rule",
   'Unchanged: the moved pr rules keep their other checks',
   'the auditor names no skill of a plugin the cutover installs',
