@@ -1,6 +1,6 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: active
-Updated: 2026-10-16T21:13:27.465Z
+Updated: 2026-10-16T21:13:56.153Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
