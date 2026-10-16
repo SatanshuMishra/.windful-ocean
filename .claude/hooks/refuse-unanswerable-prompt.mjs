@@ -37,12 +37,9 @@ function judgeOrNoVerdict(judgeDatabase, payload) {
 
 export function decide(payload, judgeDatabase = judge) {
   if (!isPlainObject(payload) || payload.permission_mode !== 'bypassPermissions') return null;
-  const fromSubagent = typeof payload.agent_id === 'string' && payload.agent_id !== '';
-  if (fromSubagent) {
-    const verdict = judgeOrNoVerdict(judgeDatabase, payload);
-    return refusal(isDatabaseAsk(verdict) ? DATABASE_MESSAGE : GENERAL_MESSAGE);
-  }
   const verdict = judgeOrNoVerdict(judgeDatabase, payload);
+  const fromSubagent = typeof payload.agent_id === 'string' && payload.agent_id !== '';
+  if (fromSubagent) return refusal(isDatabaseAsk(verdict) ? DATABASE_MESSAGE : GENERAL_MESSAGE);
   if (verdict === NO_VERDICT) return null;
   if (MAIN_THREAD_ANSWERABLE_TOOLS.has(payload.tool_name) || isDatabaseAsk(verdict)) return null;
   return refusal(GENERAL_MESSAGE);
