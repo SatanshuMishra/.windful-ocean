@@ -1,6 +1,6 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: active
-Updated: 2026-10-16T21:24:27.170Z
+Updated: 2026-10-16T21:27:44.573Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
@@ -14,7 +14,7 @@ Ship one MSP pull request into the FEATURE branch that adds a PermissionRequest 
 
 ## Where things stand
 
-FEATURE branch feat/refuse-unanswerable-prompts is cut from main at b8d992f8 and pushed; plan 0615d7029d42 holds two MSPs, refusal-hook (top tier) and rule-text (cheap tier); rule-text (14e1abd3) is green in round 1; refusal-hook (4c3b5c41) round-1 findings are C1 (HIGH, ci.test.mjs pins the old test:ci string), C2 (LOW, duplicated judge call), S1 (LOW, the general message's "take another route to the same result" may steer around the check that asked) and suite failure U1 (same as C1); the validator is judging C1, C2 and S1.
+FEATURE branch feat/refuse-unanswerable-prompts is cut from main at b8d992f8 and pushed; plan 0615d7029d42 holds two MSPs, refusal-hook (top tier) and rule-text (cheap tier); rule-text (14e1abd3) is green in round 1; refusal-hook (4c3b5c41) round 1 is loop: blockers C1 and U1 (one class, stale test pins changed config: ci.test.mjs pins the old test:ci string), advisory C2 (duplicated judge call), S1 rejected at bar; a fresh Opus agent is diagnosing the C1 class.
 
 ## Next step
 
