@@ -10,7 +10,7 @@ const G1_ROW = '| G1 | No pull request in this environment is merged by an agent
 
 const ROUND_1_MATCHER = 'mcp__github__create_pull_request|mcp__plugin_github_github__create_pull_request';
 const ROUND_2_MATCHER = '^mcp__.+__(create_pull_request|merge_pull_request)$';
-const NEVER_MERGE = 'Never merge and never mark a pull request ready.';
+const NEVER_MERGE = 'Never merge a pull request.';
 
 const PR_LINE = '- Open every pull request through the GitHub MCP `create_pull_request` tool, with the title and body `pull-request render` prints; a hook refuses any other title or body, and ad-hoc `gh pr create` stays denied. Only a human merges. The `pull-request:open` skill carries the title grammar and body fields.';
 const PIPELINE_LINE = '- Every request that changes a git repository picks a lane up front: direct for a one-sentence change with a known cause (edit, test, open a pull request), standard for a small change interphase\'s brief lane carries (one build, one review round), and full for the rest (an interview up front, then interphase specs it, mitosis builds it, independent reviewers judge it, and confirmed blockers and advisories are fixed directly on the branch, at most two fix rounds). Only the full lane\'s interview asks the user anything; after its read-back is approved, the run goes to the last pull request without a question, filling any later gap from the recorded intent. Rule: `~/.claude/rules/common/pipeline.md`.';
