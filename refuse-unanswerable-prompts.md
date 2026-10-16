@@ -1,6 +1,6 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: active
-Updated: 2026-10-16T21:24:25.317Z
+Updated: 2026-10-16T21:24:27.170Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
@@ -18,7 +18,7 @@ FEATURE branch feat/refuse-unanswerable-prompts is cut from main at b8d992f8 and
 
 ## Next step
 
-When the refusal-hook security review returns, write refusal-hook's round-1 findings.json (its reviewers' arrays plus U1), then run pipeline candidates, the validator, record and verdict for it.
+Save the validator's array as refusal-hook.verdicts.json, run pipeline record and verdict, then diagnose each confirmed defect class with a fresh Opus agent before fixing.
 
 Needs: D1, D2.
 
