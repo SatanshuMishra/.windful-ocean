@@ -1,6 +1,6 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: active
-Updated: 2026-10-16T21:21:01.573Z
+Updated: 2026-10-16T21:21:33.894Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
@@ -18,7 +18,7 @@ FEATURE branch feat/refuse-unanswerable-prompts is cut from main at b8d992f8 and
 
 ## Next step
 
-Run the first build with ~/.mitosis/.windful-ocean/refuse-unanswerable-prompts/run.zsh, then review both MSPs from Stage 3 round 1.
+Collect the round-1 code and security review arrays (both conformance audits returned none), write each MSP's findings.json, then run pipeline candidates, the validator, record and verdict.
 
 Needs: D1, D2.
 
