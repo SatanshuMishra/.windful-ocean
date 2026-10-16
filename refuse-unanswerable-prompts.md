@@ -1,7 +1,7 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: parked
-Updated: 2026-10-16T21:39:10.583Z
-Next ids: c3 D4 R1 S1
+Updated: 2026-10-16T23:42:18.731Z
+Next ids: c4 D4 R1 S1
 
 ## Goal
 
@@ -12,9 +12,11 @@ Ship one MSP pull request into the FEATURE branch that adds a PermissionRequest 
 - [x] c1 The MSP pull requests (refusal-hook and rule-text, per D2) into the FEATURE branch are open, ready for review unless a diagnosis classed a blocker blocked, assigned to the owner, with the title and body mitosis wrote. evidence: https://github.com/SatanshuMishra/.windful-ocean/pull/338 (mitosis/refusal-hook) and https://github.com/SatanshuMishra/.windful-ocean/pull/339 (mitosis/rule-text) are open into feat/refuse-unanswerable-prompts, draft=false, assigned to SatanshuMishra, opened through the GitHub MCP tool with mitosis's titles and bodies; the review comment is posted on #338.
 - [x] c2 Every confirmed blocker is fixed with a receipt test that failed first, or named at the top of a draft pull request after a diagnosis classed it blocked. evidence: C1/U1 (stale test:ci pin) fixed in b472d5b9 with node --test scripts/dotfiles/tests/ci.test.mjs red at 4c3b5c41 and green after; validator round 2 marked P1 fixed; suite 695/695; advisory C2 fixed in the same commit; no blocker diagnosed blocked.
 
+- [ ] c3 lighthouse has tested feat/refuse-unanswerable-prompts against main and the FEATURE pull request is open, with every confirmed failure fixed after a diagnosis or named after a diagnosis classed it blocked.
+
 ## Where things stand
 
-Both MSP pull requests are open into feat/refuse-unanswerable-prompts, waiting for the owner's merge: #338 refusal-hook (green in round 2 at b472d5b9) and #339 rule-text (green in round 1 at 14e1abd3). The new hook is not installed in the live configuration; it reaches the owner only after the FEATURE pull request merges and the live clone pulls.
+Integration is running: #338 and #339 merged into feat/refuse-unanswerable-prompts (tip 931b6c71); main is at 47cb12bc, two commits past the FEATURE branch's base. The new hook is not installed in the live configuration; it reaches the owner only after the FEATURE pull request merges and the live clone pulls.
 
 ## Next step
 
