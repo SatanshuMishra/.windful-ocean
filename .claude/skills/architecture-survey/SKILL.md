@@ -3,11 +3,7 @@ name: architecture-survey
 description: Survey a repository for deepening opportunities, show them as one visual HTML report, then grill the candidate you pick and hand it to interphase.
 disable-model-invocation: true
 argument-hint: "[module, subsystem or pain point to focus on]"
-metadata:
-  credits:
-    skills: improve-codebase-architecture, codebase-design
-    author: Matt Pocock
-    url: "https://github.com/mattpocock/skills"
+license: MIT. Adapted from mattpocock/skills (improve-codebase-architecture, codebase-design). See LICENSE.md.
 ---
 
 # Architecture Survey
@@ -48,19 +44,24 @@ Done when each candidate has its files, the problem in one sentence, the deepene
 
 Call the Skill tool with "visual-explainer:visual-explainer" to produce one self-contained HTML file in the OS temp directory, named `architecture-survey-<repo>-<timestamp>.html`, following [REPORT.md](REPORT.md). Open it and give the owner its absolute path.
 
+Done when the owner has the report's absolute path.
+
 ## 5. Grill the chosen candidate
 
-Ask which candidate to explore. Then call the Skill tool with "grilling" when it is installed; otherwise run the interview here in rounds:
+Ask which candidate to explore. When the owner picks none, offer an ADR for any candidate rejected for a reason a future survey would need, and end the survey there. Otherwise run the interview here in rounds:
 
 - Map the decisions the deepened module needs: its interface, what sits behind the seam, its adapters, which tests survive and which are replaced.
 - Each round asks every decision whose prerequisites are settled, numbered, in plain text, each with a recommended answer worded so "yes" accepts it.
 - Look facts up yourself and put only decisions to the owner.
-- Finish when every decision is settled and the owner confirms the shared understanding.
 
 As decisions land, update `GLOSSARY.md` the moment a term settles, creating the file when the first term needs it. Offer an ADR in `docs/adr/` only when the choice is hard to reverse, surprising without context and the result of a real trade-off. When the owner rejects a candidate for a reason a future survey would need, offer an ADR so the next survey skips it.
 
 When the owner wants to compare interfaces, follow [DESIGN-IT-TWICE.md](DESIGN-IT-TWICE.md).
 
+Done when every decision is settled and the owner confirms the shared understanding.
+
 ## 6. Hand off
 
-Invoke the interphase pathway skill that fits the work, usually `interphase:feature`, with the settled decisions as the request. interphase writes the spec and the pipeline builds it. The survey itself changes no code.
+Start the request pipeline with the owner's intent and the settled decisions as the request, and let it pick the lane. The interview is already done, so when the pipeline invokes the interphase pathway skill, usually `interphase:feature`, end that call with `Work autonomously.` so interphase writes the spec from the settled decisions without asking them again. The survey itself changes no code.
+
+Done when interphase has accepted the request, or the owner has declined the hand-off.

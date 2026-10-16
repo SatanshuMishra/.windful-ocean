@@ -23,7 +23,7 @@ function markdownFiles() {
 }
 
 function relativeLinks(text) {
-  return [...text.matchAll(/\]\(([^)#\s]+)(?:#[^)]*)?\)/g)]
+  return [...text.matchAll(/\]\(([^)#\s]+)(?:#[^)\s]*)?(?:\s+"[^"]*")?\)/g)]
     .map((match) => match[1])
     .filter((target) => !/^[a-z]+:/i.test(target));
 }
@@ -36,18 +36,16 @@ test('the skill is reachable only by the owner typing it', () => {
 });
 
 test('every relative link in the skill resolves to a file beside it', () => {
+  assert.deepEqual(
+    relativeLinks('See [a](GONE.md), [b](GONE2.md "t"), [c](DESIGN.md#terms) and [web](https://example.com).'),
+    ['GONE.md', 'GONE2.md', 'DESIGN.md'],
+  );
   const broken = markdownFiles().flatMap((name) =>
     relativeLinks(read(name))
       .filter((target) => !existsSync(join(SKILL_DIR, target)))
       .map((target) => `${name} -> ${target}`),
   );
   assert.deepEqual(broken, []);
-});
-
-test('the link check catches a missing target', () => {
-  const links = relativeLinks('See [GONE](GONE.md) and [web](https://example.com).');
-  assert.deepEqual(links, ['GONE.md']);
-  assert.equal(existsSync(join(SKILL_DIR, links[0])), false);
 });
 
 test('the upstream MIT notice is retained and declared', () => {
@@ -58,8 +56,14 @@ test('the upstream MIT notice is retained and declared', () => {
   assert.ok(notice.includes(`.claude/skills/${SKILL_NAME}/LICENSE.md`), 'NOTICE names the retained license file');
 });
 
-test('the skill hands off to interphase and changes no code itself', () => {
-  const skill = read('SKILL.md');
-  assert.match(skill, /interphase:feature/);
-  assert.match(skill, /changes no code/);
+test('the skill calls exactly the skills it depends on', () => {
+  const called = [...read('SKILL.md').matchAll(/Skill tool with "([^"]+)"/g)].map((match) => match[1]).sort();
+  assert.deepEqual(called, ['graphify', 'visual-explainer:visual-explainer']);
+});
+
+test('the hand-off passes settled decisions to interphase without a second interview', () => {
+  const handOff = read('SKILL.md').split('## 6. Hand off')[1] ?? '';
+  assert.match(handOff, /`interphase:feature`/);
+  assert.match(handOff, /`Work autonomously\.`/);
+  assert.match(handOff, /changes no code/);
 });

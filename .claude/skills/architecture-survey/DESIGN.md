@@ -42,4 +42,4 @@ Classify each candidate's dependencies; the category decides how the deepened mo
 
 ## Testing a deepened module
 
-Replace, don't layer. Tests written at the deepened module's interface supersede the unit tests on the shallow modules it absorbed, so those old tests are deleted. New tests assert observable outcomes through the interface and survive any rewrite of the implementation.
+Replace the old tests: tests written at the deepened module's interface supersede the unit tests on the shallow modules it absorbed, so those old tests are deleted. New tests assert observable outcomes through the interface and survive any rewrite of the implementation.
