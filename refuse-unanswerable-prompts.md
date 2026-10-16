@@ -1,6 +1,6 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
-Status: active
-Updated: 2026-10-16T21:39:04.084Z
+Status: parked
+Updated: 2026-10-16T21:39:10.583Z
 Next ids: c3 D4 R1 S1
 
 ## Goal
@@ -18,7 +18,7 @@ Both MSP pull requests are open into feat/refuse-unanswerable-prompts, waiting f
 
 ## Next step
 
-Run SHIP=1 ~/.mitosis/.windful-ocean/refuse-unanswerable-prompts/run.zsh --resume, then open both MSP pull requests through the GitHub MCP create_pull_request tool, assign the owner, and post refusal-hook.comment.md.
+The owner starts Integration by saying the MSP pull requests (#338 and #339) merged; then resume_thread refuse-unanswerable-prompts, read ~/.mitosis/.windful-ocean/refuse-unanswerable-prompts/CHARTER.md, Sync, run pipeline integration-ready --repo /Users/satanshumishra/Documents/DevLabs/.windful-ocean --slug refuse-unanswerable-prompts, and invoke lighthouse:test with the core and FEATURE branches from feature.json.
 
 Needs: D2, D3.
 
