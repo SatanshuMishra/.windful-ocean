@@ -27,7 +27,7 @@ Write SQL to the `platform-engineer` skill's `procedures/sql-standards.md`.
 
 ## Credentials stay out of the transcript
 
-Connect by pg service name and let the client read the credentials itself; settings deny every read and write of `~/.pgpass` and `~/.pg_service.conf`. Refer to a connection by its service name, with its connection string and password left unprinted.
+Connect by pg service name and let the client read the credentials itself; settings deny rules and the `db-gate.mjs` hook refuse every read and write of `~/.pgpass` and `~/.pg_service.conf`. Refer to a connection by its service name, with its connection string and password left unprinted.
 
 ## Local containers
 

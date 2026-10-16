@@ -4,7 +4,7 @@ Governs the per-project auto-memory directory: one file per fact, `MEMORY.md` as
 
 ## What qualifies
 
-Store facts that are durable and that the repository, its git history and CLAUDE.md do not already hold: decisions and their rationale, constraints not visible in code (compliance, vendor commitments, performance budgets), user preferences about how to work including the why, and external pointers such as dashboards or tickets. A good memory is something a fresh agent would need an hour of archaeology to rediscover. A fact that churns with normal development is not durable. Current task state and in-progress work go in a debrief.
+Store only facts that are durable and that the repository, its git history and CLAUDE.md do not already hold: decisions and their rationale, constraints not visible in code (compliance, vendor commitments, performance budgets), user preferences about how to work including the why, and external pointers such as dashboards or tickets. A good memory is something a fresh agent would need an hour of archaeology to rediscover. A fact that churns with normal development is not durable. Current task state and in-progress work go in a debrief.
 
 ## Recall
 

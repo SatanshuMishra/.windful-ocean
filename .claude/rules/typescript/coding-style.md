@@ -8,6 +8,7 @@ paths:
 # TypeScript/JavaScript
 
 - Validate input with a Zod schema.
+- Read secrets from environment variables and throw a clear error when one is unset.
 - Log production code through the project's logging library; `console.log` belongs in scripts and tests.
 - Where the project has no response convention of its own, shape API responses as `{ success: boolean; data?: T; error?: string; meta?: { total: number; page: number; limit: number } }`.
 - Put data access behind a repository interface: `findAll(filters?)`, `findById(id)`, `create(data)`, `update(id, data)`, `delete(id)`.
