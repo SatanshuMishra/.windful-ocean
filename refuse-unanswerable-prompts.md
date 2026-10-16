@@ -1,6 +1,6 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: parked
-Updated: 2026-10-16T23:54:16.075Z
+Updated: 2026-10-16T23:54:18.484Z
 Next ids: c4 D4 R1 S1
 
 ## Goal
@@ -39,3 +39,4 @@ The owner starts Clean-up by saying the FEATURE pull request merged; then resume
 - Record: /Users/satanshumishra/Documents/DevLabs/.windful-ocean/docs/specs/refuse-unanswerable-prompts.record.json
 - Run home: ~/.mitosis/.windful-ocean/refuse-unanswerable-prompts/
 - Mitosis run dir: ~/.mitosis/runs/.windful-ocean/refuse-unanswerable-prompts
+- Lighthouse results (findings, verdict, report, evidence): ~/.mitosis/.windful-ocean/refuse-unanswerable-prompts/lighthouse/
