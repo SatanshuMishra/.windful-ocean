@@ -1,7 +1,7 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: active
-Updated: 2026-10-16T21:09:07.112Z
-Next ids: c3 D1 R1 S1
+Updated: 2026-10-16T21:09:15.392Z
+Next ids: c3 D2 R1 S1
 
 ## Goal
 
@@ -21,6 +21,8 @@ Not started.
 Record the interphase hand-off boundary, cut the FEATURE branch with pipeline feature-branch --type feat, write the run home and run --plan-only.
 
 ## Decisions in force
+
+- D1 Interphase hand-off: build the spec as handed off: Build the two Steps as handed off on the FEATURE branch; any later gap is filled from the Intent lines and recorded as an assumption.
 
 ## Open risks
 
