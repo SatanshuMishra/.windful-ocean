@@ -25,7 +25,6 @@ const targets = [
   ['.claude/output-styles', '.claude/output-styles'],
   ['.claude/rules', '.claude/rules'],
   ['.claude/skills', '.claude/skills'],
-  ['.claude/sounds', '.claude/sounds'],
 ];
 
 function withHome(body) {
@@ -68,7 +67,7 @@ test('install leaves links that are already in place untouched', () => withHome(
   const before = targets.map(([, target]) => fs.readlinkSync(path.join(home, target)));
   const second = run({ clone: repo, home });
   assert.equal(second.status, 0);
-  assert.deepEqual(second.lines, ['install: all 17 links in place']);
+  assert.deepEqual(second.lines, ['install: all 16 links in place']);
   const after = targets.map(([, target]) => fs.readlinkSync(path.join(home, target)));
   assert.deepEqual(after, before);
   assert.equal(fs.existsSync(path.join(home, '.dotfiles-backup')), false);

@@ -22,12 +22,11 @@ const expected = [
   ['.claude/output-styles', '.claude/output-styles'],
   ['.claude/rules', '.claude/rules'],
   ['.claude/skills', '.claude/skills'],
-  ['.claude/sounds', '.claude/sounds'],
 ];
 
 const byPair = (pairs) => [...pairs].sort((a, b) => a.join('\0').localeCompare(b.join('\0')));
 
-test('links.json lists exactly the seventeen config links', async () => {
+test('links.json lists exactly the sixteen config links', async () => {
   const { loadLinks } = await import('../manifest.mjs');
   const committed = JSON.parse(fs.readFileSync(path.join(repo, 'scripts', 'dotfiles', 'links.json'), 'utf8'));
   assert.deepEqual(Object.keys(committed), ['links']);
@@ -35,7 +34,7 @@ test('links.json lists exactly the seventeen config links', async () => {
   assert.deepEqual(links, committed.links);
   for (const link of links) assert.deepEqual(Object.keys(link).sort(), ['source', 'target']);
   const pairs = links.map((link) => [link.source, link.target]);
-  assert.equal(pairs.length, 17);
+  assert.equal(pairs.length, 16);
   assert.deepEqual(byPair(pairs), byPair(expected));
   for (const [source] of pairs) {
     assert.ok(fs.existsSync(path.join(repo, source)), `${source} exists in the repository`);

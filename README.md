@@ -105,7 +105,7 @@ On a fresh machine:
    git config --global user.email "you@example.com"
    ```
 
-7. Confirm it worked: `node ~/.windful-ocean/scripts/dotfiles/cli.mjs check` prints `check: all 17 links in place`.
+7. Confirm it worked: `node ~/.windful-ocean/scripts/dotfiles/cli.mjs check` prints `check: all 16 links in place`.
 
 ## Update
 

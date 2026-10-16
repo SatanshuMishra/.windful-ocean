@@ -132,25 +132,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/notify-complete.sh",
-            "async": true
-          },
-          {
-            "type": "command",
             "command": "$HOME/.claude/hooks/graphify-refresh.sh",
             "timeout": 10
-          }
-        ]
-      }
-    ],
-    "Notification": [
-      {
-        "matcher": "permission_prompt|idle_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/notify-input.sh",
-            "async": true
           }
         ]
       }
