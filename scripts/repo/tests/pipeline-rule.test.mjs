@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\/$/, '');
 const RULE_PATH = '.claude/rules/common/pipeline.md';
 
-const WHEN_IT_DOES_NOT_APPLY = '## When it does not apply\n\n- The request changes nothing: a question, an explanation, a review or research.\n- The user says to skip the pipeline for this request, or names another workflow for it.\n- The session is itself part of a pipeline. A prompt that begins `Lane <n> of MSP`, a system prompt that names the session a mitosis Worker, and any agent a stage below dispatches each do their own task directly and never start a pipeline.\n- The request points at an interphase package whose record says `handed-off`: start the full or standard lane at stage 2.\n';
+const WHEN_IT_DOES_NOT_APPLY = '## When it does not apply\n\n- The request changes nothing: a question, an explanation, a review or research.\n- The user says to skip the pipeline for this request, or names another workflow for it.\n- The session is itself part of a pipeline. A prompt that begins `Lane <n> of MSP`, a system prompt that names the session a mitosis Worker, and any agent the `pipeline:run` skill dispatches each do their own task directly and never start a pipeline.\n- The request points at an interphase package whose record says `handed-off`: start the full or standard lane at stage 2.\n';
 const LANES = '## Lanes\n\n- Direct: the change fits in one sentence, its cause is known, and it adds no dependency and changes no schema, stored-data format or auth. In a new worktree on a new branch cut from the synced upstream, make the edit, run the tests that cover it, commit, push, and open a draft pull request assigned to the user with the title and body `pull-request render` prints. No spec, no mitosis and no review agent.\n- Standard: a small change that interphase\'s brief lane can carry. interphase writes a brief without an interview, mitosis builds it once, the reviewers review it once, and every confirmed blocker and confirmed advisory finding is fixed directly on the branch, with the fix\'s tests run and no second review round.\n- Full: everything else. interphase interviews the user up front: the intent (the goal, why, and what success looks like), then numbered rounds of questions, each with a recommended answer, then a read-back to approve. From the approval on, mitosis builds, independent reviewers judge, and confirmed blockers and confirmed advisory findings are fixed directly on the branch, at most two fix rounds.\n\nWhen interphase writes a full spec for a request sent down the standard lane, because one of the brief lane\'s conditions fails, the request is in the full lane from then on, still without an interview.\n';
 
 const PIPELINE_LINE = '- Every request that changes a git repository picks a lane up front: direct for a one-sentence change with a known cause (edit, test, open a pull request), standard for a small change interphase\'s brief lane carries (one build, one review round), and full for the rest (an interview up front, then interphase specs it, mitosis builds it, independent reviewers judge it, and confirmed blockers and advisories are fixed directly on the branch, at most two fix rounds). Only the full lane\'s interview asks the user anything; after its read-back is approved, the run goes to the last pull request without a question, filling any later gap from the recorded intent. Rule: `~/.claude/rules/common/pipeline.md`.';
@@ -95,7 +95,7 @@ test('the full lane interviews up front and every later gap is guessed from the 
 
 test('the rule hands every stage to the pipeline:run skill', () => {
   const rule = read(RULE_PATH);
-  assertNames(sectionOf(rule, '## Run it'), 'Run it', ['`pipeline:run` skill', 'before stage 1', 'after a compaction']);
+  assertNames(sectionOf(rule, '## Run it'), 'Run it', ['`pipeline:run` skill', 'before stage 1, or before stage 2 when the request starts there', 'after a compaction']);
   for (const term of MOVED_TO_SKILL) {
     assert.ok(!rule.includes(term), `pipeline.md still holds ${term}, which the pipeline:run skill carries`);
   }
@@ -110,7 +110,7 @@ test('CLAUDE.md states the lanes', () => {
   assert.equal(pipelineIndex, memoryIndex - 1, 'the lanes line is not directly before the Persistent memory line');
   assert.ok(lines.includes(PILLARS_LINE), 'CLAUDE.md does not hold the Three Pillars guidance line');
   assert.ok(!claude.includes('never trade a higher for a lower'), 'CLAUDE.md still holds the blunt Three Pillars rule');
-  assert.ok(!PIPELINE_LINE.includes('runs it autonomously, with no question to the user'), 'the lanes line still forbids the full lane\'s interview');
+  assert.ok(!claude.includes('runs it autonomously, with no question to the user'), 'the lanes line still forbids the full lane\'s interview');
 });
 
 test('CLAUDE.md tells compaction what to keep', () => {
