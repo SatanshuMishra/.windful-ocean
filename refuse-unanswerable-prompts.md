@@ -1,6 +1,6 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: active
-Updated: 2026-10-16T21:39:03.320Z
+Updated: 2026-10-16T21:39:04.084Z
 Next ids: c3 D4 R1 S1
 
 ## Goal
@@ -9,7 +9,7 @@ Ship one MSP pull request into the FEATURE branch that adds a PermissionRequest 
 
 ## Done when
 
-- [ ] c1 The MSP pull requests (refusal-hook and rule-text, per D2) into the FEATURE branch are open, ready for review unless a diagnosis classed a blocker blocked, assigned to the owner, with the title and body mitosis wrote.
+- [x] c1 The MSP pull requests (refusal-hook and rule-text, per D2) into the FEATURE branch are open, ready for review unless a diagnosis classed a blocker blocked, assigned to the owner, with the title and body mitosis wrote. evidence: https://github.com/SatanshuMishra/.windful-ocean/pull/338 (mitosis/refusal-hook) and https://github.com/SatanshuMishra/.windful-ocean/pull/339 (mitosis/rule-text) are open into feat/refuse-unanswerable-prompts, draft=false, assigned to SatanshuMishra, opened through the GitHub MCP tool with mitosis's titles and bodies; the review comment is posted on #338.
 - [x] c2 Every confirmed blocker is fixed with a receipt test that failed first, or named at the top of a draft pull request after a diagnosis classed it blocked. evidence: C1/U1 (stale test:ci pin) fixed in b472d5b9 with node --test scripts/dotfiles/tests/ci.test.mjs red at 4c3b5c41 and green after; validator round 2 marked P1 fixed; suite 695/695; advisory C2 fixed in the same commit; no blocker diagnosed blocked.
 
 ## Where things stand
