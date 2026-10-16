@@ -1,6 +1,6 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: active
-Updated: 2026-10-16T21:09:15.392Z
+Updated: 2026-10-16T21:09:20.252Z
 Next ids: c3 D2 R1 S1
 
 ## Goal
@@ -18,7 +18,9 @@ Not started.
 
 ## Next step
 
-Record the interphase hand-off boundary, cut the FEATURE branch with pipeline feature-branch --type feat, write the run home and run --plan-only.
+Cut the FEATURE branch with pipeline feature-branch --type feat, write the run home, run --plan-only, then the first build.
+
+Needs: D1.
 
 ## Decisions in force
 
