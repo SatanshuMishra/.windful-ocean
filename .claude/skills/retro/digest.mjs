@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import fs, { realpathSync } from 'node:fs';
+import fs, { realpathSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path, { basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -29,14 +29,18 @@ function resultText(content) {
 }
 
 function parseLines(text) {
-  return text.split('\n').flatMap((raw, index) => {
+  const parsed = text.split('\n').flatMap((raw, index) => {
     if (raw.trim() === '') return [];
     try {
       return [{ line: index + 1, entry: JSON.parse(raw) }];
     } catch {
-      return [];
+      return [{ line: index + 1, entry: null }];
     }
   });
+  return {
+    records: parsed.filter(({ entry }) => entry !== null),
+    skippedLines: parsed.filter(({ entry }) => entry === null).map(({ line }) => line),
+  };
 }
 
 function contentParts(entry) {
@@ -45,10 +49,12 @@ function contentParts(entry) {
   return Array.isArray(content) ? content : [];
 }
 
-function classifyError(text) {
+const PERMISSION_TEXT = /^(Permission\b|The user doesn't want to proceed|This (Bash )?command (contains multiple operations\. The following part )?requires approval|A variable in this command can't be checked before it runs|Claude requested permissions to|[^\n]{0,200}\bwas blocked\. For security|Contains \w+|[^\n]{0,120}\b(has been|was) (denied|rejected)\b)/;
+
+function classifyError(text, entry) {
   if (/^Stop hook feedback:/.test(text)) return 'hook_feedback';
-  if (/^\w+(:\S+)? hook error:/.test(text)) return 'hook_block';
-  if (/^(Permission\b|The user doesn't want to proceed|[^\n]{0,120}\b(has been|was) (denied|rejected)\b)/.test(text)) return 'permission_denied';
+  if (/^\w+(:\S+)? hook error:/.test(text) || (entry.permissionDecision?.decision === 'reject' && entry.permissionDecision?.source === 'hook')) return 'hook_block';
+  if (entry.toolDenialKind || entry.permissionDecision?.decision === 'reject' || PERMISSION_TEXT.test(text)) return 'permission_denied';
   return 'tool_error';
 }
 
@@ -63,13 +69,13 @@ export function digestEntries(records, source) {
   const names = new Map(toolUses.map((use) => [use.id, use.name]));
 
   const userParts = records.flatMap(({ line, entry }) => (entry.type === 'user' && !entry.isMeta
-    ? contentParts(entry).map((part) => ({ line, part }))
+    ? contentParts(entry).map((part) => ({ line, entry, part }))
     : []));
 
-  const friction = userParts.flatMap(({ line, part }) => {
+  const friction = userParts.flatMap(({ line, entry, part }) => {
     if (part.type === 'tool_result' && part.is_error) {
       const text = resultText(part.content);
-      return [{ kind: classifyError(text), source, line, tool: names.get(part.tool_use_id) ?? 'unknown', excerpt: excerpt(text) }];
+      return [{ kind: classifyError(text, entry), source, line, tool: names.get(part.tool_use_id) ?? 'unknown', excerpt: excerpt(text) }];
     }
     if (part.type === 'text' && /^Stop hook feedback:/.test(part.text ?? '')) {
       return [{ kind: 'hook_feedback', source, line, tool: 'Stop', excerpt: excerpt(part.text) }];
@@ -116,10 +122,13 @@ export function digestTranscript(file) {
   const subagents = fs.existsSync(subagentDir)
     ? fs.readdirSync(subagentDir).filter((name) => name.endsWith('.jsonl')).sort().map((name) => ({ file: path.join(subagentDir, name), source: path.basename(name, '.jsonl') }))
     : [];
-  const parts = [main, ...subagents].map(({ file: transcript, source }) => digestEntries(parseLines(fs.readFileSync(transcript, 'utf8')), source));
+  const sources = [main, ...subagents];
+  const parsed = sources.map(({ file: transcript, source }) => ({ source, ...parseLines(fs.readFileSync(transcript, 'utf8')) }));
+  const parts = parsed.map(({ records, source }) => digestEntries(records, source));
   return {
     transcript: file,
-    subagentTranscripts: subagents.map(({ file: transcript }) => transcript),
+    files: Object.fromEntries(sources.map(({ file: transcript, source }) => [source, transcript])),
+    skippedLines: parsed.filter(({ skippedLines }) => skippedLines.length > 0).map(({ source, skippedLines }) => ({ source, lines: skippedLines })),
     toolCalls: parts.reduce((counts, part) => mergeCounts(counts, part.toolCalls), {}),
     friction: parts.flatMap((part) => part.friction),
     humanMessages: parts.flatMap((part) => part.humanMessages),
@@ -132,7 +141,7 @@ export function digestTranscript(file) {
 
 export function resolveTranscript(target, { projectsDir, sessionId }) {
   if (target && (target.endsWith('.jsonl') || target.includes(path.sep))) {
-    return fs.existsSync(target) ? path.resolve(target) : { error: `no transcript at ${target}` };
+    return fs.existsSync(target) && statSync(target).isFile() ? path.resolve(target) : { error: `no transcript file at ${target}` };
   }
   const id = target || sessionId;
   if (!id) return { error: 'no session given and CLAUDE_CODE_SESSION_ID is unset; pass a transcript path or a session id' };
