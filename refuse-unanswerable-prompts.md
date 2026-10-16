@@ -1,6 +1,6 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: active
-Updated: 2026-10-16T21:33:51.993Z
+Updated: 2026-10-16T21:33:54.661Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
@@ -18,7 +18,7 @@ FEATURE branch feat/refuse-unanswerable-prompts is cut from main at b8d992f8 and
 
 ## Next step
 
-On a fixable diagnosis, fix C1/U1 class-wide and C2 in the refusal-hook worktree with the receipt test red first, commit naming the ids, then run round 2 (code-reviewer only) on the fix.
+Collect refusal-hook's round-2 review arrays, run candidates, the validator (carried P ids) when the count is above zero, record and verdict; on green for both MSPs, run pipeline comment and promote, record the ship boundary, then SHIP=1 run.zsh --resume.
 
 Needs: D1, D2.
 
