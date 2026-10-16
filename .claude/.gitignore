@@ -35,7 +35,6 @@ settings.local.json
 .claude/
 .last-cleanup
 .DS_Store
-/agent-ledger/
 __pycache__/
 *.pyc
 notes/
