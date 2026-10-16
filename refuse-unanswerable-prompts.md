@@ -1,6 +1,6 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: active
-Updated: 2026-10-16T21:37:04.553Z
+Updated: 2026-10-16T21:37:12.691Z
 Next ids: c3 D4 R1 S1
 
 ## Goal
@@ -10,7 +10,7 @@ Ship one MSP pull request into the FEATURE branch that adds a PermissionRequest 
 ## Done when
 
 - [ ] c1 The MSP pull requests (refusal-hook and rule-text, per D2) into the FEATURE branch are open, ready for review unless a diagnosis classed a blocker blocked, assigned to the owner, with the title and body mitosis wrote.
-- [ ] c2 Every confirmed blocker is fixed with a receipt test that failed first, or named at the top of a draft pull request after a diagnosis classed it blocked.
+- [x] c2 Every confirmed blocker is fixed with a receipt test that failed first, or named at the top of a draft pull request after a diagnosis classed it blocked. evidence: C1/U1 (stale test:ci pin) fixed in b472d5b9 with node --test scripts/dotfiles/tests/ci.test.mjs red at 4c3b5c41 and green after; validator round 2 marked P1 fixed; suite 695/695; advisory C2 fixed in the same commit; no blocker diagnosed blocked.
 
 ## Where things stand
 
@@ -18,9 +18,9 @@ FEATURE branch feat/refuse-unanswerable-prompts is cut from main at b8d992f8 and
 
 ## Next step
 
-Collect refusal-hook's round-2 review arrays, run candidates, the validator (carried P ids) when the count is above zero, record and verdict; on green for both MSPs, run pipeline comment and promote, record the ship boundary, then SHIP=1 run.zsh --resume.
+Run SHIP=1 ~/.mitosis/.windful-ocean/refuse-unanswerable-prompts/run.zsh --resume, then open both MSP pull requests through the GitHub MCP create_pull_request tool, assign the owner, and post refusal-hook.comment.md.
 
-Needs: D1, D2.
+Needs: D2, D3.
 
 ## Decisions in force
 
