@@ -15,7 +15,6 @@
     { "source": ".claude/lib", "target": ".claude/lib" },
     { "source": ".claude/output-styles", "target": ".claude/output-styles" },
     { "source": ".claude/rules", "target": ".claude/rules" },
-    { "source": ".claude/skills", "target": ".claude/skills" },
-    { "source": ".claude/sounds", "target": ".claude/sounds" }
+    { "source": ".claude/skills", "target": ".claude/skills" }
   ]
 }

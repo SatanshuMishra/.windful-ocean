@@ -29,11 +29,10 @@ In the order it takes effect:
 | Path | Tracked files | Purpose |
 |---|---|---|
 | `agents/` | 13 | Subagent definitions — one file per role (implementer, code-reviewer, researcher, technical-writer, and others), each scoped to a lane. |
-| `hooks/` | 53 | Shell/Node scripts that fire on the 9 events wired in `settings.json`. |
+| `hooks/` | 38 | Shell/Node scripts that fire on the 8 events wired in `settings.json`. |
 | `lib/` | 341 | Shared library code imported by hooks and skills. |
 | `rules/` | 29 | Standing invariants — coding style, testing, security, tool routing, and more — that `CLAUDE.md` points to. |
 | `skills/` | 165, across 18 directories | Named, invokable procedures. |
-| `sounds/` | 2 | Notification sounds a hook can play on completion or on a permission prompt. |
 | `settings.json` | 1 | The base of hooks, permissions and environment that `sync` merges into `~/.claude/settings.json`, which alone holds machine choices such as the model, the plugin list and the theme. Loaded first. |
 | `CLAUDE.md` | 1 | The always-loaded global invariants. |
 | `keybindings.json` | 1 | Keybinding configuration for the Claude Code CLI itself. |

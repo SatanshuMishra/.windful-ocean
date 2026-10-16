@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = fileURLToPath(new URL('../../..', import.meta.url));
 const C0_CEILING = 0x20;
 const ALLOWED_CONTROL_BYTES = new Set([0x09, 0x0a, 0x0d]);
-const BINARY_EXTENSIONS = new Set(['.mp3']);
+const BINARY_EXTENSIONS = new Set();
 
 function runGit(cwd, args) {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
@@ -131,7 +131,6 @@ test('a tracked path that cannot be read halts the census rather than being skip
 });
 
 test('classification is closed: only a declared binary extension is excluded, and every other extension including an unknown one is scanned', () => {
-  assert.equal(isDeclaredBinary('.claude/sounds/OptionA.mp3'), true);
   assert.equal(isDeclaredBinary('.claude/lib/observer-audit/census.mjs'), false);
   assert.equal(isDeclaredBinary('vendor/blob.wasm'), false);
   assert.equal(isDeclaredBinary('.zshrc'), false);
