@@ -183,11 +183,6 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/plugin-update-check.sh",
             "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "python3 $HOME/.claude/hooks/agent-ledger/roster-index-gen.py",
-            "timeout": 10
           }
         ]
       },
@@ -262,16 +257,6 @@
         ]
       },
       {
-        "matcher": "Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 $HOME/.claude/hooks/agent-ledger/agent-fallback-capture.py",
-            "timeout": 10
-          }
-        ]
-      },
-      {
         "matcher": "Edit|Write|NotebookEdit",
         "hooks": [
           {
@@ -313,18 +298,6 @@
       }
     ],
     "PostToolUseFailure": [],
-    "PermissionDenied": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 $HOME/.claude/hooks/agent-ledger/agent-permission-capture.py",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "SubagentStop": [
       {
         "matcher": "",
