@@ -1,7 +1,7 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: active
-Updated: 2026-10-16T21:35:45.248Z
-Next ids: c3 D3 R1 S1
+Updated: 2026-10-16T21:37:04.553Z
+Next ids: c3 D4 R1 S1
 
 ## Goal
 
@@ -26,6 +26,7 @@ Needs: D1, D2.
 
 - D1 Interphase hand-off: build the spec as handed off: Build the two Steps as handed off on the FEATURE branch; any later gap is filled from the Intent lines and recorded as an assumption.
 - D2 Ship the two MSPs mitosis planned: Build two MSPs, refusal-hook and rule-text; criterion c1 covers both MSP pull requests (Assumption, relies on I1).
+- D3 Ship boundary: push both MSPs and open their pull requests: Run SHIP=1 run.zsh --resume and open both pull requests ready for review, assigned to the owner, with the title and body mitosis writes.
 
 ## Open risks
 
