@@ -14,3 +14,5 @@ Third-Party Components
 Files under `.config/nvim/` are derived from kickstart.nvim (https://github.com/nvim-lua/kickstart.nvim), which is distributed under the MIT License. The upstream MIT grant is made by its own authors directly and is not revoked or narrowed by this repository's license. `.config/nvim/LICENSE.md` is retained to satisfy the MIT notice condition and must not be removed. Modifications and original configuration authored in this repository are licensed under the Apache License, Version 2.0.
 
 `.config/nvim/lazy-lock.json` only pins upstream plugin versions and does not vendor their source, so those plugins' licenses do not attach to this repository.
+
+Files under `.claude/skills/architecture-survey/` are adapted from the improve-codebase-architecture and codebase-design skills of Matt Pocock's skills repository (https://github.com/mattpocock/skills), which is distributed under the MIT License. `.claude/skills/architecture-survey/LICENSE.md` is retained to satisfy the MIT notice condition and must not be removed. Modifications authored in this repository are licensed under the Apache License, Version 2.0.
