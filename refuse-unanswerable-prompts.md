@@ -1,6 +1,6 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: active
-Updated: 2026-10-16T21:13:25.658Z
+Updated: 2026-10-16T21:13:27.465Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
@@ -14,7 +14,7 @@ Ship one MSP pull request into the FEATURE branch that adds a PermissionRequest 
 
 ## Where things stand
 
-Checkout main is level with origin at b8d992f8; the interphase hand-off is recorded and no build has started.
+FEATURE branch feat/refuse-unanswerable-prompts is cut from main at b8d992f8 and pushed; plan 0615d7029d42 holds two MSPs, refusal-hook (top tier) and rule-text (cheap tier); the first build is running.
 
 ## Next step
 
