@@ -9,7 +9,7 @@ const RULE_PATH = '.claude/rules/common/database-access.md';
 const RETIRED_PATH = '.claude/rules/common/no-direct-db-access.md';
 const RETIRED_NAME = 'no-direct-db-access';
 const CLAUDE_MD_PATH = '.claude/CLAUDE.md';
-const CLAUDE_MD_DATABASE_LINE = 7;
+const CLAUDE_MD_DATABASE_PREFIX = '- Live databases:';
 const MAX_RULE_WORDS = 462;
 const MAX_LINE_WORDS = 32;
 const REQUIRED_PHRASES = Object.freeze(['-reader', 'PII', 'plain English', 'approve', 'run order', '.pgpass']);
@@ -50,11 +50,12 @@ test('the database rule is short and complete', () => {
   const named = MIGRATION_TOOLS.filter((tool) => lowered.includes(tool));
   assert.deepEqual(named, [], `${RULE_PATH} names migration tools`);
 
-  const line = read(CLAUDE_MD_PATH).split('\n')[CLAUDE_MD_DATABASE_LINE - 1] ?? '';
+  const lines = read(CLAUDE_MD_PATH).split('\n').filter((text) => text.startsWith(CLAUDE_MD_DATABASE_PREFIX));
+  assert.equal(lines.length, 1, `${CLAUDE_MD_PATH} must hold exactly one line starting ${CLAUDE_MD_DATABASE_PREFIX}`);
+  const [line] = lines;
   const lineWords = wordCount(line);
-  assert.ok(lineWords > 0, `${CLAUDE_MD_PATH} line ${CLAUDE_MD_DATABASE_LINE} is empty`);
-  assert.ok(lineWords <= MAX_LINE_WORDS, `${CLAUDE_MD_PATH} line ${CLAUDE_MD_DATABASE_LINE} has ${lineWords} words, limit ${MAX_LINE_WORDS}`);
-  assert.ok(line.includes('rules/common/database-access.md'), `${CLAUDE_MD_PATH} line ${CLAUDE_MD_DATABASE_LINE} must cite the rule`);
+  assert.ok(lineWords <= MAX_LINE_WORDS, `${CLAUDE_MD_PATH} database line has ${lineWords} words, limit ${MAX_LINE_WORDS}`);
+  assert.ok(line.includes('rules/common/database-access.md'), `${CLAUDE_MD_PATH} database line must cite the rule`);
 });
 
 test('nothing cites the retired rule', () => {

@@ -5,61 +5,10 @@ paths:
   - "**/*.js"
   - "**/*.jsx"
 ---
-# TypeScript/JavaScript Coding Style
+# TypeScript/JavaScript
 
-> This file extends [common/coding-style.md](../common/coding-style.md) with TypeScript/JavaScript specific content.
-
-## Immutability
-
-Use spread operator for immutable updates:
-
-```typescript
-// WRONG: Mutation
-function updateUser(user, name) {
-  user.name = name  // MUTATION!
-  return user
-}
-
-// CORRECT: Immutability
-function updateUser(user, name) {
-  return {
-    ...user,
-    name
-  }
-}
-```
-
-## Error Handling
-
-Use async/await with try-catch:
-
-```typescript
-try {
-  const result = await riskyOperation()
-  return result
-} catch (error) {
-  console.error('Operation failed:', error)
-  throw new Error('Detailed user-friendly message')
-}
-```
-
-## Input Validation
-
-Use Zod for schema-based validation:
-
-```typescript
-import { z } from 'zod'
-
-const schema = z.object({
-  email: z.string().email(),
-  age: z.number().int().min(0).max(150)
-})
-
-const validated = schema.parse(input)
-```
-
-## Console.log
-
-- No `console.log` statements in production code
-- Use proper logging libraries instead
-- See hooks for automatic detection
+- Validate input with a Zod schema.
+- Log production code through the project's logging library; `console.log` belongs in scripts and tests.
+- Where the project has no response convention of its own, shape API responses as `{ success: boolean; data?: T; error?: string; meta?: { total: number; page: number; limit: number } }`.
+- Put data access behind a repository interface: `findAll(filters?)`, `findById(id)`, `create(data)`, `update(id, data)`, `delete(id)`.
+- Write E2E tests for critical user flows in Playwright.

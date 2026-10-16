@@ -53,7 +53,7 @@ wearing a census costume. The listing is the census.
 | a model pin, a long-running command, or a context-budget decision | `common/performance.md` | a command expected to exceed roughly sixty seconds run in the foreground; an orchestration role pinned to a reasoning tier this rule assigns elsewhere |
 | any prose returned to a human - a report, a hand-back, a document | `common/writing-style.md` | a fact carrying no stated relevance; narration of the answer's own structure; a compound noun used before it is glossed |
 | a question about a library, framework, SDK, API, or CLI tool | `context7.md` | an external API written from recall where this rule requires current documentation be fetched first; the rule invoked for refactoring or business-logic debugging, which it excludes by name |
-| a TypeScript or JavaScript source file | the five files under `typescript/` | audit the diff by OPENING them, but never conclude a dispatched agent ignored one: all five carry `paths:` frontmatter and do NOT reach a subagent's context, established 2026-09-10 by two zero-tool-call probes that received every `common/` file and none of these |
+| a TypeScript or JavaScript source file | `typescript/coding-style.md` | audit the diff by OPENING it, but never conclude a dispatched agent ignored it: it carries `paths:` frontmatter and does NOT reach a subagent's context, established 2026-09-10 by two zero-tool-call probes that received every `common/` file and none of the `typescript/` files |
 
 ## Whatever standard the project declares alongside these rules
 
