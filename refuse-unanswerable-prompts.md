@@ -1,6 +1,6 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: active
-Updated: 2026-10-16T21:12:50.431Z
+Updated: 2026-10-16T21:13:25.658Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
@@ -9,7 +9,7 @@ Ship one MSP pull request into the FEATURE branch that adds a PermissionRequest 
 
 ## Done when
 
-- [ ] c1 The MSP pull request into the FEATURE branch is open, ready for review unless a diagnosis classed a blocker blocked, assigned to the owner, with the title and body mitosis wrote.
+- [ ] c1 The MSP pull requests (refusal-hook and rule-text, per D2) into the FEATURE branch are open, ready for review unless a diagnosis classed a blocker blocked, assigned to the owner, with the title and body mitosis wrote.
 - [ ] c2 Every confirmed blocker is fixed with a receipt test that failed first, or named at the top of a draft pull request after a diagnosis classed it blocked.
 
 ## Where things stand
