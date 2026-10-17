@@ -1,6 +1,6 @@
 # refuse-unanswerable-prompts: Refuse permission prompts no one can answer, and drop the two-fix-round cap from the rules
 Status: parked
-Updated: 2026-10-16T23:54:29.366Z
+Updated: 2026-10-17T00:41:57.927Z
 Next ids: c4 D4 R1 S1
 
 ## Goal
@@ -16,17 +16,13 @@ Ship one MSP pull request into the FEATURE branch that adds a PermissionRequest 
 
 ## Where things stand
 
-The FEATURE pull request #341 waits for the owner to merge it. FEATURE lacks main's #340 and merges cleanly over it. The new hook is not installed in the live configuration; it reaches the owner only after #341 merges and the live clone pulls.
+The work is merged into main as SatanshuMishra/.windful-ocean#341 (0d193d5b), and pipeline clean has removed the run's branches, worktrees, run folders and spec files. The owner's checkout still sits at 47cb12bc: its fast-forward is refused because the owner's untracked .lighthouse/profile.json differs from the one #341 committed. The hook goes live only when the live clone ~/.windful-ocean pulls and syncs.
 
 ## Next step
 
-The owner starts Clean-up by saying the FEATURE pull request merged; then resume_thread refuse-unanswerable-prompts, read ~/.mitosis/.windful-ocean/refuse-unanswerable-prompts/CHARTER.md, Sync, and run pipeline clean --repo /Users/satanshumishra/Documents/DevLabs/.windful-ocean --slug refuse-unanswerable-prompts.
+None: the thread is done.
 
 ## Decisions in force
-
-- D1 Interphase hand-off: build the spec as handed off: Build the two Steps as handed off on the FEATURE branch; any later gap is filled from the Intent lines and recorded as an assumption.
-- D2 Ship the two MSPs mitosis planned: Build two MSPs, refusal-hook and rule-text; criterion c1 covers both MSP pull requests (Assumption, relies on I1).
-- D3 Ship boundary: push both MSPs and open their pull requests: Run SHIP=1 run.zsh --resume and open both pull requests ready for review, assigned to the owner, with the title and body mitosis writes.
 
 ## Open risks
 
@@ -34,9 +30,4 @@ The owner starts Clean-up by saying the FEATURE pull request merged; then resume
 
 ## Where the details live
 
-- Spec: /Users/satanshumishra/Documents/DevLabs/.windful-ocean/docs/specs/refuse-unanswerable-prompts.md
-- Decisions: /Users/satanshumishra/Documents/DevLabs/.windful-ocean/docs/specs/refuse-unanswerable-prompts.decisions.md
-- Record: /Users/satanshumishra/Documents/DevLabs/.windful-ocean/docs/specs/refuse-unanswerable-prompts.record.json
-- Run home: ~/.mitosis/.windful-ocean/refuse-unanswerable-prompts/
-- Mitosis run dir: ~/.mitosis/runs/.windful-ocean/refuse-unanswerable-prompts
-- Lighthouse results (findings, verdict, report, evidence): ~/.mitosis/.windful-ocean/refuse-unanswerable-prompts/lighthouse/
+- Merged change: https://github.com/SatanshuMishra/.windful-ocean/pull/341
