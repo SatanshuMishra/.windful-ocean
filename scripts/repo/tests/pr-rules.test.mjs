@@ -13,7 +13,7 @@ const ROUND_2_MATCHER = '^mcp__.+__(create_pull_request|merge_pull_request)$';
 const NEVER_MERGE = 'Never merge a pull request.';
 
 const PR_LINE = '- Open every pull request through the GitHub MCP `create_pull_request` tool, with the title and body `pull-request render` prints; a hook refuses any other title or body, and ad-hoc `gh pr create` stays denied. Only a human merges. The `pull-request:open` skill carries the title grammar and body fields.';
-const PIPELINE_LINE = '- Every request that changes a git repository picks a lane up front: direct for a one-sentence change with a known cause (edit, test, open a pull request), standard for a small change interphase\'s brief lane carries (one build, one review round), and full for the rest (an interview up front, then interphase specs it, mitosis builds it, independent reviewers judge it, and confirmed blockers and advisories are fixed directly on the branch, at most two fix rounds). Only the full lane\'s interview asks the user anything; after its read-back is approved, the run goes to the last pull request without a question, filling any later gap from the recorded intent. Rule: `~/.claude/rules/common/pipeline.md`.';
+const PIPELINE_LINE = '- Every request that changes a git repository picks a lane up front: direct for a one-sentence change with a known cause (edit, test, open a pull request), standard for a small change interphase\'s brief lane carries (one build, one review round), and full for the rest (an interview up front, then interphase specs it, mitosis builds it, independent reviewers judge it, and confirmed blockers and advisories are fixed directly on the branch until review is green or a diagnosis classes a blocker blocked, which opens it as a draft pull request, or stops the run with nothing pushed when the blocked blocker is CRITICAL). Only the full lane\'s interview asks the user anything; after its read-back is approved, the run goes to the last pull request without a question, filling any later gap from the recorded intent. Rule: `~/.claude/rules/common/pipeline.md`.';
 
 function repoPath(relativePath) {
   return `${REPO_ROOT}/${relativePath}`;
@@ -40,6 +40,16 @@ test('CLAUDE.md names pull-request render, the MCP create tool and the pipeline 
   assert.notEqual(memoryIndex, -1, 'CLAUDE.md has no Persistent memory line');
   assert.equal(pipelineIndex, memoryIndex - 1);
   assert.deepEqual(lines.filter((line) => line.includes('pr.mjs') || line.includes('pr-create')), []);
+});
+
+test("CLAUDE.md's pipeline line fixes until green or a diagnosed block", () => {
+  const claude = read('.claude/CLAUDE.md');
+  assert.ok(claude.split('\n').includes(PIPELINE_LINE), 'CLAUDE.md does not hold the pipeline line');
+  assert.ok(
+    PIPELINE_LINE.includes('fixed directly on the branch until review is green or a diagnosis classes a blocker blocked, which opens it as a draft pull request, or stops the run with nothing pushed when the blocked blocker is CRITICAL)'),
+    'the full-lane clause does not end with the until-green wording',
+  );
+  assert.ok(!claude.includes('at most two fix rounds'), 'CLAUDE.md still holds at most two fix rounds');
 });
 
 test("the threat model's G3 describes the MCP create tool behind the format hook", () => {
@@ -173,6 +183,7 @@ test("round 4: the threat model's G3 states the URL rule", () => {
 
 const KEPT_TESTS = Object.freeze([
   'CLAUDE.md names pull-request render, the MCP create tool and the pipeline rule',
+  "CLAUDE.md's pipeline line fixes until green or a diagnosed block",
   "the threat model's G3 describes the MCP create tool behind the format hook",
   'the pipeline rule hands shipping to the pipeline:run skill',
   'the attribution census and the auditor route pull requests to files that exist',

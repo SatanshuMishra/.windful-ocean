@@ -1,0 +1,330 @@
+{
+  "version": 1,
+  "sources": [
+    "package.json",
+    ".github/workflows/ci.yml",
+    "README.md",
+    ".gitignore",
+    ".githooks/pre-commit",
+    "scripts/install-hooks.sh",
+    "scripts/dotfiles/links.json",
+    "receipts.config.json",
+    ".claude/settings.json",
+    ".claude/hooks/CLAUDE.md",
+    ".claude/hooks/tests/block-destructive-bash.test.mjs",
+    ".claude/skills/watch/scripts/setup.py",
+    ".claude/hooks/tests/refuse-unanswerable-prompt.test.mjs"
+  ],
+  "suite": {
+    "command": "npm test",
+    "junit": null,
+    "timeout_minutes": null
+  },
+  "surfaces": [
+    {
+      "name": "bash command gate",
+      "kind": "Claude Code PreToolUse hook on Bash that denies destructive commands, pull request merges and ad-hoc pull request creation",
+      "paths": [
+        ".claude/hooks/block-destructive-bash.sh",
+        "docs/security/bash-gate-threat-model.md",
+        ".claude/hooks/tests/block-destructive-bash.test.mjs"
+      ],
+      "driver": "node --test .claude/hooks/tests/block-destructive-bash.test.mjs, then pipe PreToolUse event JSON with tool_name Bash and tool_input.command on stdin to bash .claude/hooks/block-destructive-bash.sh with HOME set to a temporary directory, and read hookSpecificOutput.permissionDecision from stdout and the exit code",
+      "available": true,
+      "sign_in": {
+        "method": "none",
+        "command": null
+      },
+      "credentials": [],
+      "trials": 1
+    },
+    {
+      "name": "database gate",
+      "kind": "Claude Code PreToolUse hook on Bash and mcp__ tools that refuses live-database writes and pg credential-file access",
+      "paths": [
+        ".claude/hooks/db-gate.mjs",
+        ".claude/hooks/tests/db-gate.test.mjs",
+        ".claude/hooks/refuse-unanswerable-prompt.mjs"
+      ],
+      "driver": "node --test .claude/hooks/tests/db-gate.test.mjs, then pipe PreToolUse event JSON on stdin to node .claude/hooks/db-gate.mjs with HOME set to a temporary directory, and read the permission decision on stdout and the exit code",
+      "available": true,
+      "sign_in": {
+        "method": "none",
+        "command": null
+      },
+      "credentials": [],
+      "trials": 1
+    },
+    {
+      "name": "permission prompt refusal hook",
+      "kind": "Claude Code PermissionRequest hook on every tool that, in bypassPermissions mode, refuses every prompt a subagent raises and every main-conversation prompt except AskUserQuestion, ExitPlanMode and the database gate's asks",
+      "paths": [
+        ".claude/hooks/refuse-unanswerable-prompt.mjs",
+        ".claude/hooks/db-gate.mjs",
+        ".claude/settings.json",
+        ".claude/hooks/tests/refuse-unanswerable-prompt.test.mjs"
+      ],
+      "driver": "node --test .claude/hooks/tests/refuse-unanswerable-prompt.test.mjs, then pipe PermissionRequest event JSON (permission_mode, tool_name, tool_input, and agent_id for a subagent) on stdin to node .claude/hooks/refuse-unanswerable-prompt.mjs with HOME set to a temporary directory, and read hookSpecificOutput.decision from stdout and the exit code",
+      "available": true,
+      "sign_in": {
+        "method": "none",
+        "command": null
+      },
+      "credentials": [],
+      "trials": 1
+    },
+    {
+      "name": "edit and write guards",
+      "kind": "Claude Code PreToolUse hooks on Edit, Write and NotebookEdit: the config write guard, the secret scanner and the write-tools allow",
+      "paths": [
+        ".claude/hooks/config-write-guard.mjs",
+        ".claude/hooks/secret-scanner.sh",
+        ".claude/hooks/allow-write-tools.sh",
+        ".claude/hooks/tests/config-write-guard.test.mjs",
+        ".claude/hooks/tests/secret-scanner.test.mjs"
+      ],
+      "driver": "node --test .claude/hooks/tests/config-write-guard.test.mjs .claude/hooks/tests/secret-scanner.test.mjs, then pipe PreToolUse event JSON with tool_input.file_path and content on stdin to each hook (node for .mjs, bash for .sh) with HOME set to a temporary directory, and read the permission decision on stdout and the exit code",
+      "available": true,
+      "sign_in": {
+        "method": "none",
+        "command": null
+      },
+      "credentials": [],
+      "trials": 1
+    },
+    {
+      "name": "other PreToolUse deny hooks",
+      "kind": "Claude Code PreToolUse hooks that deny sleep loops in Bash, direct reads of task output files, and the deep-research workflow or skill",
+      "paths": [
+        ".claude/hooks/deny-hold-loop.sh",
+        ".claude/hooks/deny-task-output-read.sh",
+        ".claude/hooks/block-deep-research.sh"
+      ],
+      "driver": "pipe PreToolUse event JSON on stdin to bash .claude/hooks/<hook>.sh (tool_name Bash with a command, Read with a file_path, Workflow or Skill with a name) with HOME set to a temporary directory, and read the permission decision on stdout and the exit code; these hooks have no test file of their own",
+      "available": true,
+      "sign_in": {
+        "method": "none",
+        "command": null
+      },
+      "credentials": [],
+      "trials": 1
+    },
+    {
+      "name": "lint on edit",
+      "kind": "Claude Code PostToolUse hook on Edit and Write that runs eslint --fix on the changed file",
+      "paths": [
+        ".claude/hooks/lint-on-edit.sh"
+      ],
+      "driver": "copy a sample file into a scratch directory, pipe PostToolUse event JSON whose tool_input.file_path names that copy on stdin to bash .claude/hooks/lint-on-edit.sh, and read stderr, the exit code and the copy's contents; it has no test file of its own",
+      "available": true,
+      "sign_in": {
+        "method": "none",
+        "command": null
+      },
+      "credentials": [],
+      "trials": 1
+    },
+    {
+      "name": "SessionStart hooks",
+      "kind": "Claude Code SessionStart hooks: branch sync, dotfiles link check, graphify provisioning, npm dependency audit, superpowers hook heal and plugin update check",
+      "paths": [
+        ".claude/hooks/branch-sync.mjs",
+        ".claude/hooks/dotfiles-check.mjs",
+        ".claude/hooks/graphify-provision.sh",
+        ".claude/hooks/graphify-common.sh",
+        ".claude/hooks/dep-audit.sh",
+        ".claude/hooks/superpowers-cmd-hook-heal.sh",
+        ".claude/hooks/plugin-update-check.sh",
+        "scripts/dotfiles/check.mjs",
+        ".claude/hooks/tests/branch-sync.test.mjs",
+        ".claude/hooks/tests/dotfiles-check.test.mjs",
+        ".claude/hooks/tests/graphify-out-path.test.mjs"
+      ],
+      "driver": "node --test on the branch-sync, dotfiles-check and graphify test files, then from a scratch git clone of the checkout under test pipe SessionStart event JSON on stdin to each hook with HOME set to a temporary directory and cwd and CLAUDE_PROJECT_DIR set to a scratch git repository with a local bare remote, and read stdout and the exit code; branch-sync fetches and fast-forwards both the cwd repository and the clone that holds the script, so it is never run from this checkout or the live clone",
+      "available": true,
+      "sign_in": {
+        "method": "none",
+        "command": null
+      },
+      "credentials": [],
+      "trials": 1
+    },
+    {
+      "name": "Stop and Notification hooks",
+      "kind": "Claude Code Stop and Notification hooks: completion and input sounds, and the graphify refresh",
+      "paths": [
+        ".claude/hooks/notify-complete.sh",
+        ".claude/hooks/notify-input.sh",
+        ".claude/hooks/graphify-refresh.sh",
+        ".claude/hooks/graphify-common.sh"
+      ],
+      "driver": "pipe Stop or Notification event JSON on stdin to bash .claude/hooks/<hook>.sh with HOME set to a temporary directory and cwd and CLAUDE_PROJECT_DIR set to a scratch git repository, and read the exit code and any graphify-out change in the scratch repository; they have no test file of their own",
+      "available": true,
+      "sign_in": {
+        "method": "none",
+        "command": null
+      },
+      "credentials": [],
+      "trials": 1
+    },
+    {
+      "name": "observer hooks",
+      "kind": "Claude Code SessionEnd, SubagentStart and SubagentStop hooks that append session and subagent events to the observer log",
+      "paths": [
+        ".claude/hooks/observer/_observer.mjs",
+        ".claude/hooks/observer/session-observer.mjs",
+        ".claude/hooks/observer/subagent-observer.mjs",
+        ".claude/hooks/observer/retention.mjs",
+        ".claude/hooks/observer/went-back.mjs",
+        ".claude/hooks/observer/capability-replay.mjs",
+        ".claude/hooks/tests/subagent-observer.test.mjs",
+        ".claude/hooks/tests/subagent-start-binding.test.mjs",
+        ".claude/hooks/tests/subagent-sole-writer.test.mjs",
+        ".claude/hooks/tests/subagent-capability.test.mjs",
+        ".claude/hooks/tests/session-went-back.test.mjs",
+        ".claude/hooks/tests/observer-retention.test.mjs"
+      ],
+      "driver": "node --test on the observer test files, then pipe SessionEnd, SubagentStart or SubagentStop event JSON on stdin to node .claude/hooks/observer/<hook>.mjs with CLAUDE_OBSERVER_DIR and HOME set to temporary directories, and read the JSONL rows it appends there",
+      "available": true,
+      "sign_in": {
+        "method": "none",
+        "command": null
+      },
+      "credentials": [],
+      "trials": 1
+    },
+    {
+      "name": "npm test suite",
+      "kind": "deterministic node --test backstop over the hooks, shared libraries, skills, dotfiles command line and repository checks",
+      "paths": [
+        "package.json",
+        ".claude/hooks/tests",
+        ".claude/lib/observer-audit/tests",
+        ".claude/lib/plugins/tests",
+        ".claude/skills/agent-audit/tests",
+        ".claude/skills/architecture-survey/tests",
+        ".claude/skills/conformance-auditor/tests",
+        ".claude/skills/impeccable/tests",
+        ".claude/skills/platform-engineer/tests",
+        ".claude/skills/retro/tests",
+        "scripts/repo/tests",
+        "scripts/dotfiles/tests"
+      ],
+      "driver": "npm test from the repository root, the script package.json defines and .githooks/pre-commit runs; npm run test:ci is the subset CI runs",
+      "available": true,
+      "sign_in": {
+        "method": "none",
+        "command": null
+      },
+      "credentials": [],
+      "trials": 1
+    },
+    {
+      "name": "rules and CLAUDE.md in a live session",
+      "kind": "Claude Code session that loads the global CLAUDE.md, rules, agents, skills and the synced settings hooks from the checkout",
+      "paths": [
+        ".claude/CLAUDE.md",
+        ".claude/rules",
+        ".claude/agents",
+        ".claude/skills",
+        ".claude/output-styles",
+        ".claude/settings.json",
+        "scripts/dotfiles/cli.mjs",
+        "scripts/dotfiles/install.mjs",
+        "scripts/dotfiles/settings.mjs",
+        "scripts/dotfiles/links.json"
+      ],
+      "driver": "make a scratch git clone of the checkout under test, set HOME to a fresh temporary directory, run node <scratch clone>/scripts/dotfiles/cli.mjs install and sync with that HOME (as the CI job does into an empty home), then run claude -p with that HOME in a scratch git project and read the reply and the session transcript under the temporary HOME for the rule or hook behaviour under test",
+      "available": false,
+      "sign_in": {
+        "method": "none",
+        "command": null
+      },
+      "credentials": [],
+      "trials": 3
+    }
+  ],
+  "credentials": {
+    "file": null,
+    "names": {}
+  },
+  "facts": {
+    "node_version": {
+      "value": "CI runs Node 26.x; this machine has node v26.10.0 and npm 11.19.1; package.json has no dependencies, so no install step is needed",
+      "confirmed": true,
+      "recheck": "read node-version in .github/workflows/ci.yml and run node --version"
+    },
+    "claude_cli": {
+      "value": "claude 2.1.300 at /opt/homebrew/bin/claude drives the live session surface",
+      "confirmed": true,
+      "recheck": "claude --version"
+    },
+    "hook_runtime_tools": {
+      "value": "the hooks call python3, jq, graphify (~/.local/bin/graphify) and git; gitleaks is at /opt/homebrew/bin/gitleaks for the CI secret scan",
+      "confirmed": true,
+      "recheck": "command -v python3 jq graphify git gitleaks"
+    },
+    "live_config_links": {
+      "value": "~/.claude CLAUDE.md, agents, hooks, keybindings.json, lib, output-styles, rules, skills and sounds link into the live clone ~/.windful-ocean, not this checkout; ~/.claude/docs and ~/.claude/notes link into this checkout; ~/.claude/settings.json is a real file",
+      "confirmed": true,
+      "recheck": "ls -la ~/.claude | grep -- '->'"
+    },
+    "ci_scope": {
+      "value": "CI runs gitleaks over the pushed range, install, sync and check into an empty HOME, then npm run test:ci (block-destructive-bash and secret-scanner tests only); the full npm test runs locally",
+      "confirmed": true,
+      "recheck": "read .github/workflows/ci.yml and the scripts in package.json"
+    },
+    "active_git_hooks_path": {
+      "value": "core.hooksPath points at the logbook plugin's managed githooks directory under ~/.claude/plugins/data, not at .githooks",
+      "confirmed": true,
+      "recheck": "git -C <repo> config core.hooksPath"
+    },
+    "untracked_owner_files": {
+      "value": "the checkout holds untracked owner files, including .claude/hooks/tests/fanout-graph-wrapper, graphify-provision-banner and graphify-root-gate tests, .claude/lib/fanout, .claude/skills/fanout, graphify, synced and .trash, .claude/rules/common/graphify.md, .graphifyignore and docs/specs; npm test's globs pick up the untracked .test.mjs files",
+      "confirmed": true,
+      "recheck": "git -C <repo> status --short"
+    },
+    "live_session_auth_under_temp_home": {
+      "value": "no: claude -p under a fresh temporary HOME or CLAUDE_CONFIG_DIR reports Not logged in, so a live session cannot be isolated from the owner's real configuration and that surface is unavailable",
+      "confirmed": true,
+      "recheck": "HOME=$(mktemp -d) claude -p 'reply ok' in a scratch directory and check it answers rather than asking to log in"
+    },
+    "npm_test_isolated_from_real_home": {
+      "value": "run with a temporary HOME from a scratch clone, the suite wrote nothing under the real ~/.claude or either checkout; the only real paths changed during the run were Claude Code's own backups and security log, written by the concurrently running session",
+      "confirmed": true,
+      "recheck": "grep the test files for HOME, CLAUDE_OBSERVER_DIR and GRAPHIFY_OUT, then run npm test with HOME set to a temporary directory and compare git status and ~/.claude modification times before and after"
+    },
+    "suite_passes_on_main": {
+      "value": "npm test passed (684 tests, about 60 seconds) in a scratch clone of the committed checkout with a temporary HOME; the owner's untracked test files are not in a clone",
+      "confirmed": true,
+      "recheck": "npm test from the repository root"
+    },
+    "network_in_session_start_hooks": {
+      "value": "yes for read-only calls (git fetch and ls-remote, npm view, npm audit) from scratch clones; never push",
+      "confirmed": true,
+      "recheck": "ask the owner whether live-session and SessionStart trials may reach the npm registry and GitHub"
+    },
+    "lint_on_edit_eslint": {
+      "value": "no eslint is on PATH and the repository's package.json names no eslint, so lint-on-edit.sh finds no eslint project and exits silently",
+      "confirmed": true,
+      "recheck": "read .claude/hooks/lint-on-edit.sh for how it finds eslint and run command -v eslint npx"
+    }
+  },
+  "off_limits": [
+    "running any hook, the dotfiles command line or a claude session with the real HOME, which acts on the owner's live ~/.claude settings, plugins, cache and observer log",
+    "running scripts/dotfiles/cli.mjs install, sync or cutover against the real HOME, or editing ~/.claude/settings.json, ~/.claude/settings.local.json or anything under ~/.claude",
+    "editing, pulling into or running scripts from the live clone ~/.windful-ocean",
+    "running .claude/hooks/branch-sync.mjs from this checkout or the live clone, since it fetches and fast-forwards the clone that holds it and the cwd repository",
+    "running graphify-provision.sh, graphify-refresh.sh or graphify update with cwd or CLAUDE_PROJECT_DIR in this checkout or any real repository, which writes graphify-out and starts a background build",
+    "running superpowers-cmd-hook-heal.sh or plugin-update-check.sh against the real HOME, which rewrite plugin cache files and write ~/.claude/cache",
+    "running claude plugin install, update or marketplace update",
+    "running lint-on-edit.sh on a file in this checkout, since eslint --fix rewrites it",
+    "appending to the real observer log under ~/.claude/observer; set CLAUDE_OBSERVER_DIR to a temporary directory",
+    "running scripts/install-hooks.sh or changing git config, including core.hooksPath, in this checkout",
+    "committing, stashing, resetting, cleaning or switching branches in this checkout, or touching its untracked files",
+    "pushing to or deleting branches on, or merging pull requests in, the GitHub repository SatanshuMishra/.windful-ocean, other than lighthouse's own profile commit and its FEATURE pull request",
+    "applying .github/rulesets/require-ci.json through gh api",
+    "writing to the real logbook ledger or its refs/logbook refs",
+    "running .claude/skills/watch/scripts/setup.py without --check or --json, which installs packages through brew and writes ~/.config/watch/.env"
+  ]
+}

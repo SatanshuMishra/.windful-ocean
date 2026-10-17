@@ -46,7 +46,7 @@ test('CI is the one ci workflow with pinned steps', () => {
   const scripts = JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8')).scripts;
   assert.equal(
     scripts['test:ci'],
-    'node --test .claude/hooks/tests/block-destructive-bash.test.mjs .claude/hooks/tests/secret-scanner.test.mjs',
+    'node --test .claude/hooks/tests/block-destructive-bash.test.mjs .claude/hooks/tests/secret-scanner.test.mjs .claude/hooks/tests/refuse-unanswerable-prompt.test.mjs',
   );
   assert.ok(scripts.test.split(' ').includes('scripts/dotfiles/tests/*.test.mjs'));
   for (const file of removed) {
