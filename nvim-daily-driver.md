@@ -1,6 +1,6 @@
 # nvim-daily-driver: Make Neovim 0.12 a working daily editor: startup fixes, plugin modernization, terminal parity
 Status: active
-Updated: 2026-10-24T02:15:49.564Z
+Updated: 2026-10-24T02:27:20.796Z
 Next ids: c5 D3 R3 S1
 
 ## Goal
@@ -16,11 +16,11 @@ Neovim 0.12.6 with the tracked config in .config/nvim starts with no errors or d
 
 ## Where things stand
 
-PR SatanshuMishra/.windful-ocean#342 (branch fix/nvim-daily-driver, head f8d89caa) is open, ready and assigned to the owner. Warp's local settings carry font_name JetBrainsMono Nerd Font Mono and line_height_ratio 1.0; Warp rendering is unseen and its cursor and padding are unchanged. Out-of-scope follow-ups wait as proposal cards: receipts-refresh (stale receipts.config.json) and warp-doc-fix (docs/WARP-LIKE-SETUP.md describes an uncommitted WezTerm config).
+PR #342 is merged and live: ~/.windful-ocean is at a50c6f42, ~/.wezterm.lua is linked, all 55 plugins sit on their locked commits, and the live config attaches lua_ls, ts_ls and pylsp. Open and assigned to the owner: PR #344 (drops the stale hererocks lockfile entry, which the live clone already carries as a local edit) and PR #343 (receipts config refresh, outside this thread's goal). Warp's local settings carry font_name JetBrainsMono Nerd Font Mono and line_height_ratio 1.0; Warp rendering is unseen and its cursor and padding are unchanged. The warp-doc-fix proposal card (docs/WARP-LIKE-SETUP.md describes an uncommitted WezTerm config) is pending.
 
 ## Next step
 
-Owner checks Warp rendering, says yes or no to the synced Warp cursor and padding changes, and merges PR #342; then pull ~/.windful-ocean --ff-only, run node scripts/dotfiles/cli.mjs install, and :Lazy restore in Neovim.
+Owner checks Warp rendering, says yes or no to the synced Warp cursor and padding changes, and merges #343 and #344; after #344 merges, git -C ~/.windful-ocean restore .config/nvim/lazy-lock.json, then pull --ff-only.
 
 ## Decisions in force
 
