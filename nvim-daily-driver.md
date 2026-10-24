@@ -1,6 +1,6 @@
 # nvim-daily-driver: Make Neovim 0.12 a working daily editor: startup fixes, plugin modernization, terminal parity
 Status: active
-Updated: 2026-10-24T02:52:52.613Z
+Updated: 2026-10-24T02:52:53.153Z
 Next ids: c5 D5 R4 S1
 
 ## Goal
@@ -20,7 +20,7 @@ All work is merged and live: ~/.windful-ocean and the dev checkout are at ee9667
 
 ## Next step
 
-Remove the catppuccin-wezterm-only worktree and its local branch, then close the thread as done.
+None: every criterion is met; close the thread as done.
 
 ## Decisions in force
 
