@@ -6,7 +6,7 @@ local config = wezterm.config_builder()
 -- config.line_height = 1.05
 config.font = wezterm.font_with_fallback {
 	{
-		family = 'JetBrainsMono Nerd Font Mono',
+		family = 'JetBrainsMono Nerd Font',
 		weight = 'Regular',
 		harfbuzz_features = { 'calt=1', 'clig=1', 'liga=1' }, -- Enable ligatures
 	},
@@ -15,7 +15,7 @@ config.font = wezterm.font_with_fallback {
 
 -- Enable font ligatures
 config.harfbuzz_features = { 'calt=1', 'clig=1', 'liga=1' }
-config.line_height = 1.00
+config.line_height = 0.90
 config.font_size = 15.0
 
 

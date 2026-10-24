@@ -115,7 +115,7 @@ brew install font-jetbrains-mono-nerd-font
 ```
 
 2. Update terminal font settings:
-- WezTerm: Already configured in my `.wezterm.lua` (JetBrainsMono Nerd Font Mono)
+- WezTerm: Already configured in my `.wezterm.lua` (JetBrainsMono Nerd Font)
 - iTerm2: Preferences → Profiles → Text → Font → JetBrainsMono Nerd Font Mono
 - Terminal.app: Preferences → Profiles → Font → JetBrainsMono Nerd Font Mono
 
