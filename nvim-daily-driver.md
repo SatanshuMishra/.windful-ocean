@@ -1,7 +1,7 @@
 # nvim-daily-driver: Make Neovim 0.12 a working daily editor: startup fixes, plugin modernization, terminal parity
 Status: active
-Updated: 2026-10-24T01:47:12.628Z
-Next ids: c5 D3 R2 S1
+Updated: 2026-10-24T02:14:22.293Z
+Next ids: c5 D3 R3 S1
 
 ## Goal
 
@@ -9,18 +9,18 @@ Neovim 0.12.6 with the tracked config in .config/nvim starts with no errors or d
 
 ## Done when
 
-- [ ] c1 nvim --headless startup and opening .lua/.ts/.py files print no error and no deprecation warning
-- [ ] c2 every plugin is on a current commit in lazy-lock.json, with no hand-written commit values, and each deprecated or unsafe plugin is replaced or removed
-- [ ] c3 a language server attaches on .lua, .ts and .py files
+- [x] c1 nvim --headless startup and opening .lua/.ts/.py files print no error and no deprecation warning evidence: isolated-XDG headless probes on f8d89caa printed an empty :messages for bare startup, a.lua, a.ts and a.py; :checkhealth vim.deprecated reports none; Lazy! load all plus every colorscheme printed nothing
+- [x] c2 every plugin is on a current commit in lazy-lock.json, with no hand-written commit values, and each deprecated or unsafe plugin is replaced or removed evidence: committed lazy-lock.json holds 56 entries, all 40-hex SHAs from Lazy! sync; neodev->lazydev, presence->neocord, harpoon->harpoon2, nvim-treesitter master->main; mini.comment, mini.hipatterns, nvim-lightbulb removed
+- [x] c3 a language server attaches on .lua, .ts and .py files evidence: probes on f8d89caa report lua_ls, ts_ls and pylsp clients, after reinstalling five Mason Python venvs whose interpreter had been removed
 - [ ] c4 WezTerm and Warp render Neovim with the same background, font, line height, padding, cursor and Nerd Font glyphs, as far as each terminal can be configured
 
 ## Where things stand
 
-Diagnosis done; building in a worktree off origin/main. A researcher agent is finding Warp's settings.toml keys for font family, line height and padding.
+PR SatanshuMishra/.windful-ocean#342 (branch fix/nvim-daily-driver, head f8d89caa) is open, ready and assigned to the owner. Warp's local settings carry font_name JetBrainsMono Nerd Font Mono and line_height_ratio 1.0; Warp rendering is unseen and its cursor and padding are unchanged.
 
 ## Next step
 
-Build all fixes on one branch in a worktree off origin/main, verify with isolated headless nvim runs, commit, push with an explicit -u origin, and open one ready pull request assigned to the user.
+Owner checks Warp rendering, says yes or no to the synced Warp cursor and padding changes, and merges PR #342; then pull ~/.windful-ocean --ff-only, run node scripts/dotfiles/cli.mjs install, and :Lazy restore in Neovim.
 
 ## Decisions in force
 
@@ -29,11 +29,11 @@ Build all fixes on one branch in a worktree off origin/main, verify with isolate
 
 ## Open risks
 
-- R1 The dev checkout's main cannot fast-forward (untracked .lighthouse/profile.json would be overwritten); the branch is cut from origin/main.
+- R2 Warp cursor colour (theme YAML cursor key) and padding (alt_screen_padding) are cloud-synced settings; changing them edits the owner's Warp account and waits for an explicit yes.
 
 ## Settled, do not reopen
 
 ## Where the details live
 
 - Config: .config/nvim (live via ~/.config/nvim -> ~/.windful-ocean/.config/nvim)
-- Terminal configs: .wezterm.lua (tracked, missing from scripts/dotfiles/links.json since the 2026-10-14 Stow-to-manifest cutover, so WezTerm runs on defaults); ~/.warp/settings.toml (untracked)
+- Terminal configs: .wezterm.lua (tracked, linked through scripts/dotfiles/links.json on the PR branch); ~/.warp/settings.toml (untracked, backup at ~/.warp/settings.toml.bak-2026-10-23)
