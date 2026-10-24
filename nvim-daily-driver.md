@@ -1,7 +1,7 @@
 # nvim-daily-driver: Make Neovim 0.12 a working daily editor: startup fixes, plugin modernization, terminal parity
 Status: active
-Updated: 2026-10-24T01:41:26.460Z
-Next ids: c5 D1 R1 S1
+Updated: 2026-10-24T01:47:12.628Z
+Next ids: c5 D3 R2 S1
 
 ## Goal
 
@@ -16,20 +16,24 @@ Neovim 0.12.6 with the tracked config in .config/nvim starts with no errors or d
 
 ## Where things stand
 
-Not started.
+Diagnosis done; building in a worktree off origin/main. A researcher agent is finding Warp's settings.toml keys for font family, line height and padding.
 
 ## Next step
 
-Run the full-lane interphase interview (feature pathway) for the nvim-daily-driver request, then hand off to mitosis on the FEATURE branch cut from origin/main.
+Build all fixes on one branch in a worktree off origin/main, verify with isolated headless nvim runs, commit, push with an explicit -u origin, and open one ready pull request assigned to the user.
 
 ## Decisions in force
 
+- D1 Lane: direct lane for every issue, at the user's explicit request; one branch, one pull request, no spec and no review agent; interphase stopped before writing files.
+- D2 Terminal reference look: the tracked .wezterm.lua is the reference; Warp and Neovim are aligned to it.
+
 ## Open risks
+
+- R1 The dev checkout's main cannot fast-forward (untracked .lighthouse/profile.json would be overwritten); the branch is cut from origin/main.
 
 ## Settled, do not reopen
 
 ## Where the details live
 
 - Config: .config/nvim (live via ~/.config/nvim -> ~/.windful-ocean/.config/nvim)
-- Terminal configs: .wezterm.lua and docs/WARP-LIKE-SETUP.md tracked; ~/.warp/settings.toml untracked
-- Top risk: dev checkout main cannot fast-forward (untracked .lighthouse/profile.json would be overwritten); build from origin/main
+- Terminal configs: .wezterm.lua (tracked, missing from scripts/dotfiles/links.json since the 2026-10-14 Stow-to-manifest cutover, so WezTerm runs on defaults); ~/.warp/settings.toml (untracked)
