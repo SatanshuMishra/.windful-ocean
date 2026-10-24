@@ -1,6 +1,6 @@
 # nvim-daily-driver: Make Neovim 0.12 a working daily editor: startup fixes, plugin modernization, terminal parity
 Status: active
-Updated: 2026-10-24T02:48:58.724Z
+Updated: 2026-10-24T02:49:04.254Z
 Next ids: c5 D5 R4 S1
 
 ## Goal
@@ -16,7 +16,7 @@ Neovim 0.12.6 with the tracked config in .config/nvim starts with no errors or d
 
 ## Where things stand
 
-Merged work is live: ~/.windful-ocean and the dev checkout are clean at 7f3f695a, ~/.wezterm.lua is linked, and all 55 plugins sit on their locked commits. The owner chose one PR for the batch: PR #345 (branch feat/catppuccin-wezterm-only, worktree .claude/worktrees/catppuccin-wezterm-only, head ee1bfea5) carries 85c2a78d dropping Warp support and ee1bfea5 switching WezTerm and Neovim to Catppuccin Mocha; it is open, ready for review and assigned to the owner. On the branch, WezTerm reports the built-in Catppuccin Mocha scheme (bg 1e1e2e, fg cdd6f4, cursor f5e0dc), headless Neovim loads catppuccin-mocha with matching Normal colours and no messages, and 132 of 132 repo and dotfiles tests pass. The two Warp lines are gone from ~/.warp/settings.toml; its backup still exists and differs from it only by the owner's own switch of the Warp theme to Catppuccin.
+~/.windful-ocean and the dev checkout are clean at 7f3f695a, with all 55 plugins on their locked commits. PR #345 (branch feat/catppuccin-wezterm-only, worktree .claude/worktrees/catppuccin-wezterm-only) removes Warp support and switches WezTerm and Neovim to Catppuccin Mocha; it is open, assigned to the owner, with its CI check pending. On the branch, WezTerm reports the built-in Catppuccin Mocha scheme (bg 1e1e2e, fg cdd6f4, cursor f5e0dc) and headless Neovim loads catppuccin-mocha with the same Normal colours and no messages; the live WezTerm window is unviewed. ~/.warp/settings.toml no longer holds the added Warp lines.
 
 ## Next step
 
