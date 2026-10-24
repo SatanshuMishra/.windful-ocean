@@ -16,7 +16,7 @@ config.font = wezterm.font_with_fallback {
 -- Enable font ligatures
 config.harfbuzz_features = { 'calt=1', 'clig=1', 'liga=1' }
 config.line_height = 1.00
-config.font_size = 14.0
+config.font_size = 15.0
 
 
 config.window_decorations = 'INTEGRATED_BUTTONS|RESIZE'
