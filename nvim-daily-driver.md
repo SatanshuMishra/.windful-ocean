@@ -1,11 +1,11 @@
 # nvim-daily-driver: Make Neovim 0.12 a working daily editor: startup fixes, plugin modernization, terminal parity
 Status: active
-Updated: 2026-10-24T02:48:27.920Z
+Updated: 2026-10-24T02:48:58.724Z
 Next ids: c5 D5 R4 S1
 
 ## Goal
 
-Neovim 0.12.6 with the tracked config in .config/nvim starts with no errors or deprecation warnings, every plugin is updated and deprecated or unsafe ones are replaced or removed, language servers attach, and Neovim looks the same in WezTerm and Warp.
+Neovim 0.12.6 with the tracked config in .config/nvim starts with no errors or deprecation warnings, every plugin is updated and deprecated or unsafe ones are replaced or removed, language servers attach, and (per D3 and D4) WezTerm, the only supported terminal, and Neovim share the Catppuccin Mocha palette.
 
 ## Done when
 
