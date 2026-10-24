@@ -11,7 +11,6 @@ const DOCS = [
   '.claude/README.md',
   'scripts/README.md',
   'docs/TROUBLESHOOTING.md',
-  'docs/WARP-LIKE-SETUP.md',
   '.config/nvim/README.md',
 ];
 

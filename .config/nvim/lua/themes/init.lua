@@ -2,4 +2,4 @@
 --                         THEME CONFIGURATION
 -- ============================================================================
 
-vim.cmd.colorscheme("oxocarbon")
+vim.cmd.colorscheme("catppuccin-mocha")

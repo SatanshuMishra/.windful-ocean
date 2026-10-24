@@ -26,11 +26,7 @@ config.window_decorations = "RESIZE"
 config.enable_tab_bar = false
 config.window_background_opacity = 1
 config.window_padding = { left = 20, right = 20, top = 30, bottom = 0 }
-config.colors = {
-	background = '#000000',
-	cursor_border = '#007FFF',
-	cursor_bg = '#007FFF'
-}
+config.color_scheme = 'Catppuccin Mocha'
 
 config.keys = {
 	{

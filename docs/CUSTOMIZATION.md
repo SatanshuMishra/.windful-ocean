@@ -17,15 +17,10 @@ Neovim theme: see [Theme Customization](../.config/nvim/README.md#theme-customiz
 Terminal Themes:
 WezTerm config in `.wezterm.lua`:
 ```lua
-config.colors = {
-    background = '#1e1e2e',  -- Catppuccin mocha
-    -- Or try:
-    -- background = '#1a1b26',  -- Tokyo Night
-    -- background = '#191724',  -- Rose Pine
-}
+config.color_scheme = 'Catppuccin Mocha'
 ```
 
-Neovim paints its own background to match WezTerm's, from `wezterm_background` in `.config/nvim/lua/core/autocmds.lua`, so change both together.
+Any of WezTerm's built-in scheme names works here, such as `Tokyo Night` or `rose-pine`. Neovim uses the same palette, set in `.config/nvim/lua/themes/init.lua`, so change both together.
 
 ### Modify Prompts
 

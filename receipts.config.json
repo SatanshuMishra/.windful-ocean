@@ -49,7 +49,7 @@
         "fixtures": "The tests create their own temporary homes, repositories and inputs; nothing needs seeding.",
         "special_surfaces": [
           "Neovim editor behaviour, observed with headless nvim rather than node --test",
-          "terminal rendering in WezTerm and Warp, a GUI with no headless reader",
+          "terminal rendering in WezTerm, a GUI with no headless reader",
           "hook behaviour inside a live Claude Code session"
         ]
       }

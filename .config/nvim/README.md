@@ -33,7 +33,7 @@ A comprehensive, modular Neovim configuration optimized for full-stack developme
 
 ### Development Environment
 - **Tmux Integration**: Seamless navigation between vim and tmux panes
-- **Terminal Integration**: Window title shows the current folder and file in any terminal, and the editor background matches WezTerm's black in every terminal
+- **Terminal Integration**: Window title shows the current folder and file, and WezTerm and Neovim share the Catppuccin Mocha palette
 - **Performance Optimized**: Lazy-loaded plugins for fast startup times
 - **Modular Architecture**: Easy to customize and extend
 
@@ -88,7 +88,7 @@ A comprehensive, modular Neovim configuration optimized for full-stack developme
 - **Ripgrep (rg)**: For fast text searching
 - **Make**: For building telescope-fzf-native
 - **tree-sitter CLI and a C compiler**: nvim-treesitter builds every parser locally; install the CLI with `:MasonInstall tree-sitter-cli`
-- **A Nerd Font set as the terminal's font**: For icons in Oil, the status line and diagnostics; the tracked WezTerm config uses JetBrainsMono Nerd Font Mono, and any other terminal needs it set by hand
+- **A Nerd Font set as the terminal's font**: For icons in Oil, the status line and diagnostics; the tracked WezTerm config sets JetBrainsMono Nerd Font Mono
 
 ### Installation Steps
 
@@ -157,10 +157,10 @@ Once that's done:
 | nvim-web-devicons | File icons | Beautiful file type icons |
 | nvim-highlight-colors | Color preview | Highlight color codes in files |
 | mini.indentscope | Indentation guides | Animated current-scope indent line (replaces indent-blankline.nvim) |
-| catppuccin/nvim | Color theme | Modern, eye-friendly colorscheme |
+| catppuccin/nvim | Color theme | Modern, eye-friendly colorscheme; the active theme, in its Mocha flavour |
 | tokyonight.nvim | Color theme | Dark, VS Code-inspired colorscheme |
 | rose-pine | Color theme | Muted, low-contrast colorscheme |
-| oxocarbon.nvim | Color theme | IBM's carbon design system theme; the active theme |
+| oxocarbon.nvim | Color theme | IBM's carbon design system theme |
 
 ### Development Tools
 
@@ -370,10 +370,10 @@ Edit `lua/themes/init.lua`:
 
 ```lua
 -- Available themes: catppuccin, tokyonight, rose-pine, oxocarbon
-vim.cmd.colorscheme("oxocarbon")  -- Change this line
+vim.cmd.colorscheme("catppuccin-mocha")  -- Change this line
 ```
 
-Whatever theme is active, `lua/core/autocmds.lua` repaints the editor background black (`wezterm_background`, matching `.wezterm.lua`), so Neovim looks the same in every terminal instead of showing each terminal's own background through.
+WezTerm uses the matching `Catppuccin Mocha` color scheme in `.wezterm.lua`, so change both together when you switch themes.
 
 Use this file to change the default colorscheme, customize theme settings, or add new theme integrations. For a fully custom theme, add a new file under `lua/themes/`:
 
