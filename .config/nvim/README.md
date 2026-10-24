@@ -88,7 +88,7 @@ A comprehensive, modular Neovim configuration optimized for full-stack developme
 - **Ripgrep (rg)**: For fast text searching
 - **Make**: For building telescope-fzf-native
 - **tree-sitter CLI and a C compiler**: nvim-treesitter builds every parser locally; install the CLI with `:MasonInstall tree-sitter-cli`
-- **A Nerd Font set as the terminal's font**: For icons in Oil, the status line and diagnostics; the tracked WezTerm config sets JetBrainsMono Nerd Font Mono
+- **A Nerd Font set as the terminal's font**: For icons in Oil, the status line and diagnostics; the tracked WezTerm config sets JetBrainsMono Nerd Font
 
 ### Installation Steps
 
