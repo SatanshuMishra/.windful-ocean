@@ -1,6 +1,6 @@
 # nvim-daily-driver: Make Neovim 0.12 a working daily editor: startup fixes, plugin modernization, terminal parity
 Status: active
-Updated: 2026-10-24T02:14:22.293Z
+Updated: 2026-10-24T02:15:47.253Z
 Next ids: c5 D3 R3 S1
 
 ## Goal
@@ -16,7 +16,7 @@ Neovim 0.12.6 with the tracked config in .config/nvim starts with no errors or d
 
 ## Where things stand
 
-PR SatanshuMishra/.windful-ocean#342 (branch fix/nvim-daily-driver, head f8d89caa) is open, ready and assigned to the owner. Warp's local settings carry font_name JetBrainsMono Nerd Font Mono and line_height_ratio 1.0; Warp rendering is unseen and its cursor and padding are unchanged.
+PR SatanshuMishra/.windful-ocean#342 (branch fix/nvim-daily-driver, head f8d89caa) is open, ready and assigned to the owner. Warp's local settings carry font_name JetBrainsMono Nerd Font Mono and line_height_ratio 1.0; Warp rendering is unseen and its cursor and padding are unchanged. Out-of-scope follow-ups wait as proposal cards: receipts-refresh (stale receipts.config.json) and warp-doc-fix (docs/WARP-LIKE-SETUP.md describes an uncommitted WezTerm config).
 
 ## Next step
 
