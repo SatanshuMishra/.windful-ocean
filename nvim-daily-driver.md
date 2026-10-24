@@ -1,6 +1,6 @@
 # nvim-daily-driver: Make Neovim 0.12 a working daily editor: startup fixes, plugin modernization, terminal parity
 Status: active
-Updated: 2026-10-24T02:52:29.986Z
+Updated: 2026-10-24T02:52:52.613Z
 Next ids: c5 D5 R4 S1
 
 ## Goal
@@ -16,7 +16,7 @@ Neovim 0.12.6 with the tracked config in .config/nvim starts with no errors or d
 
 ## Where things stand
 
-~/.windful-ocean and the dev checkout are clean at 7f3f695a, with all 55 plugins on their locked commits. PR #345 (branch feat/catppuccin-wezterm-only, worktree .claude/worktrees/catppuccin-wezterm-only) removes Warp support and switches WezTerm and Neovim to Catppuccin Mocha; it is open, assigned to the owner, with its CI check pending. On the branch, WezTerm reports the built-in Catppuccin Mocha scheme (bg 1e1e2e, fg cdd6f4, cursor f5e0dc) and headless Neovim loads catppuccin-mocha with the same Normal colours and no messages; the live WezTerm window is unviewed. ~/.warp/settings.toml no longer holds the added Warp lines.
+All work is merged and live: ~/.windful-ocean and the dev checkout are at ee9667df, with all 55 plugins on their locked commits, and no branch or worktree of this thread remains.
 
 ## Next step
 
