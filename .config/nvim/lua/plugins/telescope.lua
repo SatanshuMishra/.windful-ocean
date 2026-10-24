@@ -2,11 +2,23 @@
 --                      TELESCOPE FUZZY FINDER
 -- ============================================================================
 
+local function picker(name, opts)
+    return function()
+        require('telescope.builtin')[name](opts)
+    end
+end
+
+local function fuzzy_find_in_buffer()
+    require('telescope.builtin').current_buffer_fuzzy_find(require('telescope.themes').get_dropdown({
+        winblend = 10,
+        previewer = false,
+    }))
+end
+
 return {
-    -- TELESCOPE PLUGIN SPECIFICATION
     {
         'nvim-telescope/telescope.nvim',
-        branch = '0.1.x',
+        version = '*',
         cmd = "Telescope",
         dependencies = {
             'nvim-lua/plenary.nvim',
@@ -18,8 +30,19 @@ return {
                 end,
             },
         },
+        keys = {
+            { '<leader>?', picker('oldfiles'), desc = 'RECENTLY OPENED FILES' },
+            { '<leader><space>', picker('buffers'), desc = 'FIND BUFFERS' },
+            { '<leader>/', fuzzy_find_in_buffer, desc = 'FUZZY SEARCH IN BUFFER' },
+            { '<leader>gf', picker('git_files'), desc = 'SEARCH GIT FILES' },
+            { '<leader>sf', picker('find_files'), desc = 'SEARCH FILES' },
+            { '<leader>sw', picker('grep_string'), desc = 'SEARCH WORD' },
+            { '<leader>sg', picker('live_grep'), desc = 'SEARCH BY GREP' },
+            { '<leader>sh', picker('help_tags'), desc = 'SEARCH HELP' },
+            { '<leader>sd', picker('diagnostics'), desc = 'SEARCH DIAGNOSTICS' },
+            { '<leader>sr', picker('resume'), desc = 'SEARCH RESUME' },
+        },
         config = function()
-            -- TELESCOPE CONFIGURATION
             require('telescope').setup({
                 defaults = {
                     file_ignore_patterns = { "node_modules", ".git/" },
@@ -37,40 +60,7 @@ return {
                 },
             })
 
-            -- ENABLE TELESCOPE EXTENSIONS
             pcall(require('telescope').load_extension, 'fzf')
-
-            -- ================================================================
-            --                      TELESCOPE KEYMAPS
-            -- ================================================================
-
-            local builtin = require('telescope.builtin')
-            local set_keymap = vim.keymap.set
-
-            -- FILE AND BUFFER NAVIGATION
-            set_keymap('n', '<leader>?', builtin.oldfiles, { desc = 'RECENTLY OPENED FILES' })
-            set_keymap('n', '<leader><space>', builtin.buffers, { desc = 'FIND BUFFERS' })
-            set_keymap('n', '<leader>/', function()
-                builtin.current_buffer_fuzzy_find(require('telescope.themes').get_dropdown({
-                    winblend = 10,
-                    previewer = false,
-                }))
-            end, { desc = 'FUZZY SEARCH IN BUFFER' })
-
-            -- FILE SEARCH
-            set_keymap('n', '<leader>gf', builtin.git_files, { desc = 'SEARCH GIT FILES' })
-            set_keymap('n', '<leader>sf', builtin.find_files, { desc = 'SEARCH FILES' })
-
-            -- CONTENT SEARCH
-            set_keymap('n', '<leader>sw', builtin.grep_string, { desc = 'SEARCH WORD' })
-            set_keymap('n', '<leader>sg', builtin.live_grep, { desc = 'SEARCH BY GREP' })
-
-            -- HELP AND DIAGNOSTICS
-            set_keymap('n', '<leader>sh', builtin.help_tags, { desc = 'SEARCH HELP' })
-            set_keymap('n', '<leader>sd', builtin.diagnostics, { desc = 'SEARCH DIAGNOSTICS' })
-
-            -- TELESCOPE UTILITIES
-            set_keymap('n', '<leader>sr', builtin.resume, { desc = 'SEARCH RESUME' })
         end,
     },
 }

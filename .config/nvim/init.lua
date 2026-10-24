@@ -67,16 +67,5 @@ require('plugins')
 require('themes')
 
 -- ============================================================================
---                           CONFIGURATION COMPLETE
--- ============================================================================
-
--- FINAL SUCCESS MESSAGE
-vim.api.nvim_create_autocmd("VimEnter", {
-    callback = function()
-        print("🎉 SATANSHU'S NEOVIM CONFIG LOADED SUCCESSFULLY!")
-    end,
-})
-
--- ============================================================================
 --                                  END
 -- ============================================================================

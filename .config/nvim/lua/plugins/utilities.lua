@@ -8,7 +8,7 @@ return {
     -- ========================================================================
 
     {
-        'echasnovski/mini.clue',
+        'nvim-mini/mini.clue',
         version = '*',
         event = "VeryLazy",
         config = function()
@@ -67,7 +67,7 @@ return {
                     { mode = 'n', keys = '<Leader>g', desc = '+[G]it' },
                     { mode = 'n', keys = '<Leader>h', desc = '+Git [H]unk' },
                     { mode = 'n', keys = '<Leader>l', desc = '+[L]ook/List' },
-                    { mode = 'n', keys = '<Leader>p', desc = '+[P]roject/Open' },
+                    { mode = 'n', keys = '<Leader>p', desc = '+[P]roject/Session' },
                     { mode = 'n', keys = '<Leader>r', desc = '+[R]ename' },
                     { mode = 'n', keys = '<Leader>s', desc = '+[S]earch' },
                     { mode = 'n', keys = '<Leader>w', desc = '+[W]orkspace' },
@@ -106,12 +106,12 @@ return {
                 signs = true,
                 sign_priority = 8,
                 keywords = {
-                    FIX = { icon = " ", color = "error", alt = { "FIXME", "BUG", "FIXIT", "ISSUE" } },
+                    FIX = { icon = "\u{f188} ", color = "error", alt = { "FIXME", "BUG", "FIXIT", "ISSUE" } },
                     TODO = { icon = "✓", color = "info" },
-                    DEBUG = { icon = " ", color = "warning" },
-                    WARN = { icon = " ", color = "warning", alt = { "WARNING", "XXX" } },
-                    PERF = { icon = " ", alt = { "OPTIM", "PERFORMANCE", "OPTIMIZE" } },
-                    NOTE = { icon = " ", color = "hint", alt = { "INFO" } },
+                    DEBUG = { icon = "\u{ead8} ", color = "warning" },
+                    WARN = { icon = "\u{f071} ", color = "warning", alt = { "WARNING", "XXX" } },
+                    PERF = { icon = "\u{f43a} ", alt = { "OPTIM", "PERFORMANCE", "OPTIMIZE" } },
+                    NOTE = { icon = "\u{ea74} ", color = "hint", alt = { "INFO" } },
                     TEST = { icon = "⏲ ", color = "test", alt = { "TESTING", "PASSED", "FAILED" } },
                 },
                 colors = {
@@ -226,59 +226,31 @@ return {
         },
         config = function()
             require('auto-session').setup({
-                -- Enable logging for troubleshooting
                 log_level = 'error',
-                
-                -- Auto save session on exit
-                auto_save_enabled = true,
-                
-                -- Auto restore session on startup
-                auto_restore_enabled = false, -- Set to false to avoid auto-restoring, use manual restore
-                
-                -- Auto create new session if none exists
-                auto_create_enabled = true,
-                
-                -- Use current working directory as session name
-                auto_session_use_git_branch = false,
-                
-                -- Session root directory
-                auto_session_root_dir = vim.fn.stdpath('data') .. '/sessions/',
-                
-                -- Files to exclude from session
-                auto_session_suppress_dirs = {
+                auto_save = true,
+                auto_restore = false,
+                auto_create = true,
+                git_use_branch_name = false,
+                root_dir = vim.fn.stdpath('data') .. '/sessions/',
+                suppressed_dirs = {
                     '~/',
                     '~/Downloads',
                     '~/Documents',
                     '~/Desktop',
                     '/tmp',
                 },
-                
-                -- Session lens configuration for Telescope integration
                 session_lens = {
-                    buftypes_to_ignore = {}, -- list of buffer types what should not be deleted from current session
                     load_on_setup = true,
-                    theme_conf = { border = true },
                     previewer = false,
                 },
-                
-                -- Pre and post session hooks
                 pre_save_cmds = {
                     "lua vim.notify('Saving session...', vim.log.levels.INFO)"
                 },
                 post_restore_cmds = {
                     "lua vim.notify('Session restored! 🎉', vim.log.levels.INFO)"
                 },
-                
-                -- Integration with tmux session naming (if tmux is running)
-                bypass_session_save_file_types = { 'oil', 'alpha', 'dashboard' },
+                bypass_save_filetypes = { 'oil', 'alpha', 'dashboard' },
             })
-            
-            -- Update mini.clue descriptions for session management
-            local clue_ok, miniclue = pcall(require, 'mini.clue')
-            if clue_ok then
-                miniclue.config.clues = miniclue.config.clues or {}
-                table.insert(miniclue.config.clues, { mode = 'n', keys = '<Leader>p', desc = '+[P]roject/Session' })
-            end
         end,
     },
 
@@ -317,54 +289,6 @@ return {
     },
 
     {
-        'kosayoda/nvim-lightbulb',
-        event = "LspAttach",
-        config = function()
-            require('nvim-lightbulb').setup({
-                priority = 10,
-                hide_in_unfocused_buffer = true,
-                link_highlights = true,
-                validate_config = 'auto',
-                action_kinds = nil,
-                sign = {
-                    enabled = true,
-                    text = "💡",
-                    hl = "LightBulbSign",
-                },
-                virtual_text = {
-                    enabled = false,
-                    text = "💡",
-                    pos = "eol",
-                    hl = "LightBulbVirtualText",
-                    hl_mode = "combine",
-                },
-                float = {
-                    enabled = false,
-                    text = "💡",
-                    hl = "LightBulbFloatWin",
-                    win_opts = {},
-                },
-                status_text = {
-                    enabled = false,
-                    text = "💡",
-                    text_unavailable = "",
-                },
-                autocmd = {
-                    enabled = true,
-                    updatetime = 200,
-                    events = { "CursorHold", "CursorHoldI" },
-                    pattern = { "*" },
-                },
-                ignore = {
-                    clients = {},
-                    ft = {},
-                    actions_without_kind = false,
-                },
-            })
-        end,
-    },
-
-    {
         'Wansmer/symbol-usage.nvim',
         event = "LspAttach",
         config = function()
@@ -375,14 +299,12 @@ return {
                 references = { enabled = true, include_declaration = false },
                 definition = { enabled = false },
                 implementation = { enabled = false },
-                disable = { lsp = {}, filetypes = {}, cond = {} },
                 filetypes = {},
-                symbol_request_pos = 'end',
                 text_format = function(symbol)
                     local res = {}
                     
-                    local round_start = { '', 'SymbolUsageRounding' }
-                    local round_end = { '', 'SymbolUsageRounding' }
+                    local round_start = { '\u{e0b6}', 'SymbolUsageRounding' }
+                    local round_end = { '\u{e0b4}', 'SymbolUsageRounding' }
                     
                     if symbol.references then
                         local usage = symbol.references <= 1 and 'usage' or 'usages'
@@ -419,12 +341,6 @@ return {
     {
         'dnlhc/glance.nvim',
         cmd = { 'Glance' },
-        keys = {
-            { 'gd', '<cmd>Glance definitions<cr>', desc = 'LSP: Glance definitions' },
-            { 'gr', '<cmd>Glance references<cr>', desc = 'LSP: Glance references' },
-            { 'gi', '<cmd>Glance implementations<cr>', desc = 'LSP: Glance implementations' },
-            { 'gy', '<cmd>Glance type_definitions<cr>', desc = 'LSP: Glance type definitions' },
-        },
         config = function()
             require('glance').setup({
                 height = 18,
@@ -478,8 +394,8 @@ return {
                 },
                 hooks = {},
                 folds = {
-                    fold_closed = '',
-                    fold_open = '',
+                    fold_closed = '\u{f460}',
+                    fold_open = '\u{f47c}',
                     folded = true,
                 },
                 indent_lines = {

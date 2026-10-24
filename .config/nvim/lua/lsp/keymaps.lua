@@ -4,39 +4,54 @@
 
 local M = {}
 
-function M.setup()
-    -- KEYMAP HELPER FUNCTION
-    local function set_keymap(mode, lhs, rhs, opts)
-        vim.keymap.set(mode, lhs, rhs, opts or {})
+local function telescope_picker(name)
+    return function()
+        require('telescope.builtin')[name]()
+    end
+end
+
+local function map_buffer_keys(event)
+    local bufnr = event.buf
+    local client = vim.lsp.get_client_by_id(event.data.client_id)
+
+    local function nmap(keys, func, desc)
+        vim.keymap.set('n', keys, func, { buffer = bufnr, desc = 'LSP: ' .. desc })
     end
 
-    -- ========================================================================
-    --                          GLOBAL LSP KEYMAPS
-    -- ========================================================================
+    nmap('gd', '<cmd>Glance definitions<CR>', 'GLANCE DEFINITIONS')
+    nmap('gr', '<cmd>Glance references<CR>', 'GLANCE REFERENCES')
+    nmap('gI', '<cmd>Glance implementations<CR>', 'GLANCE IMPLEMENTATIONS')
+    nmap('gy', '<cmd>Glance type_definitions<CR>', 'GLANCE TYPE DEFINITIONS')
 
-    -- DIAGNOSTIC NAVIGATION (ALREADY DEFINED IN CORE BUT REPEATED FOR CLARITY)
-    set_keymap('n', '[d', vim.diagnostic.goto_prev, { desc = 'PREVIOUS DIAGNOSTIC' })
-    set_keymap('n', ']d', vim.diagnostic.goto_next, { desc = 'NEXT DIAGNOSTIC' })
-    set_keymap('n', '<leader>e', vim.diagnostic.open_float, { desc = 'OPEN DIAGNOSTIC FLOAT' })
-    set_keymap('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'OPEN DIAGNOSTICS LIST' })
+    nmap('<leader>ca', vim.lsp.buf.code_action, 'CODE ACTION')
+    nmap('<leader>D', telescope_picker('lsp_type_definitions'), 'TYPE DEFINITION')
+    nmap('<leader>docs', telescope_picker('lsp_document_symbols'), 'DOCUMENT SYMBOLS')
+    nmap('<leader>ws', telescope_picker('lsp_dynamic_workspace_symbols'), 'WORKSPACE SYMBOLS')
 
-    -- ========================================================================
-    --                         LSPSAGA INTEGRATION
-    -- ========================================================================
+    nmap('K', function() vim.lsp.buf.hover({ border = 'rounded' }) end, 'HOVER DOCUMENTATION')
+    nmap('<C-k>', function() vim.lsp.buf.signature_help({ border = 'rounded' }) end, 'SIGNATURE HELP')
 
-    -- LSPSAGA KEYMAPS (NON-CONFLICTING)
-    vim.api.nvim_create_autocmd("LspAttach", {
-        callback = function()
-            -- CHECK IF LSPSAGA IS AVAILABLE
-            local has_lspsaga = pcall(require, 'lspsaga')
-            if has_lspsaga then
-                set_keymap("n", "gl", "<cmd>Lspsaga show_line_diagnostics<CR>", { desc = "SHOW LINE DIAGNOSTICS" })
-                set_keymap("n", "[e", "<cmd>Lspsaga diagnostic_jump_prev<CR>", { desc = "PREVIOUS DIAGNOSTIC" })
-                set_keymap("n", "]e", "<cmd>Lspsaga diagnostic_jump_next<CR>", { desc = "NEXT DIAGNOSTIC" })
-                set_keymap("n", "gp", "<cmd>Lspsaga peek_definition<CR>", { desc = "PEEK DEFINITION" })
-                set_keymap("n", "<leader>lo", "<cmd>Lspsaga outline<CR>", { desc = "TOGGLE OUTLINE" })
-            end
-        end,
+    nmap('<leader>wa', vim.lsp.buf.add_workspace_folder, 'ADD WORKSPACE FOLDER')
+    nmap('<leader>wr', vim.lsp.buf.remove_workspace_folder, 'REMOVE WORKSPACE FOLDER')
+    nmap('<leader>wl', function()
+        print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
+    end, 'LIST WORKSPACE FOLDERS')
+
+    nmap('gl', '<cmd>Lspsaga show_line_diagnostics<CR>', 'SHOW LINE DIAGNOSTICS')
+    nmap('[e', '<cmd>Lspsaga diagnostic_jump_prev<CR>', 'PREVIOUS DIAGNOSTIC')
+    nmap(']e', '<cmd>Lspsaga diagnostic_jump_next<CR>', 'NEXT DIAGNOSTIC')
+    nmap('gp', '<cmd>Lspsaga peek_definition<CR>', 'PEEK DEFINITION')
+    nmap('<leader>lo', '<cmd>Lspsaga outline<CR>', 'TOGGLE OUTLINE')
+
+    if client and client.name ~= 'astro' and client:supports_method('textDocument/inlayHint') then
+        vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
+    end
+end
+
+function M.setup()
+    vim.api.nvim_create_autocmd('LspAttach', {
+        group = vim.api.nvim_create_augroup('LspBufferKeymaps', { clear = true }),
+        callback = map_buffer_keys,
     })
 end
 

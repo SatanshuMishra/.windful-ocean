@@ -74,6 +74,7 @@ Leader Key: `Space` (my choice for easy access)
 | `K` | Visual | Move selection up |
 | `J` | Visual | Move selection down |
 | `<leader>d` | Normal/Visual | Delete without copying to clipboard |
+| `<leader><space>` | Visual | Delete without copying to clipboard |
 | `<leader>v` | Normal | Paste from system clipboard |
 
 ### File Operations
@@ -87,7 +88,7 @@ Leader Key: `Space` (my choice for easy access)
 | `<leader>?` | Recently opened files (Telescope) |
 | `<leader><space>` | Find buffers (Telescope) |
 | `<leader>/` | Fuzzy search in current buffer (Telescope) |
-| `<leader>fs` | Open netrw file system |
+| `<leader>fs` | Open file explorer (Oil) |
 
 ### Harpoon Quick Access
 | Key | Action |
@@ -101,25 +102,29 @@ Leader Key: `Space` (my choice for easy access)
 ### LSP Operations
 | Key | Action |
 |-----|--------|
-| `gd` | Go to definition (Telescope; buffer-local, takes priority over Glance) |
-| `gr` | Go to references (Telescope; buffer-local, takes priority over Glance) |
-| `gI` | Go to implementation (Telescope) |
-| `gi` | Go to implementation (Glance) |
+| `gd` | Go to definition (Glance) |
+| `gr` | Go to references (Glance) |
+| `gI` | Go to implementation (Glance) |
 | `gy` | Go to type definition (Glance) |
 | `<leader>D` | Type definition (Telescope) |
 | `K` | Hover documentation |
 | `<C-k>` | Signature help |
-| `<leader>rn` | Rename symbol |
+| `<leader>rn` | Rename symbol with live preview (inc-rename) |
 | `<leader>ca` | Code actions |
 | `<leader>cf` | Format buffer |
 | `gl` | Show line diagnostics (Lspsaga) |
 | `gp` | Peek definition (Lspsaga) |
-| `]d` | Next diagnostic |
-| `[d` | Previous diagnostic |
+| `<leader>lo` | Toggle symbol outline (Lspsaga) |
+| `<leader>docs` | Document symbols (Telescope) |
+| `<leader>ws` | Workspace symbols (Telescope) |
+| `]d` | Next diagnostic, with its float |
+| `[d` | Previous diagnostic, with its float |
+| `]e` | Next diagnostic (Lspsaga) |
+| `[e` | Previous diagnostic (Lspsaga) |
 | `<leader>e` | Open diagnostic float |
 | `<leader>q` | Open diagnostics list |
 
-A language server's buffer-local mapping always wins over a plugin's global mapping for the same key — "the local buffer mappings are used before the global ones," per [`:map-local`](https://vimhelp.org/map.txt.html#%3Amap-local) — so `gd`/`gr` resolve to Telescope, not Glance, whenever a server is attached.
+Every key in this table from `gd` to `[e`, other than `<leader>rn`, `<leader>cf`, `]d` and `[d`, is buffer-local: `lua/lsp/keymaps.lua` sets it when a language server attaches, so it exists only in a buffer with a server attached.
 
 ### Git Operations
 | Key | Action |
@@ -129,6 +134,7 @@ A language server's buffer-local mapping always wins over a plugin's global mapp
 | `[c` | Previous git hunk |
 | `<leader>hp` | Preview git hunk |
 | `<leader>hs` | Stage git hunk |
+| `<leader>hu` | Unstage git hunk |
 | `<leader>hr` | Reset git hunk |
 | `<leader>hb` | Blame current line |
 | `<leader>hd` | Diff this |
@@ -176,6 +182,19 @@ A language server's buffer-local mapping always wins over a plugin's global mapp
 | `n` | Next search result (centered) |
 | `N` | Previous search result (centered) |
 
+### Treesitter Selection and Motions
+| Key | Mode | Action |
+|-----|------|--------|
+| `<C-space>` | Normal | Select the syntax node under the cursor |
+| `<C-space>` | Visual | Expand selection to the parent node |
+| `<M-space>` | Visual | Shrink selection to the child node |
+| `]m` / `[m` | Normal/Visual/Operator | Next / previous function start |
+| `]M` / `[M` | Normal/Visual/Operator | Next / previous function end |
+| `]]` / `[[` | Normal/Visual/Operator | Next / previous class start |
+| `][` / `[]` | Normal/Visual/Operator | Next / previous class end |
+| `<leader>a` | Normal | Swap parameter with the next one |
+| `<leader>A` | Normal | Swap parameter with the previous one |
+
 ### Text Objects (Mini.AI - part of my mini.nvim suite)
 | Key | Action |
 |-----|--------|
@@ -187,16 +206,19 @@ A language server's buffer-local mapping always wins over a plugin's global mapp
 | `io` | Inside block/conditional/loop |
 
 ### Surround Operations (Mini.Surround - part of my mini.nvim suite)
+
+Every surround key starts with `gs`, because `s` belongs to Flash.
+
 | Key | Action |
 |-----|--------|
-| `sa` | Add surrounding |
-| `sd` | Delete surrounding |
-| `sr` | Replace surrounding |
-| `sf` | Find surrounding (right) |
-| `sF` | Find surrounding (left) |
-| `sh` | Highlight surrounding |
+| `gsa` | Add surrounding |
+| `gsd` | Delete surrounding |
+| `gsr` | Replace surrounding |
+| `gsf` | Find surrounding (right) |
+| `gsF` | Find surrounding (left) |
+| `gsh` | Highlight surrounding |
 
-### Comments (Mini.Comment - part of my mini.nvim suite)
+### Comments (built into Neovim)
 | Key | Action |
 |-----|--------|
 | `gcc` | Toggle line comment |

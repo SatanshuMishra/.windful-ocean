@@ -115,9 +115,12 @@ brew install font-jetbrains-mono-nerd-font
 ```
 
 2. Update terminal font settings:
-- WezTerm: Already configured in my `.wezterm.lua`
-- iTerm2: Preferences → Profiles → Text → Font → JetBrains Mono
-- Terminal.app: Preferences → Profiles → Font → JetBrains Mono
+- WezTerm: Already configured in my `.wezterm.lua` (JetBrainsMono Nerd Font Mono)
+- Warp: Settings → Appearance → Text → Terminal font → JetBrainsMono Nerd Font Mono (Warp's default, Hack, has no icons)
+- iTerm2: Preferences → Profiles → Text → Font → JetBrainsMono Nerd Font Mono
+- Terminal.app: Preferences → Profiles → Font → JetBrainsMono Nerd Font Mono
+
+Plain JetBrains Mono, without "Nerd Font" in its name, has no icons either.
 
 ### Colors Not Working
 Problem: Terminal appears without colors or with wrong colors

@@ -25,6 +25,8 @@ config.colors = {
 }
 ```
 
+Neovim paints its own background to match WezTerm's, from `wezterm_background` in `.config/nvim/lua/core/autocmds.lua`, so change both together.
+
 ### Modify Prompts
 
 Switch to Starship:

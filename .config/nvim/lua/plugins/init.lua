@@ -4,7 +4,7 @@
 
 -- INSTALL LAZY.NVIM PLUGIN MANAGER
 local lazypath = vim.fn.stdpath('data') .. '/lazy/lazy.nvim'
-if not vim.loop.fs_stat(lazypath) then
+if not vim.uv.fs_stat(lazypath) then
     vim.fn.system({
         'git', 'clone', '--filter=blob:none',
         'https://github.com/folke/lazy.nvim.git',
@@ -99,7 +99,7 @@ require('lazy').setup({
                 format_on_save = function(bufnr)
                     -- ONLY FORMAT IF LSP CLIENT IS ATTACHED
                     if next(vim.lsp.get_clients({ bufnr = bufnr })) then
-                        return { timeout_ms = 500, lsp_fallback = true }
+                        return { timeout_ms = 500, lsp_format = "fallback" }
                     end
                     return false
                 end,
@@ -115,10 +115,6 @@ require('lazy').setup({
             local lint = require("lint")
             
             lint.linters_by_ft = {
-                javascript = { "eslint_d" },
-                typescript = { "eslint_d" },
-                javascriptreact = { "eslint_d" },
-                typescriptreact = { "eslint_d" },
                 php = { "phpcs" },
                 sql = { "sqlfluff" },
             }
@@ -155,6 +151,7 @@ require('lazy').setup({
     lockfile = vim.fn.stdpath("config") .. "/lazy-lock.json",
     dev = { path = "~/projects" },
     install = { missing = true, colorscheme = { "oxocarbon", "habamax" } },
+    rocks = { enabled = false },
     ui = { border = "rounded" },
     checker = { enabled = false },
     change_detection = { enabled = true, notify = false },

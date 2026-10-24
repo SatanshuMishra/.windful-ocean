@@ -44,8 +44,10 @@ opt.scrolloff = 8                  -- KEEP 8 LINES VISIBLE ABOVE/BELOW CURSOR
 opt.sidescrolloff = 8              -- KEEP 8 COLUMNS VISIBLE LEFT/RIGHT
 
 -- VISUAL CUSTOMIZATION
-opt.fillchars:append('eob', ' ')    -- REMOVE ~ AT END OF BUFFER
-opt.fillchars:append('fold', ' ')   -- CLEAN FOLD APPEARANCE
-opt.fillchars:append('foldopen', 'v')
-opt.fillchars:append('foldsep', ' ')
-opt.fillchars:append('foldclose', '>')
+opt.fillchars:append({ eob = ' ', fold = ' ', foldopen = 'v', foldsep = ' ', foldclose = '>' })
+
+opt.title = true
+opt.titlestring = "%{expand('%:p:h:t')}/%t"
+opt.titleold = vim.fn.fnamemodify(vim.fn.getcwd(), ':t')
+
+vim.env.PATH = vim.fn.stdpath('data') .. '/mason/bin:' .. vim.env.PATH

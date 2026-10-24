@@ -49,33 +49,28 @@ return {
     -- ========================================================================
 
     {
-        'theprimeagen/harpoon',
+        'ThePrimeagen/harpoon',
+        branch = 'harpoon2',
         dependencies = { "nvim-lua/plenary.nvim" },
-        keys = {
-            { "<leader>fa", desc = "HARPOON ADD FILE" },
-            { "<C-e>", desc = "HARPOON TOGGLE MENU" },
-            { "<C-1>", desc = "HARPOON FILE 1" },
-            { "<C-2>", desc = "HARPOON FILE 2" },
-            { "<C-3>", desc = "HARPOON FILE 3" },
-            { "<C-4>", desc = "HARPOON FILE 4" },
-        },
-        config = function()
-            local harpoon_mark = require("harpoon.mark")
-            local harpoon_ui = require("harpoon.ui")
-            local set_keymap = vim.keymap.set
-
-            -- HARPOON CONFIGURATION
-            set_keymap("n", "<leader>fa", harpoon_mark.add_file, { desc = "HARPOON ADD FILE" })
-            set_keymap("n", "<C-e>", harpoon_ui.toggle_quick_menu, { desc = "HARPOON TOGGLE MENU" })
-            set_keymap("n", "<leader>fl", harpoon_ui.toggle_quick_menu, { desc = "HARPOON LIST" })
-
-            -- HARPOON QUICK ACCESS
-            for i = 1, 4 do
-                set_keymap("n", "<C-" .. i .. ">", function() harpoon_ui.nav_file(i) end, 
-                    { desc = "HARPOON FILE " .. i })
-                set_keymap("n", "<leader>p" .. i, function() harpoon_ui.nav_file(i) end, 
-                    { desc = "OPEN HARPOON FILE " .. i })
+        keys = function()
+            local function toggle_menu()
+                local harpoon = require('harpoon')
+                harpoon.ui:toggle_quick_menu(harpoon:list())
             end
+            local keys = {
+                { "<leader>fa", function() require('harpoon'):list():add() end, desc = "HARPOON ADD FILE" },
+                { "<C-e>", toggle_menu, desc = "HARPOON TOGGLE MENU" },
+                { "<leader>fl", toggle_menu, desc = "HARPOON LIST" },
+            }
+            for i = 1, 4 do
+                local select_file = function() require('harpoon'):list():select(i) end
+                table.insert(keys, { "<C-" .. i .. ">", select_file, desc = "HARPOON FILE " .. i })
+                table.insert(keys, { "<leader>p" .. i, select_file, desc = "OPEN HARPOON FILE " .. i })
+            end
+            return keys
+        end,
+        config = function()
+            require('harpoon'):setup()
         end,
     },
 }

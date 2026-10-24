@@ -26,13 +26,13 @@ return {
                     -- GIT HUNK NAVIGATION
                     set_keymap('n', ']c', function()
                         if vim.wo.diff then return ']c' end
-                        vim.schedule(function() gs.next_hunk() end)
+                        vim.schedule(function() gs.nav_hunk('next') end)
                         return '<Ignore>'
                     end, { expr = true, buffer = bufnr, desc = 'NEXT GIT HUNK' })
 
                     set_keymap('n', '[c', function()
                         if vim.wo.diff then return '[c' end
-                        vim.schedule(function() gs.prev_hunk() end)
+                        vim.schedule(function() gs.nav_hunk('prev') end)
                         return '<Ignore>'
                     end, { expr = true, buffer = bufnr, desc = 'PREVIOUS GIT HUNK' })
 
@@ -41,7 +41,7 @@ return {
                     set_keymap('n', '<leader>hs', gs.stage_hunk, { buffer = bufnr, desc = 'STAGE GIT HUNK' })
                     set_keymap('n', '<leader>hr', gs.reset_hunk, { buffer = bufnr, desc = 'RESET GIT HUNK' })
                     set_keymap('n', '<leader>hS', gs.stage_buffer, { buffer = bufnr, desc = 'STAGE BUFFER' })
-                    set_keymap('n', '<leader>hu', gs.undo_stage_hunk, { buffer = bufnr, desc = 'UNDO STAGE HUNK' })
+                    set_keymap('n', '<leader>hu', gs.stage_hunk, { buffer = bufnr, desc = 'UNSTAGE GIT HUNK' })
                     set_keymap('n', '<leader>hR', gs.reset_buffer, { buffer = bufnr, desc = 'RESET BUFFER' })
                     set_keymap('n', '<leader>hb', function() gs.blame_line({ full = true }) end, 
                         { buffer = bufnr, desc = 'BLAME LINE' })
