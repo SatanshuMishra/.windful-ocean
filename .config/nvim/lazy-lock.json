@@ -16,7 +16,6 @@
   "glance.nvim": { "branch": "master", "commit": "5a8eab1c1c48bfa19a33b556328a3c553138366e" },
   "hardtime.nvim": { "branch": "main", "commit": "721a75b9a0c2eb1fb811d34507708ee315cb04eb" },
   "harpoon": { "branch": "harpoon2", "commit": "87b1a3506211538f460786c23f98ec63ad9af4e5" },
-  "hererocks": { "branch": "master", "commit": "5d77b0bafc8b96f82355ca2ce5637c00d78a065c" },
   "inc-rename.nvim": { "branch": "main", "commit": "ddff8bd3eccedf043bd73f5bf89cf90d2d6d8105" },
   "lazy.nvim": { "branch": "main", "commit": "306a05526ada86a7b30af95c5cc81ffba93fef97" },
   "lazydev.nvim": { "branch": "main", "commit": "ff2cbcba459b637ec3fd165a2be59b7bbaeedf0d" },
