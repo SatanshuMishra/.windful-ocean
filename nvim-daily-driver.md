@@ -1,6 +1,6 @@
 # nvim-daily-driver: Make Neovim 0.12 a working daily editor: startup fixes, plugin modernization, terminal parity
 Status: active
-Updated: 2026-10-24T02:49:04.254Z
+Updated: 2026-10-24T02:49:07.836Z
 Next ids: c5 D5 R4 S1
 
 ## Goal
@@ -37,5 +37,6 @@ Wait for the owner to merge PR #345; then fast-forward ~/.windful-ocean and the 
 ## Where the details live
 
 - Config: .config/nvim (live via ~/.config/nvim -> ~/.windful-ocean/.config/nvim)
-- Terminal config: .wezterm.lua (tracked, linked through scripts/dotfiles/links.json); ~/.warp/settings.toml holds two Warp lines to revert, original at ~/.warp/settings.toml.bak-2026-10-23
+- Terminal config: .wezterm.lua (tracked, linked through scripts/dotfiles/links.json)
+- Warp backup: ~/.warp/settings.toml.bak-2026-10-23, differing from the live file only by the owner's own Warp theme switch; the owner may delete it
 - Recovery notes: auto-memory lazy-rewrites-the-live-lockfile (R3's recovery) and mason-python-venvs-bind-to-one-interpreter (pylsp "not installed" when its Python vanishes)
