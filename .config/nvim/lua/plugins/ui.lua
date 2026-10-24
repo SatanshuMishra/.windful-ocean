@@ -65,7 +65,8 @@ return {
     {
         "catppuccin/nvim",
         name = "catppuccin",
-        lazy = true,
+        lazy = false,
+        priority = 1000,
         opts = {
             flavour = "mocha", -- LATTE, FRAPPE, MACCHIATO, MOCHA
             background = {
@@ -105,7 +106,9 @@ return {
                 nvimtree = false,
                 treesitter = true,
                 notify = false,
-                mini = false,
+                mini = {
+                    enabled = true,
+                },
                 telescope = true,
                 harpoon = true,
                 mason = true,
@@ -145,8 +148,7 @@ return {
     {
         'nyoom-engineering/oxocarbon.nvim',
         name = "oxocarbon",
-        lazy = false,
-        priority = 1000,
+        lazy = true,
     },
 
     -- ========================================================================
