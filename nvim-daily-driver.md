@@ -1,6 +1,6 @@
 # nvim-daily-driver: Make Neovim 0.12 a working daily editor: startup fixes, plugin modernization, terminal parity
 Status: active
-Updated: 2026-10-24T02:15:47.253Z
+Updated: 2026-10-24T02:15:49.564Z
 Next ids: c5 D3 R3 S1
 
 ## Goal
