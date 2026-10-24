@@ -1,7 +1,7 @@
 # nvim-daily-driver: Make Neovim 0.12 a working daily editor: startup fixes, plugin modernization, terminal parity
 Status: active
-Updated: 2026-10-24T02:27:20.796Z
-Next ids: c5 D3 R3 S1
+Updated: 2026-10-24T02:27:23.737Z
+Next ids: c5 D3 R4 S1
 
 ## Goal
 
@@ -30,6 +30,7 @@ Owner checks Warp rendering, says yes or no to the synced Warp cursor and paddin
 ## Open risks
 
 - R2 Warp cursor colour (theme YAML cursor key) and padding (alt_screen_padding) are cloud-synced settings; changing them edits the owner's Warp account and waits for an explicit yes.
+- R3 On a machine whose plugin clones predate the branch switches (nvim-treesitter and textobjects master->main, harpoon->harpoon2), the first start rewrites lazy-lock.json with the stale commits and :Lazy restore then obeys them; recover with git restore of the lockfile, then :Lazy restore with Neovim closed.
 
 ## Settled, do not reopen
 
