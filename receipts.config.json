@@ -1,24 +1,76 @@
 {
   "version": 1,
-  "build": {
-    "sha_source": "none",
-    "platform": "none"
-  },
-  "verify": {
-    "test_command": "node --test {test}",
-    "suite_command": "npm test",
-    "on_load_error_red": false,
-    "receipt_runs": 1
-  },
   "claim": {
-    "require_receipt_for": "any-source-change",
+    "issue_link": "closes #(\\d+)",
     "downgrade_tags": [
       "unverified-reasoned",
       "speculative",
       "reverted"
-    ]
+    ],
+    "require_receipt_for": "any-source-change"
+  },
+  "build": {
+    "sha_source": "none",
+    "platform": "none",
+    "deploy_host_patterns": [],
+    "environments": {},
+    "verify_against": "none"
+  },
+  "verify": {
+    "test_command": "node --test {test}",
+    "suite_command": "npm test",
+    "live_drive": null,
+    "on_load_error_red": false,
+    "receipt_runs": 1
+  },
+  "degrade": {
+    "on_no_receipt": "require-downgrade-tag",
+    "on_unreachable_build": "sha-bind-only"
+  },
+  "agent": {
+    "loop_skills": [
+      "gates"
+    ],
+    "staging_query_patterns": [],
+    "observe": {
+      "confirmed": true,
+      "surface": "The owner's machine: Claude Code hooks, skills, agents and rules loaded from ~/.claude, and the shell, git and editor config loaded from the home folder, all linked into the live clone ~/.windful-ocean.",
+      "value": "Exit codes and output of the hook scripts and the dotfiles CLI for a given input, the links the installer creates, and the messages and attached language servers of headless Neovim.",
+      "observe_by": "node --test over the suites in .claude/hooks/tests, .claude/lib/*/tests, .claude/skills/*/tests, scripts/repo/tests and scripts/dotfiles/tests; headless nvim for the editor config.",
+      "terminal_action": "Merging to main, then fast-forwarding ~/.windful-ocean and running node scripts/dotfiles/cli.mjs install, which makes the change live.",
+      "build_artifact": "None: the live clone ~/.windful-ocean checked out at the merged commit is what runs.",
+      "twin": "Rules restated across .claude/rules, .claude/CLAUDE.md and the agent bodies in .claude/agents.",
+      "dependent": "Claude Code sessions on this machine, zsh, git, Neovim, tmux and WezTerm, each reading the linked files.",
+      "receipt": "node --test <the touched test file>; npm test for the whole suite.",
+      "compat_boundary": "The development checkout versus the live clone ~/.windful-ocean: merged work is live only after the clone pulls, and plugin caches under ~/.claude/plugins update on their own schedule.",
+      "reach": {
+        "access": "A local shell in a checkout of this repository; no network service and no credentials.",
+        "shortcut": "Not needed: the tests point HOME at a temporary folder, so install and hook behaviour reproduces without touching the real home folder.",
+        "fixtures": "The tests create their own temporary homes, repositories and inputs; nothing needs seeding.",
+        "special_surfaces": [
+          "Neovim editor behaviour, observed with headless nvim rather than node --test",
+          "terminal rendering in WezTerm and Warp, a GUI with no headless reader",
+          "hook behaviour inside a live Claude Code session"
+        ]
+      }
+    },
+    "closeout_fixed_statuses": [
+      "Pending Retest",
+      "Verified"
+    ],
+    "repo_name": "windful-ocean",
+    "receipts_version": "0.9.3",
+    "tripwires": {
+      "g11_live": "off"
+    }
   },
   "gates": {
+    "medium": "unknown",
+    "enabled": "all",
+    "disabled": [],
+    "G8": {
+      "integration_branch": "main"
+    },
     "G11": {
       "mode": "block"
     },
@@ -34,11 +86,6 @@
     },
     "G17": {
       "downgrade_threshold": 3
-    }
-  },
-  "agent": {
-    "tripwires": {
-      "g11_live": "off"
     }
   }
 }
