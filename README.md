@@ -164,7 +164,6 @@ gh api --method POST repos/SatanshuMishra/.windful-ocean/rulesets --input .githu
 | [`docs/CUSTOMIZATION.md`](docs/CUSTOMIZATION.md) | You want to personalize a part of the setup rather than replace it. |
 | [`docs/KEYBINDINGS.md`](docs/KEYBINDINGS.md) | You forgot a shortcut. |
 | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | Something in the install or the tooling is broken. |
-| [`docs/WARP-LIKE-SETUP.md`](docs/WARP-LIKE-SETUP.md) | You want the terminal to feel like Warp. |
 | [`docs/security/bash-gate-threat-model.md`](docs/security/bash-gate-threat-model.md) | You need to understand what the Bash-command gate defends against. |
 | [`.config/nvim/README.md`](.config/nvim/README.md) | You need the full Neovim reference. |
 | [`.claude/README.md`](.claude/README.md) | You need the full agent-configuration reference. |
