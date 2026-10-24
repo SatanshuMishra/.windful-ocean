@@ -1,6 +1,6 @@
 # nvim-daily-driver: Make Neovim 0.12 a working daily editor: startup fixes, plugin modernization, terminal parity
 Status: active
-Updated: 2026-10-24T02:37:00.942Z
+Updated: 2026-10-24T02:48:27.920Z
 Next ids: c5 D5 R4 S1
 
 ## Goal
@@ -16,11 +16,11 @@ Neovim 0.12.6 with the tracked config in .config/nvim starts with no errors or d
 
 ## Where things stand
 
-Merged work is live: ~/.windful-ocean and the dev checkout are clean at 7f3f695a, ~/.wezterm.lua is linked, and all 55 plugins sit on their locked commits. Branch feat/catppuccin-wezterm-only (worktree .claude/worktrees/catppuccin-wezterm-only, cut from 7f3f695a) holds no changes yet; it is to carry two commits, removing Warp support and switching WezTerm and Neovim to Catppuccin Mocha. The owner asked whether changes can skip branches: the "Require PR for Merge" ruleset on main has no bypass, so a PR is required unless the owner adds a bypass.
+Merged work is live: ~/.windful-ocean and the dev checkout are clean at 7f3f695a, ~/.wezterm.lua is linked, and all 55 plugins sit on their locked commits. The owner chose one PR for the batch: PR #345 (branch feat/catppuccin-wezterm-only, worktree .claude/worktrees/catppuccin-wezterm-only, head ee1bfea5) carries 85c2a78d dropping Warp support and ee1bfea5 switching WezTerm and Neovim to Catppuccin Mocha; it is open, ready for review and assigned to the owner. On the branch, WezTerm reports the built-in Catppuccin Mocha scheme (bg 1e1e2e, fg cdd6f4, cursor f5e0dc), headless Neovim loads catppuccin-mocha with matching Normal colours and no messages, and 132 of 132 repo and dotfiles tests pass. The two Warp lines are gone from ~/.warp/settings.toml; its backup still exists and differs from it only by the owner's own switch of the Warp theme to Catppuccin.
 
 ## Next step
 
-Owner chooses one PR for the batch, or adds a ruleset bypass so direct-lane changes push to main; then build both commits, verify with headless nvim and a WezTerm config check, and revert the two Warp lines in ~/.warp/settings.toml.
+Wait for the owner to merge PR #345; then fast-forward ~/.windful-ocean and the dev checkout, remove the catppuccin-wezterm-only worktree and branch, restart Neovim in WezTerm, tick c4 with the scheme check and probe colours, and close the thread.
 
 ## Decisions in force
 
