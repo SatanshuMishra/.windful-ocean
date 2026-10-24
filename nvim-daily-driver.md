@@ -1,6 +1,6 @@
 # nvim-daily-driver: Make Neovim 0.12 a working daily editor: startup fixes, plugin modernization, terminal parity
 Status: active
-Updated: 2026-10-24T02:27:23.737Z
+Updated: 2026-10-24T02:27:26.897Z
 Next ids: c5 D3 R4 S1
 
 ## Goal
@@ -37,4 +37,4 @@ Owner checks Warp rendering, says yes or no to the synced Warp cursor and paddin
 ## Where the details live
 
 - Config: .config/nvim (live via ~/.config/nvim -> ~/.windful-ocean/.config/nvim)
-- Terminal configs: .wezterm.lua (tracked, linked through scripts/dotfiles/links.json on the PR branch); ~/.warp/settings.toml (untracked, backup at ~/.warp/settings.toml.bak-2026-10-23)
+- Terminal configs: .wezterm.lua (tracked, linked through scripts/dotfiles/links.json); ~/.warp/settings.toml (untracked, backup at ~/.warp/settings.toml.bak-2026-10-23)
