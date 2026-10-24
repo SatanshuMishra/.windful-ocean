@@ -8,44 +8,30 @@ return {
     -- ========================================================================
 
     {
-        "andweeb/presence.nvim",
+        "IogaMaster/neocord",
         event = "VeryLazy",
         config = function()
-            local utils = require('core.utils')
+            local presence = require('core.utils').DiscordPresence
 
-            require("presence").setup({
-                auto_update = true,
-                neovim_image_text = "NEOVIM",
-                main_image = "neovim",
+            local function repository_button(_, repo_url)
+                if not repo_url or presence.get_matching_project() then
+                    return nil
+                end
+                return { { label = "View Repository", url = repo_url } }
+            end
+
+            require("neocord").setup({
+                logo_tooltip = "NEOVIM",
+                main_image = "logo",
                 blacklist = {},
-                buttons = true,
+                buttons = repository_button,
                 show_time = true,
-                
-                -- Override the details field directly
-                format_details = function(filename, filepath)
-                    local project_name = vim.fn.fnamemodify(vim.fn.getcwd(), ":t")
-                    return string.format("🚧 %s", project_name)
+                editing_text = presence.get_editing_text,
+                reading_text = presence.get_reading_text,
+                file_explorer_text = presence.get_explorer_text,
+                workspace_text = function(project_name)
+                    return presence.get_workspace_text(project_name)
                 end,
-                
-                -- Custom presence states
-                format_state = function(filename, filepath)
-                    local filetype = vim.bo.filetype
-                    local filesize = vim.fn.getfsize(filepath)
-                    
-                    if filesize < 0 then
-                        return "Browsing files"
-                    elseif filetype == "TelescopePrompt" then
-                        return "Searching"
-                    elseif filepath:find("lazy.nvim") then
-                        return "Managing plugins"
-                    elseif vim.bo.modified then
-                        return string.format("Editing `%s`", filename)
-                    else
-                        return string.format("Reading `%s`", filename)
-                    end
-                end,
-                
-                -- Simplified line number text
                 line_number_text = "Line %s of %s",
             })
         end,

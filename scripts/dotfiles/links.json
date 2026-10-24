@@ -2,6 +2,7 @@
   "links": [
     { "source": ".zshrc", "target": ".zshrc" },
     { "source": ".gitattributes_global", "target": ".gitattributes_global" },
+    { "source": ".wezterm.lua", "target": ".wezterm.lua" },
     { "source": ".gitconfig", "target": ".gitconfig.dotfiles" },
     { "source": ".config/git", "target": ".config/git" },
     { "source": ".config/nvim", "target": ".config/nvim" },

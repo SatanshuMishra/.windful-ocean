@@ -33,7 +33,7 @@ A comprehensive, modular Neovim configuration optimized for full-stack developme
 
 ### Development Environment
 - **Tmux Integration**: Seamless navigation between vim and tmux panes
-- **Terminal Integration**: WezTerm tab title updates, terminal enhancements
+- **Terminal Integration**: Window title shows the current folder and file in any terminal, and the editor background matches WezTerm's black in every terminal
 - **Performance Optimized**: Lazy-loaded plugins for fast startup times
 - **Modular Architecture**: Easy to customize and extend
 
@@ -46,8 +46,6 @@ A comprehensive, modular Neovim configuration optimized for full-stack developme
 ├── LICENSE.md              # MIT License (this config derives from kickstart.nvim)
 ├── lazy-lock.json          # Plugin version lockfile
 ├── .sql-formatter.json     # sql-formatter config (MySQL dialect) for SQL formatting
-├── ftdetect/              # File type detection
-│   └── astro.lua          # Astro framework support
 ├── lua/
 │   ├── core/              # Core Neovim functionality
 │   │   ├── options.lua    # Editor settings and vim options
@@ -63,14 +61,14 @@ A comprehensive, modular Neovim configuration optimized for full-stack developme
 │   │   │   └── init.lua   # nvim-lspconfig spec, capabilities, diagnostics
 │   │   ├── telescope.lua  # Fuzzy finder configuration
 │   │   ├── completion.lua # Code completion and snippets
-│   │   ├── treesitter.lua # Syntax highlighting
+│   │   ├── treesitter.lua # Syntax highlighting, node selection, function and class motions
 │   │   ├── debug.lua      # Debug adapters and configuration
 │   │   ├── git.lua        # Git integration tools
 │   │   ├── navigation.lua # File management tools
 │   │   ├── ui.lua         # Visual enhancements and themes
 │   │   ├── editor.lua     # Editing enhancements
 │   │   ├── tools.lua      # Development tools
-│   │   ├── mini.lua       # Mini.nvim suite: comment, surround, pairs, indentscope, ai, hipatterns (replaces Comment.nvim, nvim-autopairs, indent-blankline.nvim)
+│   │   ├── mini.lua       # Mini.nvim suite: surround, pairs, indentscope, ai (replaces nvim-autopairs, indent-blankline.nvim; commenting is built into Neovim)
 │   │   └── utilities.lua  # Utility plugins
 │   └── themes/
 │       └── init.lua       # Theme configuration
@@ -83,13 +81,14 @@ A comprehensive, modular Neovim configuration optimized for full-stack developme
 
 ### Prerequisites
 
-- **Neovim 0.9+**: Latest stable version recommended
+- **Neovim 0.12+**: The LSP setup uses `vim.lsp.config` and `vim.lsp.enable`, and node selection uses `vim.treesitter.select`, all new in 0.12
 - **Git**: For plugin management and version control
 - **Node.js**: Required for many language servers
 - **Python 3**: For Python language server and formatters
 - **Ripgrep (rg)**: For fast text searching
 - **Make**: For building telescope-fzf-native
-- **A Nerd Font**: For proper icon display
+- **tree-sitter CLI and a C compiler**: nvim-treesitter builds every parser locally; install the CLI with `:MasonInstall tree-sitter-cli`
+- **A Nerd Font set as the terminal's font**: For icons in Oil, the status line and diagnostics; the tracked WezTerm config uses JetBrainsMono Nerd Font Mono, and any other terminal needs it set by hand
 
 ### Installation Steps
 
@@ -105,7 +104,8 @@ Once that's done:
 
 1. **Start Neovim**: `nvim`
 2. **Wait for plugin installation**: Lazy.nvim installs all plugins automatically on first launch.
-3. **Install language servers**: Open Mason with `:Mason` and install the servers you want — see [Language Servers](#language-servers).
+3. **Install the tree-sitter CLI**: `:MasonInstall tree-sitter-cli`, then restart Neovim so the parsers build.
+4. **Install language servers**: Open Mason with `:Mason` and install the servers you want — see [Language Servers](#language-servers).
 
 ### Environment Variables
 
@@ -117,10 +117,10 @@ Once that's done:
 
 | Plugin | Purpose | Key Features |
 |--------|---------|--------------|
-| nvim-lspconfig | LSP client configuration | 18 language servers, auto-completion |
+| nvim-lspconfig | Server definitions for `vim.lsp.config` | 18 language servers, enabled with `vim.lsp.enable` |
 | mason.nvim | LSP server manager | Easy installation and management |
 | fidget.nvim | LSP progress indicator | Visual feedback for LSP operations |
-| neodev.nvim | Neovim Lua development | Enhanced Lua LSP for Neovim config |
+| lazydev.nvim | Neovim Lua development | Neovim API types for lua_ls, loaded only in Lua files (replaces the archived neodev.nvim) |
 | schemastore.nvim | JSON schema validation | Auto-completion for JSON files |
 
 ### Code Completion & Snippets
@@ -139,7 +139,7 @@ Once that's done:
 |--------|---------|--------------|
 | telescope.nvim | Fuzzy finder | File search, live grep, symbols |
 | oil.nvim | File manager | Edit directories like buffers |
-| harpoon | Quick file access | Mark and navigate to files quickly |
+| harpoon (harpoon2) | Quick file access | Mark and navigate to files quickly |
 | flash.nvim | Motion enhancement | Improved f/t and search motions |
 
 ### Git Integration
@@ -160,7 +160,7 @@ Once that's done:
 | catppuccin/nvim | Color theme | Modern, eye-friendly colorscheme |
 | tokyonight.nvim | Color theme | Dark, VS Code-inspired colorscheme |
 | rose-pine | Color theme | Muted, low-contrast colorscheme |
-| oxocarbon.nvim | Color theme | IBM's carbon design system theme |
+| oxocarbon.nvim | Color theme | IBM's carbon design system theme; the active theme |
 
 ### Development Tools
 
@@ -169,8 +169,9 @@ Once that's done:
 | nvim-dap | Debug adapter | Debug support for multiple languages |
 | conform.nvim | Code formatting | Multi-language code formatter |
 | nvim-lint | Code linting | Real-time code analysis |
-| nvim-treesitter | Syntax highlighting | Advanced syntax highlighting |
-| presence.nvim | Discord integration | Rich presence with tmux awareness |
+| nvim-treesitter | Parser installer (main branch) | Highlighting and indentation from locally built parsers |
+| nvim-treesitter-textobjects | Code motions | Jump between functions and classes, swap parameters |
+| neocord | Discord integration | Rich presence with tmux awareness and `NVIM_HIDDEN_PROJECT_PATH` redaction (replaces the unmaintained presence.nvim) |
 | nvim-silicon | Code screenshots | Beautiful code screenshots |
 
 ### Utilities
@@ -181,7 +182,6 @@ Once that's done:
 | todo-comments.nvim | TODO management | Highlight and navigate TODO comments |
 | trouble.nvim | Diagnostics viewer | Better diagnostic and quickfix lists |
 | lspsaga.nvim | LSP enhancements | Enhanced LSP UI and actions |
-| mini.comment | Comment toggling | Line and block commenting (replaces Comment.nvim) |
 
 ## Keybinding Reference
 
@@ -270,7 +270,7 @@ Each language server is configured with optimal settings:
 | Command | Description |
 |---------|-------------|
 | `:ConformInfo` | Show formatter information |
-| `:EslintFixAll` | Fix all ESLint issues |
+| `:LspEslintFixAll` | Fix all ESLint issues (also runs on save) |
 | `:TSUpdate` | Update Treesitter parsers |
 
 ### Theme Management
@@ -285,13 +285,10 @@ Each language server is configured with optimal settings:
 
 1. **Open Mason**: `:Mason`
 2. **Install server**: Find and install your language server, or run it directly: `:MasonInstall your-language-server`
-3. **Add configuration**: Edit `lua/lsp/servers.lua`:
+3. **Add configuration**: Add an entry to the `servers` table in `lua/lsp/servers.lua`. `M.setup()` passes each entry to `vim.lsp.config` and enables every server in the table, and the shared completion capabilities and LSP keymaps apply on their own:
 
 ```lua
--- EXAMPLE: Adding Go language server
-lspconfig.gopls.setup({
-    capabilities = capabilities,
-    on_attach = on_attach,
+gopls = {
     settings = {
         gopls = {
             analyses = {
@@ -300,7 +297,7 @@ lspconfig.gopls.setup({
             staticcheck = true,
         },
     },
-})
+},
 ```
 
 ### Adding New Plugins
@@ -373,8 +370,10 @@ Edit `lua/themes/init.lua`:
 
 ```lua
 -- Available themes: catppuccin, tokyonight, rose-pine, oxocarbon
-vim.cmd.colorscheme("catppuccin-mocha")  -- Change this line
+vim.cmd.colorscheme("oxocarbon")  -- Change this line
 ```
+
+Whatever theme is active, `lua/core/autocmds.lua` repaints the editor background black (`wezterm_background`, matching `.wezterm.lua`), so Neovim looks the same in every terminal instead of showing each terminal's own background through.
 
 Use this file to change the default colorscheme, customize theme settings, or add new theme integrations. For a fully custom theme, add a new file under `lua/themes/`:
 
@@ -420,7 +419,7 @@ vim.opt_local.shiftwidth = 2
 vim.opt_local.tabstop = 2
 
 -- Project-specific LSP settings
-require('lspconfig').tsserver.setup({
+vim.lsp.config('ts_ls', {
     settings = {
         typescript = {
             preferences = {
@@ -437,7 +436,7 @@ require('lspconfig').tsserver.setup({
 
 #### Neovim Won't Start
 ```bash
-# Check Neovim version (needs 0.9+)
+# Check Neovim version (needs 0.12+)
 nvim --version
 
 # Start with minimal config to test whether the problem is this config
@@ -542,7 +541,7 @@ vim.opt.swapfile = false    -- Disable swap files
 #### Debugging
 - Enable verbose mode: `nvim -V9nvim.log`
 - Check overall health: `:checkhealth` (or headless: `nvim -c 'checkhealth' -c 'qall'`)
-- Check a specific component: `:checkhealth nvim`, `:checkhealth lsp`, `:checkhealth treesitter`, `:checkhealth telescope`
+- Check a specific component: `:checkhealth nvim`, `:checkhealth vim.lsp`, `:checkhealth nvim-treesitter`, `:checkhealth telescope`, `:checkhealth vim.deprecated`
 - View messages: `:messages`
 
 #### Community Resources
@@ -562,6 +561,6 @@ This configuration is built on the Neovim ecosystem and incorporates ideas from 
 - All plugin authors and maintainers
 - The vibrant Neovim community
 
-**Last Updated**: January 27, 2025  
+**Last Updated**: October 23, 2026  
 **Author**: Satanshu Mishra  
 **Version**: 2.0 (Modular Architecture)

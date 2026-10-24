@@ -30,17 +30,14 @@ set_keymap("v", "J", ":m '>+1<CR>gv=gv", { desc = "MOVE SELECTION DOWN" })
 -- DELETE WITHOUT COPYING TO CLIPBOARD
 set_keymap({ "n", "v" }, "<leader>d", [["_d]], { desc = 'DELETE WITHOUT COPYING' })
 set_keymap("n", "<leader>dd", [["_dd]], { desc = 'DELETE LINE WITHOUT COPYING' })
-set_keymap({ "n", "v" }, "<leader><space>", [["_d]], { desc = 'DELETE WITHOUT COPYING' })
+set_keymap("v", "<leader><space>", [["_d]], { desc = 'DELETE WITHOUT COPYING' })
 
 -- SYSTEM CLIPBOARD
 set_keymap('n', '<leader>v', '"+p', { desc = 'PASTE FROM SYSTEM CLIPBOARD' })
 
--- FILE NAVIGATION
-set_keymap("n", "-", "<CMD>Oil<CR>", { desc = "OPEN PARENT DIRECTORY" })
-set_keymap('n', '<leader>fs', vim.cmd.Ex, { desc = "OPEN NETRW FILE SYSTEM" })
+set_keymap('n', '<leader>fs', '<CMD>Oil<CR>', { desc = "OPEN FILE EXPLORER" })
 
--- DIAGNOSTIC NAVIGATION
-set_keymap('n', '[d', vim.diagnostic.goto_prev, { desc = 'PREVIOUS DIAGNOSTIC' })
-set_keymap('n', ']d', vim.diagnostic.goto_next, { desc = 'NEXT DIAGNOSTIC' })
+set_keymap('n', '[d', function() vim.diagnostic.jump({ count = -1, float = true }) end, { desc = 'PREVIOUS DIAGNOSTIC' })
+set_keymap('n', ']d', function() vim.diagnostic.jump({ count = 1, float = true }) end, { desc = 'NEXT DIAGNOSTIC' })
 set_keymap('n', '<leader>e', vim.diagnostic.open_float, { desc = 'OPEN DIAGNOSTIC FLOAT' })
 set_keymap('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'OPEN DIAGNOSTICS LIST' })
