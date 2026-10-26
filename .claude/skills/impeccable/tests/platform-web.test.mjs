@@ -1,17 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { read, headings } from './skill-files.mjs';
-
-const WEB_SECTIONS = Object.freeze([
-  'Targets',
-  'Contrast and type',
-  'Destructive actions',
-  'Unavailable actions',
-  'Progress',
-  'Over media',
-  'Placement',
-  'Sources',
-]);
+import { read, headings, sectionLines, PLATFORM_SECTIONS } from './skill-files.mjs';
 
 const LINKED_FILES = Object.freeze([
   'color-and-contrast.md',
@@ -25,26 +14,17 @@ const LINKED_FILES = Object.freeze([
 const LINK = /\]\((\.\.\/[^)\s]+\.md)\)/g;
 const MAX_UNCOPIED_WORDS = 8;
 
-function section(text, name) {
-  const marker = `\n## ${name}\n`;
-  const start = text.indexOf(marker);
-  assert.notEqual(start, -1, `web.md has no ${name} section`);
-  const rest = text.slice(start + marker.length);
-  const next = rest.search(/^## /m);
-  return next === -1 ? rest : rest.slice(0, next);
-}
-
 function wordCount(line) {
   return line.split(/\s+/).filter(Boolean).length;
 }
 
 test('web reference links every section to an existing reference', () => {
   const text = read('reference/platforms/web.md');
-  assert.deepEqual(headings(text, 2), WEB_SECTIONS);
+  assert.deepEqual(headings(text, 2), PLATFORM_SECTIONS);
 
   const linked = new Set();
-  for (const name of WEB_SECTIONS.slice(0, 7)) {
-    const targets = [...section(text, name).matchAll(LINK)].map((match) => match[1]);
+  for (const name of PLATFORM_SECTIONS.slice(0, 7)) {
+    const targets = [...sectionLines(text, name).join('\n').matchAll(LINK)].map((match) => match[1]);
     assert.ok(targets.length >= 1, `${name} links no reference`);
     for (const target of targets) {
       const file = target.slice('../'.length);
@@ -54,7 +34,7 @@ test('web reference links every section to an existing reference', () => {
     }
   }
 
-  const sources = section(text, 'Sources');
+  const sources = sectionLines(text, 'Sources').join('\n');
   assert.match(sources, /https:\/\/(?:[\w-]+\.)*w3\.org\/\S+/);
 
   const linkedLines = new Set(

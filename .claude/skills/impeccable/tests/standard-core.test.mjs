@@ -1,20 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { read, headings } from './skill-files.mjs';
+import { read, headings, sectionLines } from './skill-files.mjs';
 
 const CONTRACT_FIELDS = Object.freeze(['Role', 'Surface', 'States', 'Form factors', 'Input methods']);
 const ELEMENT_STATES = Object.freeze(['idle', 'loading', 'unavailable', 'error', 'empty']);
 const RENDER_FRAMEWORKS = Object.freeze(['Flutter', 'Web', 'SwiftUI', 'Jetpack Compose', 'WinUI']);
 const LOADER_CALL = "node <this skill's base directory>/scripts/load-context.mjs";
-
-function section(text, heading) {
-  const lines = text.split('\n');
-  const start = lines.indexOf(`## ${heading}`);
-  if (start === -1) return Object.freeze([]);
-  const rest = lines.slice(start + 1);
-  const end = rest.findIndex((line) => line.startsWith('## '));
-  return Object.freeze(end === -1 ? rest : rest.slice(0, end));
-}
 
 function fieldDefault(lines, field) {
   const fieldIndex = lines.findIndex((line) => line.startsWith(`**${field}**`));
@@ -23,13 +14,13 @@ function fieldDefault(lines, field) {
 }
 
 function contractDefaults() {
-  return section(read('reference/standard.md'), 'Element contract').filter((line) => line.startsWith('Default:'));
+  return sectionLines(read('reference/standard.md'), 'Element contract').filter((line) => line.startsWith('Default:'));
 }
 
 test('core carries the element contract with a default per field', () => {
   const text = read('reference/standard.md');
   assert.ok(headings(text, 2).includes('Element contract'), 'standard.md has an Element contract section');
-  const lines = section(text, 'Element contract');
+  const lines = sectionLines(text, 'Element contract');
   for (const field of CONTRACT_FIELDS) {
     const line = fieldDefault(lines, field);
     assert.ok(line, `the contract names the field ${field}`);
@@ -57,7 +48,7 @@ test('core never asks and logs derived context', () => {
   const text = read('reference/standard.md');
   assert.ok(headings(text, 2).includes('Never ask'), 'standard.md has a Never ask section');
   assert.ok(
-    section(text, 'Never ask').some((line) => line.includes('never asks a question')),
+    sectionLines(text, 'Never ask').some((line) => line.includes('never asks a question')),
     'a sentence says the standard path never asks a question',
   );
   const interviewLines = text.split('\n').filter((line) => /\b(teach|shape|craft)\b/i.test(line));
@@ -72,7 +63,7 @@ test('core never asks and logs derived context', () => {
 test('core gives a render method per framework and two looks', () => {
   const text = read('reference/standard.md');
   assert.ok(headings(text, 2).includes('Render and look'), 'standard.md has a Render and look section');
-  const lines = section(text, 'Render and look');
+  const lines = sectionLines(text, 'Render and look');
   const body = lines.join('\n');
   const rows = lines.filter((line) => line.startsWith('| '));
   for (const framework of RENDER_FRAMEWORKS) {
