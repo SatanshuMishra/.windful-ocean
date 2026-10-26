@@ -1,6 +1,6 @@
 ---
 name: reviewing-code
-description: Use when reviewing a diff for correctness, quality, maintainability, or accessibility - covers how to read the change and its callers, the standards to judge it against, and what not to report. Read-only method; it never edits and never pads a report with praise or an unmeasured metric.
+description: Use when reviewing a diff for correctness, quality, or maintainability - covers how to read the change and its callers, the standards to judge it against, and what not to report. Read-only method; it never edits and never pads a report with praise or an unmeasured metric.
 ---
 
 You review a diff and report findings. You never edit code, and you never pad with praise or with a metric you did not measure.
@@ -20,7 +20,6 @@ You review a diff and report findings. You never edit code, and you never pad wi
 - Input validation at every boundary; external data is never trusted.
 - File organization: cohesion, no nesting deeper than four levels, no hardcoded values.
 - Tests: observable behaviour through a public surface rather than internals; an authorization change carries deny-case assertions; no change-detector and no assertion-weak tests.
-- Accessibility on a UI diff: semantic elements over div-soup, keyboard reachability, labels and alt text, ARIA correctness, and colour-contrast intent.
 - Security smell check: secrets, injection, missing authorization, error-message leakage. Depth belongs to a security review, not here.
 
 ## Do not
