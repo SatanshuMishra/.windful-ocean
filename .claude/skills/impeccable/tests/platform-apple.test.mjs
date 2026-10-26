@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { read, headings, sectionLines, PLATFORM_SECTIONS } from './skill-files.mjs';
+import { read, headings, sectionLines, uncitedRules, PLATFORM_SECTIONS } from './skill-files.mjs';
 
 const OWNER_DOMAIN = 'developer.apple.com';
 
@@ -12,4 +12,8 @@ test('apple reference has every section and official sources', () => {
     urls.some((url) => new URL(url).hostname === OWNER_DOMAIN),
     `Sources lists no https URL on ${OWNER_DOMAIN}`,
   );
+});
+
+test('apple platform rules each cite a numbered Sources entry', () => {
+  assert.deepEqual(uncitedRules(read('reference/platforms/apple.md')), []);
 });

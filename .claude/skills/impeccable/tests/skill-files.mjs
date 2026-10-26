@@ -36,6 +36,23 @@ export function sectionLines(text, heading) {
   return Object.freeze(end === -1 ? rest : rest.slice(0, end));
 }
 
+const CITATION = /\(Sources? (\d+(?:, \d+)*)\)\s*$/;
+const FROM_THE_STANDARD = /^- From the standard's /;
+
+export function uncitedRules(text) {
+  const lines = text.split('\n');
+  const sourcesAt = lines.indexOf('## Sources');
+  const ruleLines = sourcesAt === -1 ? lines : lines.slice(0, sourcesAt);
+  const sourceCount = sectionLines(text, 'Sources').filter((line) => /^\d+\. https:\/\//.test(line)).length;
+  const citesKnownSources = (line) => {
+    const match = line.match(CITATION);
+    return match !== null && match[1].split(', ').map(Number).every((n) => n >= 1 && n <= sourceCount);
+  };
+  return Object.freeze(
+    ruleLines.filter((line) => line.startsWith('- ') && !FROM_THE_STANDARD.test(line) && !citesKnownSources(line)),
+  );
+}
+
 export function headings(text, level) {
   const marker = `${'#'.repeat(level)} `;
   return Object.freeze(
