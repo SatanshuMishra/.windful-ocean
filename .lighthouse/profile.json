@@ -18,7 +18,9 @@
   "suite": {
     "command": "npm test",
     "junit": null,
-    "timeout_minutes": null
+    "timeout_minutes": null,
+    "rerun": "npm test -- --test-name-pattern {names_regex}",
+    "isolated": true
   },
   "surfaces": [
     {
@@ -150,15 +152,13 @@
       "trials": 1
     },
     {
-      "name": "Stop and Notification hooks",
-      "kind": "Claude Code Stop and Notification hooks: completion and input sounds, and the graphify refresh",
+      "name": "Stop hook",
+      "kind": "Claude Code Stop hook: the graphify refresh",
       "paths": [
-        ".claude/hooks/notify-complete.sh",
-        ".claude/hooks/notify-input.sh",
         ".claude/hooks/graphify-refresh.sh",
         ".claude/hooks/graphify-common.sh"
       ],
-      "driver": "pipe Stop or Notification event JSON on stdin to bash .claude/hooks/<hook>.sh with HOME set to a temporary directory and cwd and CLAUDE_PROJECT_DIR set to a scratch git repository, and read the exit code and any graphify-out change in the scratch repository; they have no test file of their own",
+      "driver": "pipe Stop event JSON on stdin to bash .claude/hooks/graphify-refresh.sh with HOME set to a temporary directory and cwd and CLAUDE_PROJECT_DIR set to a scratch git repository, and read the exit code and any graphify-out change in the scratch repository; it has no test file of its own",
       "available": true,
       "sign_in": {
         "method": "none",
