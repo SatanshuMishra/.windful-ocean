@@ -37,19 +37,29 @@ export function sectionLines(text, heading) {
 }
 
 const CITATION = /\(Sources? (\d+(?:, \d+)*)\)\s*$/;
+const SOURCE_ENTRY = /^(\d+)\. https:\/\//;
+const NO_PLATFORM_RULE = "No platform rule; the standard's default applies.";
 const FROM_THE_STANDARD = /^- From the standard's /;
 
+function isRuleLine(line) {
+  return line.trim() !== '' && !line.startsWith('#') && line !== NO_PLATFORM_RULE && !FROM_THE_STANDARD.test(line);
+}
+
 export function uncitedRules(text) {
-  const lines = text.split('\n');
-  const sourcesAt = lines.indexOf('## Sources');
-  const ruleLines = sourcesAt === -1 ? lines : lines.slice(0, sourcesAt);
-  const sourceCount = sectionLines(text, 'Sources').filter((line) => /^\d+\. https:\/\//.test(line)).length;
+  const labels = new Set(
+    sectionLines(text, 'Sources')
+      .map((line) => line.match(SOURCE_ENTRY))
+      .filter(Boolean)
+      .map((match) => Number(match[1])),
+  );
   const citesKnownSources = (line) => {
     const match = line.match(CITATION);
-    return match !== null && match[1].split(', ').map(Number).every((n) => n >= 1 && n <= sourceCount);
+    return match !== null && match[1].split(', ').every((label) => labels.has(Number(label)));
   };
   return Object.freeze(
-    ruleLines.filter((line) => line.startsWith('- ') && !FROM_THE_STANDARD.test(line) && !citesKnownSources(line)),
+    PLATFORM_SECTIONS.filter((heading) => heading !== 'Sources')
+      .flatMap((heading) => sectionLines(text, heading))
+      .filter((line) => isRuleLine(line) && !citesKnownSources(line)),
   );
 }
 
