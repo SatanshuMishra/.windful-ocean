@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: active
-Updated: 2026-10-28T06:26:01.989Z
+Updated: 2026-10-28T06:26:03.692Z
 Next ids: c3 D2 R1 S1
 
 ## Goal
@@ -18,7 +18,7 @@ MSP reviewer-first-format is committed and held on branch mitosis/reviewer-first
 
 ## Next step
 
-When the validator returns, save its array as review/round-1/reviewer-first-format.verdicts.json, then run pipeline record and pipeline verdict, and fix every confirmed blocker and advisory on the MSP branch.
+Ship: commit GLOSSARY.md and docs/adr/ in the MSP worktree, write the pipeline comment, record the ship boundary, run SHIP=1 run.zsh --resume, then open the pull request through the GitHub MCP, assign it and post the comment.
 
 Needs: D1.
 
