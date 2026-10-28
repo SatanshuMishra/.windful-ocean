@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T09:10:25.031Z
+Updated: 2026-10-28T09:10:27.205Z
 Next ids: c3 D2 R2 S1
 
 ## Goal
@@ -18,7 +18,7 @@ The round 1 fix pass is committed on MSP branch mitosis/step-commits-render-fiel
 
 ## Next step
 
-When both round 2 reviewers return, collect their arrays into review/round-2/step-commits-render-fields.findings.json, then run pipeline candidates (it carries C3, U1, U2 as P ids), the validator, record and verdict.
+When the round 2 validator returns, save its array as review/round-2/step-commits-render-fields.verdicts.json, run pipeline record and pipeline verdict for round 2, then fix every confirmed advisory on the MSP branch and ship.
 
 Needs: D1.
 
