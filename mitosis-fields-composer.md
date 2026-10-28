@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T09:23:23.800Z
+Updated: 2026-10-28T09:23:25.717Z
 Next ids: c3 D3 R2 S1
 
 ## Goal
@@ -9,7 +9,7 @@ In ~/Documents/DevLabs/mitosis, make mitosis commit once per Step instead of onc
 
 ## Done when
 
-- [ ] c1 mitosis MSP pull requests are open, assigned to the user, built through the pipeline full lane
+- [x] c1 mitosis MSP pull requests are open, assigned to the user, built through the pipeline full lane evidence: SatanshuMishra/mitosis#25 opened through create_pull_request, assigned to SatanshuMishra, after review rounds 1 and 2 (green)
 - [ ] c2 mitosis no longer holds its own pull-request body or title composer and opens bodies render --fields printed
 
 ## Where things stand
