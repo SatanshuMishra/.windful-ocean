@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: parked
-Updated: 2026-10-28T19:29:01.808Z
+Updated: 2026-10-28T19:29:04.254Z
 Next ids: c3 D3 R2 S1
 
 ## Goal
@@ -18,7 +18,7 @@ Integration is running: MSP pull request SatanshuMishra/mitosis#25 merged into f
 
 ## Next step
 
-The user starts Integration by saying SatanshuMishra/mitosis#25 merged, and it must not merge before SatanshuMishra/pull-request#6 does. Then sync and run lighthouse:test on feat/step-commits-render-fields against main, which opens the FEATURE pull request.
+Run pipeline integration-ready for slug step-commits-render-fields, then lighthouse:test run 1 with --core main, --feature feat/step-commits-render-fields, the spec, and --results run home lighthouse/run-1; it opens the FEATURE pull request on green.
 
 Needs: D2, R1.
 
