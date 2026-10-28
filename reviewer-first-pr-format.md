@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: parked
-Updated: 2026-10-28T07:07:13.693Z
+Updated: 2026-10-28T07:18:36.630Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
@@ -18,7 +18,7 @@ Integration: U1 (receipts values accepted HTML), lighthouse run 1's one failure,
 
 ## Next step
 
-Read lighthouse run 2's last JSON line; on green report the FEATURE pull request and park the thread for Clean-up, otherwise record each failure as a finding and run fix round 2.
+The user starts Clean-up by saying FEATURE pull request SatanshuMishra/pull-request#6 merged; then resume this thread, sync, and run pipeline clean for slug reviewer-first-pr-format.
 
 ## Decisions in force
 
