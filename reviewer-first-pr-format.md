@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: active
-Updated: 2026-10-28T05:40:54.742Z
+Updated: 2026-10-28T05:40:56.484Z
 Next ids: c3 D1 R1 S1
 
 ## Goal
@@ -31,5 +31,5 @@ Fix the spec reviewer's issues once, re-render and re-check, then run interphase
 - Repository: ~/Documents/DevLabs/pull-request (thread kept in the .windful-ocean logbook because the session's primary folder could not move)
 - Evidence: 100-PR review in session scratchpad prs/prs.json; receipts enforcer verify.js lines 153, 464, 466, 581
 - Spec, decisions, record, items: ~/Documents/DevLabs/pull-request/docs/specs/reviewer-first-pr-format.{md,decisions.md,record.json,items.json}
-- Run home: ~/.mitosis/pull-request/reviewer-first-pr-format/ (holds receipts-answers.json)
+- Run home: ~/.mitosis/pull-request/reviewer-first-pr-format/ (receipts-answers.json, CHARTER.md, worker-rules.txt, dispatch.zsh, run.zsh)
 - Lighthouse profile: ~/Documents/DevLabs/pull-request/.lighthouse/profile.json (untracked)
