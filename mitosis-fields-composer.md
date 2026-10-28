@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T09:21:50.544Z
+Updated: 2026-10-28T09:21:51.992Z
 Next ids: c3 D2 R2 S1
 
 ## Goal
@@ -18,7 +18,7 @@ Review is green at round 2; its advisories are fixed on MSP branch mitosis/step-
 
 ## Next step
 
-Ship: commit the glossary and ADRs 0004 and 0005 on the MSP branch, write the review comment with pipeline comment, run pipeline promote, record the ship decision, run SHIP=1 run.zsh --resume with the proven head, then open, assign and comment the pull request and park the thread.
+Ship: write the review comment with pipeline comment, run pipeline promote, record the ship decision, run SHIP=1 run.zsh --resume with the proven head, then open, assign and comment the pull request and park the thread.
 
 Needs: D1.
 
