@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T09:10:27.205Z
+Updated: 2026-10-28T09:10:29.319Z
 Next ids: c3 D2 R2 S1
 
 ## Goal
@@ -41,4 +41,4 @@ Needs: D1.
 - Run home: ~/.mitosis/mitosis/step-commits-render-fields/ (run.zsh and its inputs, rounds.md, build output)
 - Mitosis run directory: ~/.mitosis/runs/mitosis/step-commits-render-fields
 - Promoted at hand-off: ~/Documents/DevLabs/mitosis/GLOSSARY.md (Pull requests section) and docs/adr/0004, 0005
-- Review round 1: run home review/round-1/ (diff, suite.txt, reviewer briefs, suite-findings.json); obligations and assumptions in run home review/
+- Review rounds: run home review/round-<n>/ (diff, suite.txt, briefs, reviewer arrays, findings, candidates, verdicts, diagnoses); obligations and assumptions in run home review/
