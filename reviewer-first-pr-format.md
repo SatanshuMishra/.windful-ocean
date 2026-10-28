@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: parked
-Updated: 2026-10-28T07:03:40.769Z
+Updated: 2026-10-28T07:07:13.693Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
@@ -14,11 +14,11 @@ Make the pull-request plugin (~/Documents/DevLabs/pull-request) the only builder
 
 ## Where things stand
 
-Integration fix round 1: lighthouse run 1 returned failures, one failing path (receipts values never hold HTML), recorded as U1 and verdict diagnose; a diagnosis agent is classifying it. One path flaky (skill reach) and one unproven (close, off-limits).
+Integration: U1 (receipts values accepted HTML), lighthouse run 1's one failure, is diagnosed fixable and fixed on the FEATURE branch with a receipt test; lighthouse run 2 retests it with --previous run-1. Run 1 also left one path flaky (skill reach) and one unproven (close, off-limits).
 
 ## Next step
 
-Record U1's diagnosis, fix it with a receipt test in the integration worktree, push the FEATURE branch, then run lighthouse run 2 with --previous run-1.
+Read lighthouse run 2's last JSON line; on green report the FEATURE pull request and park the thread for Clean-up, otherwise record each failure as a finding and run fix round 2.
 
 ## Decisions in force
 
