@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T09:22:24.092Z
+Updated: 2026-10-28T09:23:23.800Z
 Next ids: c3 D3 R2 S1
 
 ## Goal
@@ -14,7 +14,7 @@ In ~/Documents/DevLabs/mitosis, make mitosis commit once per Step instead of onc
 
 ## Where things stand
 
-Review is green at round 2, with advisories C7 and C8 fixed and the full suite passing on Python 3.14 and 3.9 (569 tests). MSP branch mitosis/step-commits-render-fields is at 0671ed3, which holds the glossary's Pull requests section and ADRs 0004 and 0005. The checkout's other uncommitted glossary section and ADRs 0006-0008 belong to another run and are not shipped here. The SHIP=1 resume with proven head 0671ed3 is running, writing to run home ship.out and ship.err; the review comment is saved and promote added nothing.
+MSP pull request SatanshuMishra/mitosis#25 (mitosis/step-commits-render-fields at 0671ed3 into feat/step-commits-render-fields) is open, assigned to the user, with the review notes posted, and waits on the user's merge. Its body is the old format mitosis 0.7.0 composed, so c2's render-printed body is first seen on a run with this change installed. The checkout's uncommitted Referee and gate glossary section and ADRs 0006-0008 belong to another run.
 
 ## Next step
 
