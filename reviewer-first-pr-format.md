@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: active
-Updated: 2026-10-28T05:29:35.103Z
+Updated: 2026-10-28T05:38:03.793Z
 Next ids: c3 D1 R1 S1
 
 ## Goal
@@ -14,11 +14,11 @@ Make the pull-request plugin (~/Documents/DevLabs/pull-request) the only builder
 
 ## Where things stand
 
-Not started.
+Interphase spec slug reviewer-first-pr-format is written and passes check_spec and check_items (5 Steps, one MSP reviewer-first-format); its one spec review is running.
 
 ## Next step
 
-Invoke interphase:feature with Work autonomously for ~/Documents/DevLabs/pull-request; once it names the slug, copy the drafted receipts answers from /private/tmp/claude-501/-Users-satanshumishra-Documents-DevLabs--windful-ocean/4c696cd7-a519-4aaa-acd2-5f51e60bf870/scratchpad/receipts-xTKT/receipts-answers.json to ~/.mitosis/pull-request/<slug>/receipts-answers.json. Lighthouse profile written at pull-request/.lighthouse/profile.json (untracked) and readiness passes.
+Fix the spec reviewer's issues once, re-render and re-check, then run interphase Phase 10 hand-off and start pipeline Stage 2 (pipeline feature-branch, receipts config commit, run.zsh --plan-only).
 
 ## Decisions in force
 
