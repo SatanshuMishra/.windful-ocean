@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: active
-Updated: 2026-10-28T06:16:50.555Z
+Updated: 2026-10-28T06:16:52.501Z
 Next ids: c3 D2 R1 S1
 
 ## Goal
@@ -18,7 +18,7 @@ MSP reviewer-first-format is committed and held on branch mitosis/reviewer-first
 
 ## Next step
 
-When the three round 1 reviewers return, collect their arrays into review/round-1/reviewer-first-format.findings.json, then run pipeline candidates, the validator if needed, pipeline record and pipeline verdict.
+When the validator returns, save its array as review/round-1/reviewer-first-format.verdicts.json, then run pipeline record and pipeline verdict, and fix every confirmed blocker and advisory on the MSP branch.
 
 Needs: D1.
 
