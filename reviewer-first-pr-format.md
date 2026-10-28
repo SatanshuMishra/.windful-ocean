@@ -1,7 +1,7 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: active
-Updated: 2026-10-28T06:26:03.692Z
-Next ids: c3 D2 R1 S1
+Updated: 2026-10-28T06:26:21.669Z
+Next ids: c3 D3 R1 S1
 
 ## Goal
 
@@ -25,6 +25,7 @@ Needs: D1.
 ## Decisions in force
 
 - D1 Interphase hand-off: build the reviewer-first spec as one MSP of five Steps: Build now as one MSP; gate is ordered before cli-and-skill so no gate test depends on render's flags.
+- D2 Ship boundary: ship MSP reviewer-first-format as one ready pull request: Ship with SHIP=1 run.zsh --resume, gating the current head again, then open the pull request ready for review against feat/reviewer-first-pr-format.
 
 ## Open risks
 
