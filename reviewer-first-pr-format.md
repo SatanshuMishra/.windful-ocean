@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: active
-Updated: 2026-10-28T05:47:03.233Z
+Updated: 2026-10-28T05:47:45.557Z
 Next ids: c3 D2 R1 S1
 
 ## Goal
@@ -14,11 +14,11 @@ Make the pull-request plugin (~/Documents/DevLabs/pull-request) the only builder
 
 ## Where things stand
 
-Interphase spec slug reviewer-first-pr-format is written and passes check_spec and check_items (5 Steps, one MSP reviewer-first-format); its one spec review is running. The run home holds CHARTER.md, worker-rules.txt, dispatch.zsh and run.zsh; items.json and graph.json are not copied yet, and run.zsh assumes the FEATURE branch is feat/reviewer-first-pr-format until pipeline feature-branch prints it.
+The mitosis build of MSP reviewer-first-format (plan 2cdc91b412ef, 5 Steps in 4 Lanes) is running in the background on FEATURE branch feat/reviewer-first-pr-format, which holds the receipts config commit. The spec is handed off; GLOSSARY.md and docs/adr/0001-0004 sit untracked in the checkout and ship with the pull request.
 
 ## Next step
 
-Cut the FEATURE branch with pipeline feature-branch, commit receipts.config.json on it through a temporary worktree, copy items.json and graph.json into the run home, then run run.zsh --plan-only and the first build.
+When the build's JSON result arrives, write lane notes' assumptions to review/reviewer-first-format.assumptions.txt and start Stage 3 round 1 review of MSP reviewer-first-format.
 
 Needs: D1.
 
