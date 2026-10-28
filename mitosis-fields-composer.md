@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T08:50:55.284Z
+Updated: 2026-10-28T08:54:35.149Z
 Next ids: c3 D2 R2 S1
 
 ## Goal
@@ -14,11 +14,11 @@ In ~/Documents/DevLabs/mitosis, make mitosis commit once per Step instead of onc
 
 ## Where things stand
 
-Review round 1 on MSP branch mitosis/step-commits-render-fields (head 2d5d334, one commit per Step) is recorded with outcome diagnose: blockers U1, U2 (kind failing test, tests/test_metrics_run.py) and C3 (kind preflight ignores resume state, mitosis.py refuse_unrenderable); advisories C5 (commit type ignores --pr-type without a subject), C6 (duplicated prefix and folded-row formatting) and S2 (probe without a time limit). The preflight-ignores-resume-state diagnosis is recorded as fixable (one shared header builder through run.carried_header; receipt RenderPreflight.a_resume_carries_the_recorded_blast_radius); the failing-test diagnosis is still running. The glossary terms and ADRs 0004 and 0005 sit uncommitted in the checkout and ship with the MSP pull request.
+Round 1 on MSP branch mitosis/step-commits-render-fields (reviewed head 2d5d334) has outcome loop, both kinds diagnosed fixable. The fix pass is under way in the MSP worktree: U1 and U2 are fixed at f6a7d2a (tests/test_metrics_run.py updated; selecting check empty). Still to fix: C3 (one shared header builder through run.carried_header, receipt RenderPreflight.a_resume_carries_the_recorded_blast_radius) and advisories C5 (commit type ignores --pr-type without a subject), C6 (duplicated prefix and folded-row formatting), S2 (probe without a time limit). The glossary terms and ADRs 0004 and 0005 sit uncommitted in the checkout and ship with the MSP pull request.
 
 ## Next step
 
-When both diagnoses return, save each as review/round-1/step-commits-render-fields.<kind slug>.diagnosis.json, record it with pipeline diagnosis, rerun pipeline verdict, then fix each fixable kind and the three advisories on the MSP branch with receipt tests.
+Commit C3's receipt test failing, then its fix, then the three advisories, then run review round 2 on the new head with previous_head 2d5d334.
 
 Needs: D1.
 
