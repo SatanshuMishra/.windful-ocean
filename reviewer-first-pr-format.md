@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: active
-Updated: 2026-10-28T06:10:04.179Z
+Updated: 2026-10-28T06:10:11.642Z
 Next ids: c3 D2 R1 S1
 
 ## Goal
