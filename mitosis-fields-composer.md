@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: parked
-Updated: 2026-10-28T19:52:45.236Z
+Updated: 2026-10-28T19:52:48.315Z
 Next ids: c3 D3 R2 S1
 
 ## Goal
@@ -14,7 +14,7 @@ In ~/Documents/DevLabs/mitosis, make mitosis commit once per Step instead of onc
 
 ## Where things stand
 
-Integration is running: MSP pull request SatanshuMishra/mitosis#25 merged into feat/step-commits-render-fields, SatanshuMishra/pull-request#6 merged into pull-request main, and the mitosis checkout's main is in sync with origin. The #25 body is the old format mitosis 0.7.0 composed, so c2's render-printed body is first seen on a run with this change installed. The checkout's uncommitted Referee and gate glossary section and ADRs 0006-0008 belong to another run.
+Integration is green: FEATURE pull request SatanshuMishra/mitosis#26 (feat/step-commits-render-fields into main) is open and waits on the user's merge. Pull-request 0.3.0 is merged but not installed here (the plugin cache holds 0.2.0), so installed mitosis runs refuse at the render probe until it is. The checkout's uncommitted Referee and gate glossary section and ADRs 0006-0008 belong to another run.
 
 ## Next step
 
