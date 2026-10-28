@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T07:28:24.279Z
+Updated: 2026-10-28T07:28:27.016Z
 Next ids: c3 D1 R1 S1
 
 ## Goal
@@ -30,3 +30,5 @@ Fix the spec review's real issues once, rerun render_record and the checks, fini
 
 - Repository: ~/Documents/DevLabs/mitosis
 - Depends on: pull-request 0.3.0 render --fields, FEATURE pull request SatanshuMishra/pull-request#6 (thread reviewer-first-pr-format)
+- Spec, decisions, record, items: ~/Documents/DevLabs/mitosis/docs/specs/step-commits-render-fields.{md,decisions.md,record.json,items.json}
+- Record generator: session scratchpad make_record_mitosis.py and mitosis-spec-template.md
