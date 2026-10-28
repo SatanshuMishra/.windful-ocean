@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T07:43:50.417Z
+Updated: 2026-10-28T07:44:23.324Z
 Next ids: c3 D2 R2 S1
 
 ## Goal
@@ -14,11 +14,11 @@ In ~/Documents/DevLabs/mitosis, make mitosis commit once per Step instead of onc
 
 ## Where things stand
 
-Interphase (unattended, slug step-commits-render-fields) wrote the spec, record and items: five Steps in one MSP; the one spec review is running. Readiness had nothing open and mitosis already commits receipts.config.json.
+The spec is handed off (five Steps in one MSP); the first build is running in the background on FEATURE branch feat/step-commits-render-fields, writing build-1.out and build-1.err in the run home. The glossary terms and ADRs 0004 and 0005 sit uncommitted in the checkout and ship with the MSP pull request.
 
 ## Next step
 
-Run the first build with /Users/satanshumishra/.mitosis/mitosis/step-commits-render-fields/run.zsh in the background, then review round 1 on its committed MSP.
+When the build finishes, read build-1.out's last line, then run review round 1 on its committed MSP.
 
 Needs: D1.
 
