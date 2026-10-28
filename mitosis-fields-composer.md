@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T08:36:26.734Z
+Updated: 2026-10-28T08:39:41.168Z
 Next ids: c3 D2 R2 S1
 
 ## Goal
@@ -14,7 +14,7 @@ In ~/Documents/DevLabs/mitosis, make mitosis commit once per Step instead of onc
 
 ## Where things stand
 
-Review round 1 is running on MSP branch mitosis/step-commits-render-fields (head 2d5d334, one commit per Step): the conformance audit returned no findings (9 criteria met, 5.9 not applicable), saved as review/round-1/conformance-auditor.json; the code and security reviewers are still out. The suite has two regressions in tests/test_metrics_run.py, which no Step owns, staged as U1 (NoWorkContent refused without --pr-impact) and U2 (PlanOnly counts 3 Lanes, expects 2) in review/round-1/suite-findings.json. The glossary terms and ADRs 0004 and 0005 sit uncommitted in the checkout and ship with the MSP pull request.
+Review round 1 is running on MSP branch mitosis/step-commits-render-fields (head 2d5d334, one commit per Step): the conformance audit returned no findings (9 criteria met, 5.9 not applicable), saved as review/round-1/conformance-auditor.json; the security review returned three LOW findings (S1 resume refused without the recorded pair, S2 probe without a time limit, S3 metrics privacy test disarmed) in review/round-1/security-reviewer.json, and its threats T1-T12 are appended to the obligations file; the code reviewer is still out. The suite has two regressions in tests/test_metrics_run.py, which no Step owns, staged as U1 (NoWorkContent refused without --pr-impact) and U2 (PlanOnly counts 3 Lanes, expects 2) in review/round-1/suite-findings.json. The glossary terms and ADRs 0004 and 0005 sit uncommitted in the checkout and ship with the MSP pull request.
 
 ## Next step
 
