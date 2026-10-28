@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T07:44:26.442Z
+Updated: 2026-10-28T08:33:46.412Z
 Next ids: c3 D2 R2 S1
 
 ## Goal
@@ -14,11 +14,11 @@ In ~/Documents/DevLabs/mitosis, make mitosis commit once per Step instead of onc
 
 ## Where things stand
 
-The spec is handed off (five Steps in one MSP); the first build is running in the background on FEATURE branch feat/step-commits-render-fields, writing build-1.out and build-1.err in the run home. The glossary terms and ADRs 0004 and 0005 sit uncommitted in the checkout and ship with the MSP pull request.
+Review round 1 is running on MSP branch mitosis/step-commits-render-fields (head 2d5d334, one commit per Step): code, security and conformance reviewers are out. The suite has two regressions in tests/test_metrics_run.py, which no Step owns, to add as U1 (NoWorkContent refused without --pr-impact) and U2 (PlanOnly counts 3 Lanes, expects 2). The glossary terms and ADRs 0004 and 0005 sit uncommitted in the checkout and ship with the MSP pull request.
 
 ## Next step
 
-When the build finishes, read build-1.out's last line, then run review round 1 on its committed MSP.
+When the three reviewers return, collect their arrays plus U1 and U2 into review/round-1/step-commits-render-fields.findings.json, then run pipeline candidates, the validator, record and verdict.
 
 Needs: D1.
 
