@@ -1,7 +1,7 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T07:43:47.152Z
-Next ids: c3 D2 R1 S1
+Updated: 2026-10-28T07:43:50.417Z
+Next ids: c3 D2 R2 S1
 
 ## Goal
 
@@ -18,13 +18,17 @@ Interphase (unattended, slug step-commits-render-fields) wrote the spec, record 
 
 ## Next step
 
-Fix the spec review's real issues once, rerun render_record and the checks, finish interphase Phase 10, then start Stage 2.
+Run the first build with /Users/satanshumishra/.mitosis/mitosis/step-commits-render-fields/run.zsh in the background, then review round 1 on its committed MSP.
+
+Needs: D1.
 
 ## Decisions in force
 
 - D1 Interphase hand-off: build step-commits-render-fields as one MSP of five Steps: Build now as one MSP with mitosis 0.7.0; the over-budget notes are estimates from large existing test files and each Step is already alone in its session.
 
 ## Open risks
+
+- R1 Criterion 5.9 (live render of the real facts) stays unproven until SatanshuMishra/pull-request#6 merges and pull-request 0.3.0 is installed; the mitosis PR must not merge before it. Bears on c2.
 
 ## Settled, do not reopen
 
