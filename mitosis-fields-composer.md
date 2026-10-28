@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T09:04:01.871Z
+Updated: 2026-10-28T09:04:04.018Z
 Next ids: c3 D2 R2 S1
 
 ## Goal
@@ -18,7 +18,7 @@ The round 1 fix pass is committed on MSP branch mitosis/step-commits-render-fiel
 
 ## Next step
 
-Fix and commit advisory S2 with its test, then run review round 2 on the new head with previous_head 2d5d334.
+Run review round 2 at head 769bd9c with previous_head 2d5d334: code reviewer and security reviewer (the fixes touch the preflight), each limited to the fixed blockers' receipts and code one hop away.
 
 Needs: D1.
 
