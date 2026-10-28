@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: active
-Updated: 2026-10-28T06:26:24.515Z
+Updated: 2026-10-28T06:26:39.877Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
@@ -14,7 +14,7 @@ Make the pull-request plugin (~/Documents/DevLabs/pull-request) the only builder
 
 ## Where things stand
 
-MSP reviewer-first-format is committed and held on branch mitosis/reviewer-first-format at 1e0215d (gate: 37 pass, 1 inert; suite 277 OK on 3.14 and 3.9; 38 proofs recorded). Round 1 verdict is green with no blocker; the validator confirmed advisories C2, C3, C4 and C6 and rejected C1, C5, S1 and S2. The advisories are fixed in commit 31afc49 on the MSP branch, and the suite passes 281 on 3.14 and 3.9. GLOSSARY.md and docs/adr/0001-0004 sit untracked in the checkout and ship with the pull request.
+MSP reviewer-first-format on branch mitosis/reviewer-first-format at 01aa42a: round 1 green with no blocker, advisories C2, C3, C4 and C6 fixed (suite 281 OK on 3.14 and 3.9), glossary and ADRs committed, review comment written to review/reviewer-first-format.comment.md. The ship run (SHIP=1 run.zsh --resume) is running in the background, writing ship.out and ship.err in the run home.
 
 ## Next step
 
