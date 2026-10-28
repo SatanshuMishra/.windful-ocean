@@ -1,7 +1,7 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T09:21:51.992Z
-Next ids: c3 D2 R2 S1
+Updated: 2026-10-28T09:22:05.997Z
+Next ids: c3 D3 R2 S1
 
 ## Goal
 
@@ -25,6 +25,7 @@ Needs: D1.
 ## Decisions in force
 
 - D1 Interphase hand-off: build step-commits-render-fields as one MSP of five Steps: Build now as one MSP with mitosis 0.7.0; the over-budget notes are estimates from large existing test files and each Step is already alone in its session.
+- D2 Ship: open step-commits-render-fields ready for review at 0671ed3: Ship now, ready for review, with proven head 0671ed3, base feat/step-commits-render-fields. The report states that this pull request must not merge before SatanshuMishra/pull-request#6.
 
 ## Open risks
 
