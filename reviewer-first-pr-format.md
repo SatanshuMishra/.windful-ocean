@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: parked
-Updated: 2026-10-28T07:18:36.630Z
+Updated: 2026-10-28T07:18:40.725Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
@@ -14,7 +14,7 @@ Make the pull-request plugin (~/Documents/DevLabs/pull-request) the only builder
 
 ## Where things stand
 
-Integration: U1 (receipts values accepted HTML), lighthouse run 1's one failure, is diagnosed fixable and fixed on the FEATURE branch with a receipt test; lighthouse run 2 retests it with --previous run-1. Run 1 also left one path flaky (skill reach) and one unproven (close, off-limits).
+Integration green: FEATURE pull request SatanshuMishra/pull-request#6 is open, waiting for the user to merge it.
 
 ## Next step
 
