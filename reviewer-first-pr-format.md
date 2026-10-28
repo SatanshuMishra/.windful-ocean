@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: parked
-Updated: 2026-10-28T07:03:38.171Z
+Updated: 2026-10-28T07:03:40.769Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
@@ -36,4 +36,6 @@ Record U1's diagnosis, fix it with a receipt test in the integration worktree, p
 - Spec, decisions, record, items: ~/Documents/DevLabs/pull-request/docs/specs/reviewer-first-pr-format.{md,decisions.md,record.json,items.json}
 - Run home: ~/.mitosis/pull-request/reviewer-first-pr-format/ (run.zsh and its inputs, rounds.md, build-1.out and build-1.err)
 - Mitosis run directory: ~/.mitosis/runs/pull-request/reviewer-first-pr-format
-- Lighthouse profile: ~/Documents/DevLabs/pull-request/.lighthouse/profile.json (untracked)
+- Lighthouse profile: committed on feat/reviewer-first-pr-format as .lighthouse/profile.json
+- Integration worktree: ~/.mitosis/runs/pull-request/reviewer-first-pr-format/integration (FEATURE branch)
+- Lighthouse results: run home's lighthouse/run-<k>; integration findings in review/round-<k>/integration.*
