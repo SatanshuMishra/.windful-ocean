@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T09:08:17.857Z
+Updated: 2026-10-28T09:10:25.031Z
 Next ids: c3 D2 R2 S1
 
 ## Goal
@@ -14,7 +14,7 @@ In ~/Documents/DevLabs/mitosis, make mitosis commit once per Step instead of onc
 
 ## Where things stand
 
-The round 1 fix pass is committed on MSP branch mitosis/step-commits-render-fields, head 769bd9c (previous reviewed head 2d5d334): U1 and U2 at f6a7d2a, C3 at caa81f5 and 9692205, C5 and C6 at 127ca39, S2 at 769bd9c; the full suite passes on Python 3.14 and 3.9 (569 tests). Review round 2 is running at 769bd9c (briefs and suite output in run home review/round-2/): the security review returned one LOW finding, saved as S4 in review/round-2/security-reviewer.json (the preflight trusts the shape of a resumed state.json); the code reviewer is still out. The glossary terms and ADRs 0004 and 0005 sit uncommitted in the checkout and ship with the MSP pull request.
+The round 1 fix pass is committed on MSP branch mitosis/step-commits-render-fields, head 769bd9c (previous reviewed head 2d5d334): U1 and U2 at f6a7d2a, C3 at caa81f5 and 9692205, C5 and C6 at 127ca39, S2 at 769bd9c; the full suite passes on Python 3.14 and 3.9 (569 tests). Review round 2 at 769bd9c has its findings in run home review/round-2/step-commits-render-fields.findings.json: three LOW findings, C7 (docs and --timeout help omit that the render probe needs --timeout), C8 (the resume carry runs twice) and S4 (the preflight trusts the shape of a resumed state.json). The validator is judging them with carried P1 (C3's kind). The glossary terms and ADRs 0004 and 0005 sit uncommitted in the checkout and ship with the MSP pull request.
 
 ## Next step
 
