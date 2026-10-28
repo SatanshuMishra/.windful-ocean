@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: parked
-Updated: 2026-10-28T19:29:04.254Z
+Updated: 2026-10-28T19:52:45.236Z
 Next ids: c3 D3 R2 S1
 
 ## Goal
@@ -10,7 +10,7 @@ In ~/Documents/DevLabs/mitosis, make mitosis commit once per Step instead of onc
 ## Done when
 
 - [x] c1 mitosis MSP pull requests are open, assigned to the user, built through the pipeline full lane evidence: SatanshuMishra/mitosis#25 opened through create_pull_request, assigned to SatanshuMishra, after review rounds 1 and 2 (green)
-- [ ] c2 mitosis no longer holds its own pull-request body or title composer and opens bodies render --fields printed
+- [x] c2 mitosis no longer holds its own pull-request body or title composer and opens bodies render --fields printed evidence: lighthouse run 1 green: the old composer and its checks are gone on feat/step-commits-render-fields, and with the real pull-request 0.3.0 renderer mitosis shipped bodies byte-identical to what render --fields printed, which the format hook accepted (run home lighthouse/run-1/report.md)
 
 ## Where things stand
 
@@ -29,7 +29,6 @@ Needs: D2, R1.
 
 ## Open risks
 
-- R1 Criterion 5.9 (live render of the real facts) stays unproven until SatanshuMishra/pull-request#6 merges and pull-request 0.3.0 is installed; the mitosis PR must not merge before it. Bears on c2.
 
 ## Settled, do not reopen
 
