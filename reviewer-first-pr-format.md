@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: active
-Updated: 2026-10-28T05:47:00.668Z
+Updated: 2026-10-28T05:47:03.233Z
 Next ids: c3 D2 R1 S1
 
 ## Goal
@@ -18,7 +18,9 @@ Interphase spec slug reviewer-first-pr-format is written and passes check_spec a
 
 ## Next step
 
-Fix the spec reviewer's issues once, re-render and re-check, then run interphase Phase 10 hand-off and start pipeline Stage 2 (pipeline feature-branch, receipts config commit, run.zsh --plan-only).
+Cut the FEATURE branch with pipeline feature-branch, commit receipts.config.json on it through a temporary worktree, copy items.json and graph.json into the run home, then run run.zsh --plan-only and the first build.
+
+Needs: D1.
 
 ## Decisions in force
 
