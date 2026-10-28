@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T08:56:11.181Z
+Updated: 2026-10-28T08:56:12.758Z
 Next ids: c3 D2 R2 S1
 
 ## Goal
@@ -18,7 +18,7 @@ Round 1 on MSP branch mitosis/step-commits-render-fields (reviewed head 2d5d334)
 
 ## Next step
 
-Commit C3's fix with the receipt passing and the selecting check empty, then the three advisories, then run review round 2 on the new head with previous_head 2d5d334.
+Fix and commit advisories C5, C6 and S2 with their tests, then run review round 2 on the new head with previous_head 2d5d334.
 
 Needs: D1.
 
