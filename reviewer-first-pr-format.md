@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
-Status: parked
-Updated: 2026-10-28T07:18:40.725Z
+Status: done
+Updated: 2026-10-28T19:28:49.100Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
