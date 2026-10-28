@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T09:22:05.997Z
+Updated: 2026-10-28T09:22:09.095Z
 Next ids: c3 D3 R2 S1
 
 ## Goal
@@ -18,9 +18,9 @@ Review is green at round 2; its advisories are fixed on MSP branch mitosis/step-
 
 ## Next step
 
-Ship: write the review comment with pipeline comment, run pipeline promote, record the ship decision, run SHIP=1 run.zsh --resume with the proven head, then open, assign and comment the pull request and park the thread.
+Run SHIP=1 /Users/satanshumishra/.mitosis/mitosis/step-commits-render-fields/run.zsh --resume --proven-head step-commits-render-fields=0671ed3 (full sha from the MSP worktree). Then open the pull request with GitHub MCP create_pull_request, using mitosis's title and body unchanged, draft false, base feat/step-commits-render-fields. Assign it to the user and post review/step-commits-render-fields.comment.md, then park the thread.
 
-Needs: D1.
+Needs: D2, R1.
 
 ## Decisions in force
 
