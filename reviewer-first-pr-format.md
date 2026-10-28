@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: parked
-Updated: 2026-10-28T06:43:24.694Z
+Updated: 2026-10-28T07:03:38.171Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
@@ -14,11 +14,11 @@ Make the pull-request plugin (~/Documents/DevLabs/pull-request) the only builder
 
 ## Where things stand
 
-Integration: the MSP pull request SatanshuMishra/pull-request#5 merged into feat/reviewer-first-pr-format, and pipeline integration-ready reports ready. lighthouse:test run 1 (results in the run home's lighthouse/run-1) tests feat/reviewer-first-pr-format against main and opens the FEATURE pull request on green.
+Integration fix round 1: lighthouse run 1 returned failures, one failing path (receipts values never hold HTML), recorded as U1 and verdict diagnose; a diagnosis agent is classifying it. One path flaky (skill reach) and one unproven (close, off-limits).
 
 ## Next step
 
-Read lighthouse run 1's last JSON line; on green report the FEATURE pull request and park the thread for Clean-up, otherwise record each failure as a finding and run the integration fix round.
+Record U1's diagnosis, fix it with a receipt test in the integration worktree, push the FEATURE branch, then run lighthouse run 2 with --previous run-1.
 
 ## Decisions in force
 
