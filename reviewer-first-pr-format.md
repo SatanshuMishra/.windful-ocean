@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: active
-Updated: 2026-10-28T05:38:07.006Z
+Updated: 2026-10-28T05:40:54.742Z
 Next ids: c3 D1 R1 S1
 
 ## Goal
@@ -14,7 +14,7 @@ Make the pull-request plugin (~/Documents/DevLabs/pull-request) the only builder
 
 ## Where things stand
 
-Interphase spec slug reviewer-first-pr-format is written and passes check_spec and check_items (5 Steps, one MSP reviewer-first-format); its one spec review is running.
+Interphase spec slug reviewer-first-pr-format is written and passes check_spec and check_items (5 Steps, one MSP reviewer-first-format); its one spec review is running. The run home holds CHARTER.md, worker-rules.txt, dispatch.zsh and run.zsh; items.json and graph.json are not copied yet, and run.zsh assumes the FEATURE branch is feat/reviewer-first-pr-format until pipeline feature-branch prints it.
 
 ## Next step
 
