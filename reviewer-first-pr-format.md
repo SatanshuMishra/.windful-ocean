@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: active
-Updated: 2026-10-28T05:47:45.557Z
+Updated: 2026-10-28T05:47:48.831Z
 Next ids: c3 D2 R1 S1
 
 ## Goal
@@ -35,5 +35,6 @@ Needs: D1.
 - Repository: ~/Documents/DevLabs/pull-request (thread kept in the .windful-ocean logbook because the session's primary folder could not move)
 - Evidence: 100-PR review in session scratchpad prs/prs.json; receipts enforcer verify.js lines 153, 464, 466, 581
 - Spec, decisions, record, items: ~/Documents/DevLabs/pull-request/docs/specs/reviewer-first-pr-format.{md,decisions.md,record.json,items.json}
-- Run home: ~/.mitosis/pull-request/reviewer-first-pr-format/ (receipts-answers.json, CHARTER.md, worker-rules.txt, dispatch.zsh, run.zsh)
+- Run home: ~/.mitosis/pull-request/reviewer-first-pr-format/ (run.zsh and its inputs, rounds.md, build-1.out and build-1.err)
+- Mitosis run directory: ~/.mitosis/runs/pull-request/reviewer-first-pr-format
 - Lighthouse profile: ~/Documents/DevLabs/pull-request/.lighthouse/profile.json (untracked)
