@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: active
-Updated: 2026-10-28T06:26:39.877Z
+Updated: 2026-10-28T06:27:23.397Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
@@ -9,8 +9,8 @@ Make the pull-request plugin (~/Documents/DevLabs/pull-request) the only builder
 
 ## Done when
 
-- [ ] c1 pull-request plugin MSP pull requests are open, assigned to the user, built through the pipeline full lane
-- [ ] c2 The final report states the facts interface mitosis and lighthouse must call
+- [x] c1 pull-request plugin MSP pull requests are open, assigned to the user, built through the pipeline full lane evidence: SatanshuMishra/pull-request#5 is open, ready for review, assigned to SatanshuMishra, base feat/reviewer-first-pr-format, built by mitosis and reviewed green in round 1 of the full lane
+- [x] c2 The final report states the facts interface mitosis and lighthouse must call evidence: the session's final report states the render --fields JSON schema and flags that mitosis and lighthouse must call
 
 ## Where things stand
 
