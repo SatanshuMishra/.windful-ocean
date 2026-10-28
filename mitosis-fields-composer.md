@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T08:56:12.758Z
+Updated: 2026-10-28T08:59:04.299Z
 Next ids: c3 D2 R2 S1
 
 ## Goal
@@ -14,7 +14,7 @@ In ~/Documents/DevLabs/mitosis, make mitosis commit once per Step instead of onc
 
 ## Where things stand
 
-Round 1 on MSP branch mitosis/step-commits-render-fields (reviewed head 2d5d334) has outcome loop, both kinds diagnosed fixable. The fix pass is under way in the MSP worktree: U1 and U2 are fixed at f6a7d2a, C3 at 9692205 (mitosis.run_header shared by the preflight and execute; receipt passes, test_mitosis 101 OK, selecting check empty). Still to fix: advisories C5 (commit type ignores --pr-type without a subject), C6 (duplicated prefix and folded-row formatting), S2 (probe without a time limit). The glossary terms and ADRs 0004 and 0005 sit uncommitted in the checkout and ship with the MSP pull request.
+Round 1 on MSP branch mitosis/step-commits-render-fields (reviewed head 2d5d334) has outcome loop, both kinds diagnosed fixable. The fix pass is under way in the MSP worktree: U1 and U2 are fixed at f6a7d2a, C3 at 9692205 (mitosis.run_header shared by the preflight and execute; receipt passes, test_mitosis 101 OK, selecting check empty), C5 and C6 at 127ca39 (pr_facts.conventional_prefix shared; run.execute takes landing type and scope from the flags). Still to fix: advisory S2 (probe without a time limit). The glossary terms and ADRs 0004 and 0005 sit uncommitted in the checkout and ship with the MSP pull request.
 
 ## Next step
 
