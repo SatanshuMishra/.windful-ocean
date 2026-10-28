@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: parked
-Updated: 2026-10-28T06:27:29.913Z
+Updated: 2026-10-28T06:43:24.694Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
@@ -14,13 +14,11 @@ Make the pull-request plugin (~/Documents/DevLabs/pull-request) the only builder
 
 ## Where things stand
 
-The MSP pull request SatanshuMishra/pull-request#5 (mitosis/reviewer-first-format into feat/reviewer-first-pr-format, head 01aa42a) is open and waits for the user's review and merge. Its body is mitosis's old format, as I6 allows until mitosis migrates; the repository runs no receipts workflow, so its downgrade wording has no effect there.
+Integration: the MSP pull request SatanshuMishra/pull-request#5 merged into feat/reviewer-first-pr-format, and pipeline integration-ready reports ready. lighthouse:test run 1 (results in the run home's lighthouse/run-1) tests feat/reviewer-first-pr-format against main and opens the FEATURE pull request on green.
 
 ## Next step
 
-The user starts Integration by saying the MSP pull request #5 merged; then resume this thread, Sync, run pipeline integration-ready and lighthouse:test on feat/reviewer-first-pr-format.
-
-Needs: D2.
+Read lighthouse run 1's last JSON line; on green report the FEATURE pull request and park the thread for Clean-up, otherwise record each failure as a finding and run the integration fix round.
 
 ## Decisions in force
 
