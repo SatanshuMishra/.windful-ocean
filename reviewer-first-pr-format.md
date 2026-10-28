@@ -1,7 +1,7 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: active
-Updated: 2026-10-28T05:41:00.860Z
-Next ids: c3 D1 R1 S1
+Updated: 2026-10-28T05:47:00.668Z
+Next ids: c3 D2 R1 S1
 
 ## Goal
 
@@ -21,6 +21,8 @@ Interphase spec slug reviewer-first-pr-format is written and passes check_spec a
 Fix the spec reviewer's issues once, re-render and re-check, then run interphase Phase 10 hand-off and start pipeline Stage 2 (pipeline feature-branch, receipts config commit, run.zsh --plan-only).
 
 ## Decisions in force
+
+- D1 Interphase hand-off: build the reviewer-first spec as one MSP of five Steps: Build now as one MSP; gate is ordered before cli-and-skill so no gate test depends on render's flags.
 
 ## Open risks
 
