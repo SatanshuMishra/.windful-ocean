@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
 Status: active
-Updated: 2026-10-28T06:16:52.501Z
+Updated: 2026-10-28T06:26:01.989Z
 Next ids: c3 D2 R1 S1
 
 ## Goal
@@ -14,7 +14,7 @@ Make the pull-request plugin (~/Documents/DevLabs/pull-request) the only builder
 
 ## Where things stand
 
-MSP reviewer-first-format is committed and held on branch mitosis/reviewer-first-format at 1e0215d (gate: 37 pass, 1 inert; suite 277 OK on 3.14 and 3.9; 38 proofs recorded). Round 1 has 8 findings (C1 MEDIUM fields-file huge-integer traceback, C2-C6 and S1-S2 LOW; conformance all MET), all 8 listed as candidates; the validator is judging them. GLOSSARY.md and docs/adr/0001-0004 sit untracked in the checkout and ship with the pull request.
+MSP reviewer-first-format is committed and held on branch mitosis/reviewer-first-format at 1e0215d (gate: 37 pass, 1 inert; suite 277 OK on 3.14 and 3.9; 38 proofs recorded). Round 1 verdict is green with no blocker; the validator confirmed advisories C2, C3, C4 and C6 and rejected C1, C5, S1 and S2. The advisories are fixed in commit 31afc49 on the MSP branch, and the suite passes 281 on 3.14 and 3.9. GLOSSARY.md and docs/adr/0001-0004 sit untracked in the checkout and ship with the pull request.
 
 ## Next step
 
