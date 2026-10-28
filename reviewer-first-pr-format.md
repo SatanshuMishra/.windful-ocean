@@ -1,6 +1,6 @@
 # reviewer-first-pr-format: Reviewer-first PR format with one composer in the pull-request plugin
-Status: active
-Updated: 2026-10-28T06:27:28.436Z
+Status: parked
+Updated: 2026-10-28T06:27:29.913Z
 Next ids: c3 D3 R1 S1
 
 ## Goal
@@ -18,7 +18,7 @@ The MSP pull request SatanshuMishra/pull-request#5 (mitosis/reviewer-first-forma
 
 ## Next step
 
-Run SHIP=1 run.zsh --resume, read the MSP's title, body, branch and base from its JSON result, open the pull request through the GitHub MCP create_pull_request, assign it to the user and post review/reviewer-first-format.comment.md.
+The user starts Integration by saying the MSP pull request #5 merged; then resume this thread, Sync, run pipeline integration-ready and lighthouse:test on feat/reviewer-first-pr-format.
 
 Needs: D2.
 
