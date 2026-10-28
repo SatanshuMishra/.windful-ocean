@@ -1,6 +1,6 @@
 # mitosis-fields-composer: Mitosis commits one Step at a time and hands pull-request facts to render --fields
 Status: active
-Updated: 2026-10-28T08:47:50.345Z
+Updated: 2026-10-28T08:50:55.284Z
 Next ids: c3 D2 R2 S1
 
 ## Goal
@@ -14,7 +14,7 @@ In ~/Documents/DevLabs/mitosis, make mitosis commit once per Step instead of onc
 
 ## Where things stand
 
-Review round 1 on MSP branch mitosis/step-commits-render-fields (head 2d5d334, one commit per Step) is recorded with outcome diagnose: blockers U1, U2 (kind failing test, tests/test_metrics_run.py) and C3 (kind preflight ignores resume state, mitosis.py refuse_unrenderable); advisories C5 (commit type ignores --pr-type without a subject), C6 (duplicated prefix and folded-row formatting) and S2 (probe without a time limit). Two Opus diagnosis agents are running, one per kind. The glossary terms and ADRs 0004 and 0005 sit uncommitted in the checkout and ship with the MSP pull request.
+Review round 1 on MSP branch mitosis/step-commits-render-fields (head 2d5d334, one commit per Step) is recorded with outcome diagnose: blockers U1, U2 (kind failing test, tests/test_metrics_run.py) and C3 (kind preflight ignores resume state, mitosis.py refuse_unrenderable); advisories C5 (commit type ignores --pr-type without a subject), C6 (duplicated prefix and folded-row formatting) and S2 (probe without a time limit). The preflight-ignores-resume-state diagnosis is recorded as fixable (one shared header builder through run.carried_header; receipt RenderPreflight.a_resume_carries_the_recorded_blast_radius); the failing-test diagnosis is still running. The glossary terms and ADRs 0004 and 0005 sit uncommitted in the checkout and ship with the MSP pull request.
 
 ## Next step
 
