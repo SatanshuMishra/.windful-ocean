@@ -4,11 +4,12 @@ set -eu
 VERDICT_NONE="no-opinion"
 VERDICT_DENY="deny"
 FAULT_FALLBACK="the gate could not classify this command"
+ACCEPTED_CREATE_FORM="render the title and body with pull-request render --fields <file> --body-out <body file>, then run gh pr create --title '<printed title>' --body-file <body file> --base <base> --head <branch> as its own Bash command; the pull-request plugin's hook checks the title and body"
 
 verdict=""
 reason_text=""
 fault_detail="no verdict was formed"
-cmd="" low="" matcher_fault=""
+whole_cmd="" cmd="" low="" matcher_fault=""
 seg_verdict="" seg_reason=""
 best_verdict="" best_reason=""
 
@@ -81,6 +82,20 @@ has() { match_status "$1" "$low"; }
 
 has_cs() { match_status "$1" "$cmd"; }
 
+has_whole() { match_status "$1" "$whole_cmd"; }
+
+is_plain_create() {
+  local flagend='([[:space:]=]|$)'
+  local forbidden='--fill|--fill-first|--fill-verbose|-f|--web|-w|--editor|-e|--template|-T|--body|-b|--recover'
+  case "$whole_cmd" in
+    *$'\n'* | *'`'* | *'$('* | *';'* | *'&'* | *'|'* | *'<'* | *'>'* | *'\'*) return 1 ;;
+  esac
+  has_whole '^[[:space:]]*gh[[:space:]]+pr[[:space:]]+create[[:space:]]' \
+    && has_whole "(^|[[:space:]])(--title|-t)${flagend}" \
+    && has_whole "(^|[[:space:]])(--body-file|-F)([[:space:]]+|=)[\"']?[^-[:space:]\"']" \
+    && ! has_whole "(^|[[:space:]])(${forbidden})${flagend}"
+}
+
 set_deny() { seg_verdict="$VERDICT_DENY"; seg_reason="$1"; }
 
 take_verdict() {
@@ -114,13 +129,18 @@ classify_segment() {
     return 0
   fi
 
-  if has "${ghtok}pr[[:space:]]+create([[:space:]]|$)" \
-    || { has "$ghapi" && has "$pullcollection" && has "$ghfileref"; } \
+  if has "${ghtok}pr[[:space:]]+create([[:space:]]|$)"; then
+    is_plain_create && return 0
+    set_deny "opening a pull request takes one form: ${ACCEPTED_CREATE_FORM}. Title grammar and body fields: the pull-request:open skill."
+    return 0
+  fi
+
+  if { has "$ghapi" && has "$pullcollection" && has "$ghfileref"; } \
     || { has "$ghapi" && has "$pullsep" && has "$postish"; } \
     || { has "$ghapi" && has "$graphql" && has 'createpullrequest'; } \
     || { has "$ghapi" && has "$graphql" && has "$gqlopaque"; } \
     || { has "$ghapi" && has "$graphql" && has "$gqlsub"; }; then
-    set_deny 'opening a pull request goes through the GitHub MCP create_pull_request tool, in one format. Compose the title and body with this, quoting every value: pull-request render --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --what THE BEHAVIOR THAT IS DIFFERENT NOW. --why THE PROBLEM THAT EXISTED BEFORE. --not-verified THING YOU DID NOT CHECK - not run. Then call create_pull_request with the printed title and body unchanged; a hook refuses any other title or body, and pull-request render'\''s body replaces any repository pull-request template. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. A --why, --what or --risk value starts with a capital letter and ends with a full stop. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: the pull-request:open skill.'
+    set_deny "gh api is not a way to open a pull request: a POST to the pulls endpoint and a createPullRequest or opaque GraphQL call are denied. Open one this way: ${ACCEPTED_CREATE_FORM}."
     return 0
   fi
 
@@ -154,6 +174,8 @@ classify() {
     verdict="$VERDICT_NONE"
     return 0
   fi
+
+  whole_cmd="$cmd"
 
   segments="$(printf '%s' "$cmd" | tr ';&|' '\n\n\n')"
 

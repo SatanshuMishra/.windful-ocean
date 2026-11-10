@@ -46,8 +46,14 @@ function reasonOf(result) {
 const MERGE_DENY_REASON =
   'merging a PR is human-gated: gh pr merge and the gh api pulls/*/merge REST endpoint are both blocked; a human merges via the PR after review';
 
+const ACCEPTED_CREATE_FORM =
+  "render the title and body with pull-request render --fields <file> --body-out <body file>, then run gh pr create --title '<printed title>' --body-file <body file> --base <base> --head <branch> as its own Bash command; the pull-request plugin's hook checks the title and body";
+
 const CREATION_DENY_REASON =
-  'opening a pull request goes through the GitHub MCP create_pull_request tool, in one format. Compose the title and body with this, quoting every value: pull-request render --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --what THE BEHAVIOR THAT IS DIFFERENT NOW. --why THE PROBLEM THAT EXISTED BEFORE. --not-verified THING YOU DID NOT CHECK - not run. Then call create_pull_request with the printed title and body unchanged; a hook refuses any other title or body, and pull-request render\'s body replaces any repository pull-request template. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. A --why, --what or --risk value starts with a capital letter and ends with a full stop. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: the pull-request:open skill.';
+  `opening a pull request takes one form: ${ACCEPTED_CREATE_FORM}. Title grammar and body fields: the pull-request:open skill.`;
+
+const PULLS_API_DENY_REASON =
+  `gh api is not a way to open a pull request: a POST to the pulls endpoint and a createPullRequest or opaque GraphQL call are denied. Open one this way: ${ACCEPTED_CREATE_FORM}.`;
 
 const RENDER_FLAGS = Object.freeze(['--title', '--risk', '--supersedes', '--why', '--what', '--verified', '--not-verified', '--link']);
 const RENDER_REQUIRED_FLAGS = Object.freeze(['--title', '--why', '--what']);
@@ -74,6 +80,8 @@ const corporaByGoal = {
   ],
   G3: [
     'creationDenyCommands',
+    'plainCreateAllowCommands',
+    'plainCreateDenyCommands',
     'g3FlaggedCreationDenyCommands',
     'g1ReadOnlyGhCommands',
     'allowCommands',
@@ -156,28 +164,73 @@ for (const command of g1FlaggedMergeDenyCommands) {
 }
 
 const creationDenyCommands = [
-  'gh pr create --head x --base y',
-  'gh pr create --fill',
-  'FOO=1 gh pr create --fill',
-  'git push -u origin feature && gh pr create --fill',
-  'gh pr \\\n  create --fill',
-  'gh \\\npr create --fill',
-  '/opt/homebrew/bin/gh pr create --fill',
-  'GH pr create --fill',
-  'Gh Pr Create --fill',
-  'gh api --method POST repos/o/r/pulls -f title=x -f head=y -f base=z',
-  'gh api repos/o/r/pulls -f title=x -f head=y -f base=z',
-  'gh api repos/o/r/pulls/ -f title=x -f head=y -f base=z',
-  'gh api -x post repos/o/r/pulls -f title=x',
-  'gh api -XPOST repos/o/r/pulls',
-  "gh api graphql -f query='mutation { createPullRequest(input: {}) { clientMutationId } }'",
-  'gh api graphql -F query=@create-pr.graphql',
-  'gh api graphql --input mutation.json',
-  'gh api graphql -f query="$(cat mutation.graphql)"',
+  ['gh pr create --head x --base y', CREATION_DENY_REASON],
+  ['gh pr create --fill', CREATION_DENY_REASON],
+  ['FOO=1 gh pr create --fill', CREATION_DENY_REASON],
+  ['git push -u origin feature && gh pr create --fill', CREATION_DENY_REASON],
+  ['gh pr \\\n  create --fill', CREATION_DENY_REASON],
+  ['gh \\\npr create --fill', CREATION_DENY_REASON],
+  ['/opt/homebrew/bin/gh pr create --fill', CREATION_DENY_REASON],
+  ['GH pr create --fill', CREATION_DENY_REASON],
+  ['Gh Pr Create --fill', CREATION_DENY_REASON],
+  ['gh api --method POST repos/o/r/pulls -f title=x -f head=y -f base=z', PULLS_API_DENY_REASON],
+  ['gh api repos/o/r/pulls -f title=x -f head=y -f base=z', PULLS_API_DENY_REASON],
+  ['gh api repos/o/r/pulls/ -f title=x -f head=y -f base=z', PULLS_API_DENY_REASON],
+  ['gh api -x post repos/o/r/pulls -f title=x', PULLS_API_DENY_REASON],
+  ['gh api -XPOST repos/o/r/pulls', PULLS_API_DENY_REASON],
+  ["gh api graphql -f query='mutation { createPullRequest(input: {}) { clientMutationId } }'", PULLS_API_DENY_REASON],
+  ['gh api graphql -F query=@create-pr.graphql', PULLS_API_DENY_REASON],
+  ['gh api graphql --input mutation.json', PULLS_API_DENY_REASON],
+  ['gh api graphql -f query="$(cat mutation.graphql)"', PULLS_API_DENY_REASON],
 ];
 
-for (const command of creationDenyCommands) {
+for (const [command, reason] of creationDenyCommands) {
   test(`${goalsFor('creationDenyCommands')}: denies raw pull-request creation: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'deny');
+    assert.equal(reasonOf(r), reason);
+  });
+}
+
+const plainCreateAllowCommands = [
+  "gh pr create --title 'fix(x): do y' --body-file /tmp/b.md --base main --head feat/x",
+  "gh pr create --title 'fix(x): do y' --body-file /tmp/b.md --base main --head feat/x --draft",
+  "gh pr create -t 'fix(x): do y' -F /tmp/b.md --base main --head feat/x",
+  "gh pr create --title 'fix(x): do y' --body-file /tmp/b.md --base main --head feat/x --repo o/r",
+];
+
+for (const command of plainCreateAllowCommands) {
+  test(`${goalsFor('plainCreateAllowCommands')}: leaves the one plain gh pr create form to the pull-request plugin's hook: ${command}`, () => {
+    assertAbstains(runHook(command), command);
+  });
+}
+
+const plainCreateDenyCommands = [
+  'gh pr create --title x --body y',
+  'gh pr create --title x --body-file -',
+  "gh pr create --title x --body-file '-'",
+  'gh pr create --title x --body-file b.md --fill',
+  'gh pr create --title x -T tpl --body-file b.md',
+  'gh pr create --title x --body-file b.md; rm -rf y',
+  'gh pr create --title x --body-file b.md && echo ok',
+  'GH_TOKEN=z gh pr create --title x --body-file b.md',
+  '/opt/homebrew/bin/gh pr create --title x --body-file b.md',
+  'gh -R o/r pr create --title x --body-file b.md',
+  'gh pr create --body-file b.md',
+  'gh pr create --title x --body-file b.md --web',
+  'gh pr create --title x --body-file b.md --recover s.json',
+  'gh pr create --title x --body-file b.md -b y',
+  'gh pr create --title x --body-file b.md > out.txt',
+  'gh pr create --title x --body-file b.md\necho ok',
+  'gh pr create --title "$(cat t.txt)" --body-file b.md',
+  'gh pr create --title `cat t.txt` --body-file b.md',
+  'gh pr create --title x --body-file b\\.md',
+  'gh pr create --title x --body-file <(echo y)',
+];
+
+for (const command of plainCreateDenyCommands) {
+  test(`${goalsFor('plainCreateDenyCommands')}: denies every gh pr create form but the plain one: ${JSON.stringify(command)}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'deny');
@@ -249,23 +302,28 @@ for (const command of g1ReadOnlyGhCommands) {
   });
 }
 
-test('the creation deny reason names every required pull-request render flag and the MCP create tool', () => {
+test('the creation deny reason names the one accepted gh pr create form and how to render its title and body', () => {
   const r = runHook('gh pr create --fill');
   assert.equal(decisionOf(r), 'deny');
   const reason = reasonOf(r);
   assert.equal(reason, CREATION_DENY_REASON);
-  for (const flag of RENDER_REQUIRED_FLAGS) {
-    assert.ok(reason.includes(flag), `deny reason omits ${flag}`);
-  }
-  assert.match(reason, /pull-request render/);
-  assert.match(reason, /create_pull_request/);
+  assert.match(reason, /pull-request render --fields <file> --body-out <body file>/);
+  assert.ok(reason.includes("gh pr create --title '<printed title>' --body-file <body file> --base <base> --head <branch>"));
+  assert.match(reason, /as its own Bash command/);
   assert.match(reason, /pull-request:open/);
   assert.doesNotMatch(reason, /pr\.mjs/);
   assert.doesNotMatch(reason, /pr-render/);
   assert.doesNotMatch(reason, /pr-create/);
   assert.doesNotMatch(reason, /pull-requests\.md/);
-  assert.match(reason, /NEVER write a --verified line for a check you did not run/);
-  assert.match(reason, /pull\/new URL printed by git push is not an approved path/);
+});
+
+test('the pulls endpoint deny reason says gh api does not open a pull request and names the accepted form', () => {
+  const r = runHook('gh api --method POST repos/o/r/pulls -f title=x -f head=y -f base=z');
+  assert.equal(decisionOf(r), 'deny');
+  const reason = reasonOf(r);
+  assert.equal(reason, PULLS_API_DENY_REASON);
+  assert.match(reason, /not a way to open a pull request/);
+  assert.ok(reason.includes(ACCEPTED_CREATE_FORM));
 });
 
 const prRenderAllowArgvs = Object.freeze([
@@ -395,7 +453,7 @@ const multilineDenyCommands = [
   ['git push -u origin feature\ngh pr create --fill', CREATION_DENY_REASON],
   ['set -e\n  gh pr merge 12\n', MERGE_DENY_REASON],
   ['git add -A\ngit commit -m wip\ngh pr create --title x', CREATION_DENY_REASON],
-  ['cd /repo\ngh api graphql -f query=\'mutation { createPullRequest(input: {}) { url } }\'', CREATION_DENY_REASON],
+  ['cd /repo\ngh api graphql -f query=\'mutation { createPullRequest(input: {}) { url } }\'', PULLS_API_DENY_REASON],
 ];
 
 for (const [command, reason] of multilineDenyCommands) {
@@ -702,7 +760,7 @@ for (const command of g5NarrowedFileRefDenyCommands) {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'deny');
-    assert.equal(reasonOf(r), CREATION_DENY_REASON);
+    assert.equal(reasonOf(r), PULLS_API_DENY_REASON);
   });
 }
 
@@ -710,6 +768,8 @@ const corpusByName = {
   mergeDenyCommands,
   g1FlaggedMergeDenyCommands,
   creationDenyCommands,
+  plainCreateAllowCommands,
+  plainCreateDenyCommands,
   g3FlaggedCreationDenyCommands,
   g2RetiredEditCommands,
   g2NarrowedNumberedPullPathCommands,
