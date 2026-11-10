@@ -8,6 +8,7 @@ import { basename, join } from 'node:path';
 
 const hookPath = fileURLToPath(new URL('../block-destructive-bash.sh', import.meta.url));
 const threatModelPath = fileURLToPath(new URL('../../../docs/security/bash-gate-threat-model.md', import.meta.url));
+const settingsPath = fileURLToPath(new URL('../../settings.json', import.meta.url));
 
 function realisticPayload(command) {
   return JSON.stringify({
@@ -125,6 +126,9 @@ const mergeDenyCommands = [
   'gh api repos/o/r/pulls/1/merge',
   'gh pr \\\n  merge 12',
   'gh \\\npr merge 12',
+  'gh pr me\\\nrge 12',
+  'g\\\nh pr merge 12',
+  'echo a\\\\\ngh pr merge 12',
   '/opt/homebrew/bin/gh pr merge 12',
   'GH pr merge 12',
   'Gh PR Merge 12',
@@ -170,6 +174,7 @@ const creationDenyCommands = [
   ['git push -u origin feature && gh pr create --fill', CREATION_DENY_REASON],
   ['gh pr \\\n  create --fill', CREATION_DENY_REASON],
   ['gh \\\npr create --fill', CREATION_DENY_REASON],
+  ['gh pr cre\\\nate --fill', CREATION_DENY_REASON],
   ['/opt/homebrew/bin/gh pr create --fill', CREATION_DENY_REASON],
   ['GH pr create --fill', CREATION_DENY_REASON],
   ['Gh Pr Create --fill', CREATION_DENY_REASON],
@@ -303,6 +308,23 @@ for (const command of g1ReadOnlyGhCommands) {
     assertAbstains(runHook(command), command);
   });
 }
+
+const gateTimeoutMs = JSON.parse(readFileSync(settingsPath, 'utf8')).hooks.PreToolUse
+  .flatMap((group) => group.hooks)
+  .find((hook) => hook.command.endsWith('block-destructive-bash.sh')).timeout * 1000;
+
+test('G1: a merge padded with more commands than the gate can judge in time is denied inside its timeout', () => {
+  const r = runStdin(realisticPayload('true;'.repeat(400) + 'gh -R o/r pr merge 1'), { timeout: gateTimeoutMs });
+  assert.equal(r.error, undefined, 'the gate was still running at its timeout');
+  assert.equal(decisionOf(r), 'deny');
+  assert.match(reasonOf(r), /more commands than the gate can judge inside its timeout/);
+});
+
+test('a long chain that names no gh is judged inside the timeout with no opinion', () => {
+  const r = runStdin(realisticPayload('true;'.repeat(400) + 'echo done'), { timeout: gateTimeoutMs });
+  assert.equal(r.error, undefined, 'the gate was still running at its timeout');
+  assert.equal(decisionOf(r), null);
+});
 
 test('the creation deny reason names the one accepted gh pr create form and how to render its title and body', () => {
   const r = runHook('gh pr create --fill');

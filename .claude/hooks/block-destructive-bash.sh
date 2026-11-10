@@ -4,6 +4,8 @@ set -eu
 VERDICT_NONE="no-opinion"
 VERDICT_DENY="deny"
 FAULT_FALLBACK="the gate could not classify this command"
+SEGMENT_LIMIT=64
+CHAIN_DENY_REASON="this command chains more commands than the gate can judge inside its timeout and names gh, so it is denied; run it as shorter commands"
 ACCEPTED_CREATE_FORM="render the title and body with pull-request render --fields <file> --body-out <body file>, then run gh pr create --title '<printed title>' --body-file <body file> --base <base> --head <branch> as its own Bash command; the pull-request plugin's hook checks the title and body"
 
 verdict=""
@@ -52,7 +54,7 @@ emit_verdict() {
 trap emit_verdict EXIT
 trap 'exit 1' INT TERM HUP
 
-EXTRACT_PY='import sys, json
+EXTRACT_PY='import re, sys, json
 try:
     d = json.load(sys.stdin)
     if not isinstance(d, dict):
@@ -63,7 +65,7 @@ try:
 except Exception:
     sys.stdout.write("MALFORMED")
     sys.exit(0)
-sys.stdout.write("COMMAND " + "\n".join(" ".join(p.split()) for p in c.replace("\\\n", " ").split("\n")))'
+sys.stdout.write("COMMAND " + "\n".join(" ".join(p.split()) for p in re.sub(r"(?<!\\)((?:\\\\)*)\\\n", r"\1", c).split("\n")))'
 
 match_status() {
   local status=0
@@ -178,6 +180,19 @@ classify() {
   whole_cmd="$cmd"
 
   segments="$(printf '%s' "$cmd" | tr ';&|' '\n\n\n')"
+  segment_count="$(printf '%s\n' "$segments" | grep -c . || true)"
+  if [ "${segment_count:-0}" -gt "$SEGMENT_LIMIT" ]; then
+    low="$(printf '%s' "$whole_cmd" | tr '[:upper:]' '[:lower:]')"
+    if has '(^|[^[:alnum:]_.-])gh([^[:alnum:]_.-]|$)'; then
+      verdict="$VERDICT_DENY"
+      reason_text="$CHAIN_DENY_REASON"
+    elif [ -n "$matcher_fault" ]; then
+      note_fault "a command matcher could not be evaluated"
+    else
+      verdict="$VERDICT_NONE"
+    fi
+    return 0
+  fi
 
   while IFS= read -r segment; do
     [ -n "$segment" ] || continue
