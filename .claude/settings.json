@@ -101,7 +101,6 @@
       "Edit(~/.psqlrc*)",
       "Write(~/.psqlrc*)",
       "Bash(gh pr merge:*)",
-      "Bash(gh pr create:*)",
       "mcp__github__create_pull_request_with_copilot",
       "mcp__plugin_github_github__create_pull_request_with_copilot",
       "mcp__github__merge_pull_request",
