@@ -13,7 +13,7 @@ whole_cmd="" cmd="" low="" matcher_fault=""
 seg_verdict="" seg_reason=""
 best_verdict="" best_reason=""
 
-ghwrap='(sudo|env|command|nohup|time|xargs|(ba|z|k)?sh[[:space:]]+-c|[a-z_][a-z0-9_]*=[^[:space:]]*)'
+ghwrap='(sudo|env|command|nohup|time|xargs|eval|(ba|z|k)?sh[[:space:]]+-c|[a-z_][a-z0-9_]*=[^[:space:]]*)'
 
 note_fault() {
   fault_detail="$1"
@@ -129,7 +129,7 @@ classify_segment() {
     return 0
   fi
 
-  if has "${ghtok}pr[[:space:]]+create([[:space:]]|$)"; then
+  if has "${ghtok}pr[[:space:]]+(create|new)([[:space:]]|$)"; then
     is_plain_create && return 0
     set_deny "opening a pull request takes one form: ${ACCEPTED_CREATE_FORM}. Title grammar and body fields: the pull-request:open skill."
     return 0

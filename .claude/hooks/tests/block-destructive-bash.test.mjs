@@ -173,6 +173,8 @@ const creationDenyCommands = [
   ['/opt/homebrew/bin/gh pr create --fill', CREATION_DENY_REASON],
   ['GH pr create --fill', CREATION_DENY_REASON],
   ['Gh Pr Create --fill', CREATION_DENY_REASON],
+  ['gh pr new --fill', CREATION_DENY_REASON],
+  ["gh pr new --title 'fix(x): do y' --body-file /tmp/b.md --base main --head feat/x", CREATION_DENY_REASON],
   ['gh api --method POST repos/o/r/pulls -f title=x -f head=y -f base=z', PULLS_API_DENY_REASON],
   ['gh api repos/o/r/pulls -f title=x -f head=y -f base=z', PULLS_API_DENY_REASON],
   ['gh api repos/o/r/pulls/ -f title=x -f head=y -f base=z', PULLS_API_DENY_REASON],
@@ -437,6 +439,9 @@ const commandPositionDenyCommands = [
   ['bash -c "gh pr create --title x --fill"', CREATION_DENY_REASON],
   ['nohup gh pr merge 12', MERGE_DENY_REASON],
   ['time gh pr merge 12', MERGE_DENY_REASON],
+  ["eval 'gh pr create --fill'", CREATION_DENY_REASON],
+  ['eval "gh pr new --fill"', CREATION_DENY_REASON],
+  ["eval 'gh pr merge 12'", MERGE_DENY_REASON],
   ['echo "the url is $(gh pr create --fill)"', CREATION_DENY_REASON],
 ];
 
