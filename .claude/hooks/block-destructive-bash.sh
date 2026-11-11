@@ -65,7 +65,9 @@ try:
 except Exception:
     sys.stdout.write("MALFORMED")
     sys.exit(0)
-sys.stdout.write("COMMAND " + "\n".join(" ".join(p.split()) for p in re.sub(r"(?<!\\)((?:\\\\)*)\\\n", r"\1", c).split("\n")))'
+lines = "\n".join(" ".join(p.split()) for p in re.sub(r"(?<!\\)((?:\\\\)*)\\\n", r"\1", c).split("\n")).replace("\x00", "")
+names_gh = re.search(r"(^|[^A-Za-z0-9_.-])[Gg][Hh]([^A-Za-z0-9_.-]|$)", lines)
+sys.stdout.write("COMMAND " + lines if names_gh else "NO_GH")'
 
 match_status() {
   local status=0
@@ -163,6 +165,10 @@ classify() {
   fi
 
   case "$extracted" in
+    "NO_GH")
+      verdict="$VERDICT_NONE"
+      return 0
+      ;;
     "COMMAND "*)
       cmd="${extracted#COMMAND }"
       ;;
@@ -195,7 +201,10 @@ classify() {
   fi
 
   while IFS= read -r segment; do
-    [ -n "$segment" ] || continue
+    case "$segment" in
+      *[Gg][Hh]*) ;;
+      *) continue ;;
+    esac
     seg_verdict=""
     seg_reason=""
     classify_segment "$segment"
