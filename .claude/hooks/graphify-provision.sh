@@ -55,6 +55,9 @@ if nodes == 0:
     warn = " WARNING: the graph has no nodes. Do not trust it; grep instead."
 elif status == "failed":
     warn = " WARNING: the last rebuild exited nonzero, so this graph is whatever survived the previous run. Treat it as stale."
+elif status == "stalled":
+    warn = (" WARNING: the last rebuild was stopped after it printed nothing for its stall limit, "
+            "so this graph is stale and stays so until the repository moves to another commit.")
 elif status == "collapsed":
     warn = (" WARNING: the graph is %d%% below its recorded peak, so it is probably "
             "missing large parts of the repository; verify anything it tells you." % drop)
