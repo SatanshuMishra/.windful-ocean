@@ -49,12 +49,12 @@ const REQUIRED_DENIES = Object.freeze([
   'Bash(gh pr merge:*)',
   'mcp__github__merge_pull_request',
   'mcp__plugin_github_github__merge_pull_request',
-  'Bash(gh pr create:*)',
   'mcp__github__create_pull_request_with_copilot',
   'mcp__plugin_github_github__create_pull_request_with_copilot',
 ]);
 
 const FORMAT_HOOK_TOOLS = Object.freeze([
+  'Bash(gh pr create:*)',
   'mcp__github__create_pull_request',
   'mcp__plugin_github_github__create_pull_request',
 ]);
@@ -123,7 +123,7 @@ test('the census refuses a git listing it cannot trust', () => {
   }
 });
 
-test('settings drop the moved hooks, allow the plugin commands and keep the merge and create denies', () => {
+test('settings drop the moved hooks, allow the plugin commands, keep the merge denies and leave creation to the hooks', () => {
   const settings = JSON.parse(readFileSync(join(REPO_ROOT, '.claude/settings.json'), 'utf8'));
   for (const [event, groups] of Object.entries(settings.hooks)) {
     for (const group of groups) {
