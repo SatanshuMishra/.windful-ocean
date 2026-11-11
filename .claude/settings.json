@@ -215,7 +215,8 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/block-destructive-bash.sh",
-            "timeout": 5
+            "timeout": 5,
+            "onFailure": "block"
           }
         ]
       },

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
@@ -309,9 +309,60 @@ for (const command of g1ReadOnlyGhCommands) {
   });
 }
 
-const gateTimeoutMs = JSON.parse(readFileSync(settingsPath, 'utf8')).hooks.PreToolUse
+const gateRegistration = JSON.parse(readFileSync(settingsPath, 'utf8')).hooks.PreToolUse
   .flatMap((group) => group.hooks)
-  .find((hook) => hook.command.endsWith('block-destructive-bash.sh')).timeout * 1000;
+  .find((hook) => hook.command.endsWith('block-destructive-bash.sh'));
+
+const gateTimeoutMs = gateRegistration.timeout * 1000;
+
+test('the gate is registered to block the command when it fails or runs past its timeout', () => {
+  assert.equal(gateRegistration.onFailure, 'block');
+});
+
+function judgedCountingMatchers(command) {
+  const folder = mkdtempSync(join(tmpdir(), 'gate-matchers-'));
+  try {
+    const startsPath = join(folder, 'starts');
+    const realGrep = spawnSync('sh', ['-c', 'command -v grep'], { encoding: 'utf8' }).stdout.trim();
+    writeFileSync(join(folder, 'grep'), `#!/bin/sh\nprintf x >> "${startsPath}"\nexec "${realGrep}" "$@"\n`, { mode: 0o755 });
+    const result = runStdin(realisticPayload(command), { env: { ...process.env, PATH: `${folder}:${process.env.PATH}` } });
+    return { result, matcherStarts: existsSync(startsPath) ? readFileSync(startsPath, 'utf8').length : 0 };
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+}
+
+test('a command that never names gh as a word is judged without starting a matcher', () => {
+  const command = 'echo high; ls lighthouse/right\necho three | sort && echo done';
+  const { result, matcherStarts } = judgedCountingMatchers(command);
+  assertAbstains(result, command);
+  assert.equal(matcherStarts, 0);
+});
+
+const NUL = String.fromCharCode(0);
+
+const nulInsideTheWord = [
+  ['G1: a merge', `g${NUL}h pr merge 1`, /^merging a PR is human-gated/],
+  ['G3: a create', `g${NUL}h pr create --fill`, /^opening a pull request takes one form/],
+  ['G1: a merge behind 70 chained commands', 'true;'.repeat(70) + `g${NUL}h pr merge 1`, /more commands than the gate can judge inside its timeout/],
+];
+
+for (const [label, command, reason] of nulInsideTheWord) {
+  test(`${label} with a NUL character inside the word gh is judged as the matchers read it, with the NUL dropped`, () => {
+    const r = runHook(command);
+    assert.equal(decisionOf(r), 'deny');
+    assert.match(reasonOf(r), reason);
+  });
+}
+
+test('the commands chained around a gh command cost it no extra matcher', () => {
+  const alone = judgedCountingMatchers('gh pr view 1');
+  const chained = judgedCountingMatchers('echo one; echo two\ngh pr view 1\necho three | sort && echo done');
+  assertAbstains(alone.result, 'gh pr view 1');
+  assertAbstains(chained.result, 'a chain around gh pr view 1');
+  assert.ok(alone.matcherStarts > 0, 'no matcher start was counted for a gh command, so the count proves nothing');
+  assert.equal(chained.matcherStarts, alone.matcherStarts);
+});
 
 test('G1: a merge padded with more commands than the gate can judge in time is denied inside its timeout', () => {
   const r = runStdin(realisticPayload('true;'.repeat(400) + 'gh -R o/r pr merge 1'), { timeout: gateTimeoutMs });
@@ -968,7 +1019,7 @@ test('a broken command matcher denies rather than allowing', () => {
     }
     assert.ok(!existsSync(join(binDir, 'grep')), 'test precondition failed: grep leaked into the restricted PATH');
 
-    for (const command of ['ls -la', 'rm -rf /tmp/x']) {
+    for (const command of ['gh pr view 1', 'echo start; gh issue list --limit 5']) {
       const r = runStdin(realisticPayload(command), { env: { PATH: binDir }, stdio: 'pipe' });
       assert.equal(r.status, 0);
       assert.equal(decisionOf(r), 'deny', `the matchers could not run and the gate allowed: ${command}`);
