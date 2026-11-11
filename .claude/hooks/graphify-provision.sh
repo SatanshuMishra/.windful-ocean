@@ -10,6 +10,17 @@ graph="$out/graph.json"
 log="${TMPDIR:-/tmp}/graphify-provision.log"
 
 if [ ! -f "$graph" ]; then
+  if graphify_stalled_here "$root" "$out"; then
+    cat <<'JSON'
+{
+  "hookSpecificOutput": {
+    "hookEventName": "SessionStart",
+    "additionalContext": "Graphify: WARNING: this repository has no knowledge graph, because its build was stopped after it printed nothing for its stall limit. No build starts again until the repository moves to another commit; grep instead."
+  }
+}
+JSON
+    exit 0
+  fi
   graphify_launch "$root" "$log" "$out" || true
   exit 0
 fi
@@ -55,6 +66,9 @@ if nodes == 0:
     warn = " WARNING: the graph has no nodes. Do not trust it; grep instead."
 elif status == "failed":
     warn = " WARNING: the last rebuild exited nonzero, so this graph is whatever survived the previous run. Treat it as stale."
+elif status == "stalled":
+    warn = (" WARNING: the last rebuild was stopped after it printed nothing for its stall limit, "
+            "so this graph is stale and stays so until the repository moves to another commit.")
 elif status == "collapsed":
     warn = (" WARNING: the graph is %d%% below its recorded peak, so it is probably "
             "missing large parts of the repository; verify anything it tells you." % drop)

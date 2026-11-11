@@ -3,6 +3,8 @@
 GRAPHIFY_OUT_NAME="graphify-out"
 GRAPHIFY_KEEP_BACKUPS_DEFAULT=3
 GRAPHIFY_COLLAPSE_PCT_DEFAULT=25
+GRAPHIFY_STALL_SECONDS_DEFAULT=1800
+GRAPHIFY_STALL_TICK=15
 
 graphify_main_worktree() {
   local top="$1" main check
@@ -146,7 +148,7 @@ except Exception:
 }
 
 graphify_write_health() {
-  local out="$1" before="$2" after="$3" rc="${4:-0}"
+  local out="$1" before="$2" after="$3" rc="${4:-0}" stalled="${5:-}" stalled_at="${6:-}"
   [ -d "$out" ] || return 0
   before="$(graphify_int "$before")"
   after="$(graphify_int "$after")"
@@ -181,6 +183,14 @@ except Exception:
   if [ "$rc" -ne 0 ]; then
     graph_status=failed
   fi
+  case "$stalled_at" in
+    *[!0-9a-f]*) stalled_at="" ;;
+  esac
+  if [ -n "$stalled" ]; then
+    graph_status=stalled
+  else
+    stalled_at=""
+  fi
 
   local commit tmp
   commit="$(graphify_built_commit "$out/graph.json")"
@@ -188,8 +198,8 @@ except Exception:
   {
     printf '{"checked_at":%s,"nodes_before":%s,"nodes_after":%s,"nodes_peak":%s,' \
       "$(date +%s)" "$before" "$after" "$peak"
-    printf '"drop_pct":%s,"update_exit":%s,"status":"%s","built_at_commit":"%s"}\n' \
-      "$drop" "$rc" "$graph_status" "$commit"
+    printf '"drop_pct":%s,"update_exit":%s,"status":"%s","built_at_commit":"%s","stalled_at_commit":"%s"}\n' \
+      "$drop" "$rc" "$graph_status" "$commit" "$stalled_at"
   } >"$tmp" 2>/dev/null || { rm -f -- "$tmp" 2>/dev/null; return 0; }
   mv -f -- "$tmp" "$out/.graphify_health.json" 2>/dev/null || rm -f -- "$tmp" 2>/dev/null
   return 0
@@ -217,9 +227,101 @@ graphify_prune() {
   return 0
 }
 
+graphify_newer_than() {
+  local root="$1" out="$2" graph="$3"
+  [ -n "$root" ] && [ -n "$graph" ] || return 0
+  git -C "$root" ls-files -z --cached --others --exclude-standard 2>/dev/null \
+    | python3 -c '
+import os, stat, sys
+
+root, out, name, graph = sys.argv[1:5]
+try:
+    built = os.stat(graph).st_mtime_ns
+except OSError:
+    sys.exit(0)
+under_out = out.rstrip("/") + "/"
+never_indexed = {"node_modules", ".venv", "dist", "build"}
+for raw in sys.stdin.buffer.read().split(b"\0"):
+    relative = os.fsdecode(raw)
+    parts = relative.split("/")
+    if not relative or name in parts or never_indexed.intersection(parts[:-1]):
+        continue
+    path = os.path.join(root, relative)
+    if path.startswith(under_out):
+        continue
+    try:
+        found = os.lstat(path)
+    except OSError:
+        continue
+    if stat.S_ISREG(found.st_mode) and found.st_mtime_ns > built:
+        print("newer")
+        break
+' "$root" "$out" "$GRAPHIFY_OUT_NAME" "$graph" 2>/dev/null || true
+}
+
+graphify_stalled_here() {
+  local root="$1" out="$2" head
+  head="$(git -C "$root" rev-parse HEAD 2>/dev/null)" || return 1
+  case "$head" in
+    ''|*[!0-9a-f]*) return 1 ;;
+  esac
+  grep -Fq "\"stalled_at_commit\":\"$head\"" "$out/.graphify_health.json" 2>/dev/null
+}
+
+graphify_end_when_silent() {
+  local child="$1" own="$2" limit="$3" tick="$4" marker="$5" seen=-1 size=0 quiet=0
+  while kill -0 "$child" 2>/dev/null; do
+    sleep "$tick"
+    size="$(graphify_int "$(wc -c <"$own" 2>/dev/null | tr -d '[:space:]')")"
+    if [ "$size" -ne "$seen" ]; then
+      seen="$size"
+      quiet=0
+      continue
+    fi
+    quiet=$(( quiet + tick ))
+    if [ "$quiet" -ge "$limit" ]; then
+      : >"$marker"
+      kill -TERM -- "-$child" 2>/dev/null || kill -TERM "$child" 2>/dev/null || true
+      sleep 2
+      kill -KILL -- "-$child" 2>/dev/null || true
+      return 0
+    fi
+  done
+}
+
+graphify_rebuild() {
+  local root="$1" log="$2" lock="$3" out="$4"
+  local own="$lock/output" before=0 after=0 rc=0 limit tick head child watch stalled=""
+  before="$(graphify_node_count "$out/graph.json")"
+  head="$(git -C "$root" rev-parse HEAD 2>/dev/null || true)"
+  limit="$(graphify_int "${GRAPHIFY_STALL_SECONDS:-$GRAPHIFY_STALL_SECONDS_DEFAULT}")"
+  [ "$limit" -gt 0 ] || limit="$GRAPHIFY_STALL_SECONDS_DEFAULT"
+  tick="$GRAPHIFY_STALL_TICK"
+  [ "$limit" -lt "$tick" ] && tick="$limit"
+  set -m
+  graphify update "$root" >"$own" 2>&1 &
+  child=$!
+  graphify_end_when_silent "$child" "$own" "$limit" "$tick" "$lock/stalled" &
+  watch=$!
+  set +m
+  wait "$child" 2>/dev/null || rc=$?
+  if [ -e "$lock/stalled" ]; then
+    stalled=yes
+  else
+    kill -TERM -- "-$watch" 2>/dev/null || kill -TERM "$watch" 2>/dev/null || true
+  fi
+  wait "$watch" 2>/dev/null || true
+  cat -- "$own" >>"$log" 2>/dev/null || true
+  after="$(graphify_node_count "$out/graph.json")"
+  graphify_write_health "$out" "$before" "$after" "$rc" "$stalled" "$head"
+  graphify_prune "$out"
+  rm -rf -- "$lock"
+}
+
 graphify_launch() {
   local root="$1" log="$2" out="$3"
   [ -n "$root" ] && [ -n "$log" ] && [ -n "$out" ] || return 1
+  if graphify_stalled_here "$root" "$out"; then return 0; fi
   local lock="$out/.hook.lock"
   if [ -d "$lock" ]; then
     local held
@@ -235,17 +337,12 @@ graphify_launch() {
   local lib
   lib="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)/graphify-common.sh"
   GRAPHIFY_OUT="$out" nohup bash -c '
-    out="$4"
-    before=0
-    if [ -f "$5" ]; then . "$5"; before="$(graphify_node_count "$out/graph.json")"; fi
-    graphify update "$1" >>"$2" 2>&1
-    rc=$?
-    if [ -f "$5" ]; then
-      after="$(graphify_node_count "$out/graph.json")"
-      graphify_write_health "$out" "$before" "$after" "$rc"
-      graphify_prune "$out"
+    if [ -f "$5" ] && . "$5"; then
+      graphify_rebuild "$1" "$2" "$3" "$4"
+    else
+      graphify update "$1" >>"$2" 2>&1
+      rm -rf -- "$3"
     fi
-    rm -rf -- "$3"
   ' _ "$root" "$log" "$lock" "$out" "$lib" >/dev/null 2>&1 </dev/null &
   echo "$!" >"$lock/pid" 2>/dev/null || true
 }

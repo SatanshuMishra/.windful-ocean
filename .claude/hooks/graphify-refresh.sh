@@ -11,15 +11,7 @@ log="${TMPDIR:-/tmp}/graphify-refresh.log"
 
 [ -e "$graph" ] || exit 0
 
-newer="$(find "$root" -type f \
-  -not -path "$out/*" \
-  -not -path "*/$GRAPHIFY_OUT_NAME/*" \
-  -not -path '*/.git/*' \
-  -not -path '*/node_modules/*' \
-  -not -path '*/.venv/*' \
-  -not -path '*/dist/*' \
-  -not -path '*/build/*' \
-  -newer "$graph" -print -quit 2>/dev/null || true)"
+newer="$(graphify_newer_than "$root" "$out" "$graph")"
 
 [ -n "$newer" ] || exit 0
 
