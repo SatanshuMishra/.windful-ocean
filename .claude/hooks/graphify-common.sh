@@ -240,9 +240,11 @@ try:
 except OSError:
     sys.exit(0)
 under_out = out.rstrip("/") + "/"
+never_indexed = {"node_modules", ".venv", "dist", "build"}
 for raw in sys.stdin.buffer.read().split(b"\0"):
     relative = os.fsdecode(raw)
-    if not relative or name in relative.split("/"):
+    parts = relative.split("/")
+    if not relative or name in parts or never_indexed.intersection(parts[:-1]):
         continue
     path = os.path.join(root, relative)
     if path.startswith(under_out):
@@ -252,7 +254,7 @@ for raw in sys.stdin.buffer.read().split(b"\0"):
     except OSError:
         continue
     if stat.S_ISREG(found.st_mode) and found.st_mtime_ns > built:
-        print(relative)
+        print("newer")
         break
 ' "$root" "$out" "$GRAPHIFY_OUT_NAME" "$graph" 2>/dev/null || true
 }

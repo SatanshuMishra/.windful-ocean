@@ -10,6 +10,17 @@ graph="$out/graph.json"
 log="${TMPDIR:-/tmp}/graphify-provision.log"
 
 if [ ! -f "$graph" ]; then
+  if graphify_stalled_here "$root" "$out"; then
+    cat <<'JSON'
+{
+  "hookSpecificOutput": {
+    "hookEventName": "SessionStart",
+    "additionalContext": "Graphify: WARNING: this repository has no knowledge graph, because its build was stopped after it printed nothing for its stall limit. No build starts again until the repository moves to another commit; grep instead."
+  }
+}
+JSON
+    exit 0
+  fi
   graphify_launch "$root" "$log" "$out" || true
   exit 0
 fi

@@ -158,7 +158,7 @@
         ".claude/hooks/graphify-refresh.sh",
         ".claude/hooks/graphify-common.sh"
       ],
-      "driver": "pipe Stop event JSON on stdin to bash .claude/hooks/graphify-refresh.sh with HOME set to a temporary directory and cwd and CLAUDE_PROJECT_DIR set to a scratch git repository, and read the exit code and any graphify-out change in the scratch repository; it has no test file of its own",
+      "driver": "pipe Stop event JSON on stdin to bash .claude/hooks/graphify-refresh.sh with HOME set to a temporary directory and cwd and CLAUDE_PROJECT_DIR set to a scratch git repository, and read the exit code and any graphify-out change in the scratch repository; its tests are .claude/hooks/tests/graphify-refresh.test.mjs",
       "available": true,
       "sign_in": {
         "method": "none",

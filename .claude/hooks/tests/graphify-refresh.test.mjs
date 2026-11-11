@@ -16,6 +16,8 @@ const AFTER_THE_GRAPH = BUILT_AT + 60;
 
 const RECORDS_ITS_RUN = '#!/usr/bin/env bash\nprintf "%s\\n" "$2" >> "$REBUILDS"\n';
 const HANGS_SILENTLY_WITH_A_CHILD = '#!/usr/bin/env bash\nsleep 300 &\nprintf "%s %s\\n" "$$" "$!" > "$STARTED"\nsleep 300\n';
+const HANGS_AND_IGNORES_A_REQUEST_TO_STOP = '#!/usr/bin/env bash\ntrap "" TERM\nprintf "%s\\n" "$$" > "$STARTED"\nsleep 100000\n';
+const LONGEST_LAUNCH_MS = 30_000;
 const PRINTS_PAST_THE_LIMIT = '#!/usr/bin/env bash\nfor step in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do echo "step $step"; sleep 0.25; done\nprintf done > "$FINISHED"\n';
 
 function git(repo, args) {
@@ -84,8 +86,10 @@ function launch(made, extraEnv = {}) {
   const result = spawnSync('bash', ['-c', `set -euo pipefail\n. "$1"\n${body}\n`, 'graphify-lib-under-test', libPath], {
     encoding: 'utf8',
     env: { ...made.env, ...extraEnv },
+    timeout: LONGEST_LAUNCH_MS,
+    killSignal: 'SIGKILL',
   });
-  assert.equal(result.status, 0, `bash exited ${result.status}: ${result.stderr}`);
+  assert.equal(result.status, 0, `bash exited ${result.status} (${result.signal ?? 'no signal'}): ${result.stderr}`);
 }
 
 function health(made) {
@@ -125,6 +129,25 @@ test('files git ignores start no rebuild, because the graph never holds them', (
   assert.deepEqual(rebuildsAfterRefresh(made), []);
 });
 
+test('tracked files under folders the graph never indexes start no rebuild', (t) => {
+  const never = ['dist/bundle.js', 'packages/web/build/main.js', 'vendor/node_modules/pad/index.js', '.venv/lib/site.py'];
+  const made = project(t, { 'src/app.py': 'print(1)\n', ...Object.fromEntries(never.map((relative) => [relative, 'made\n'])) });
+  for (const relative of never) writeAt(join(made.repo, relative), AFTER_THE_GRAPH);
+  assert.deepEqual(rebuildsAfterRefresh(made), []);
+});
+
+test('a tracked file that only shares its name with such a folder still starts a rebuild', (t) => {
+  const made = project(t, { 'scripts/build': 'make all\n' });
+  writeAt(join(made.repo, 'scripts/build'), AFTER_THE_GRAPH);
+  assert.deepEqual(rebuildsAfterRefresh(made), [made.repo]);
+});
+
+test('a new file whose name the hook cannot print still starts a rebuild', (t) => {
+  const made = project(t, { 'src/app.py': 'print(1)\n' });
+  writeAt(join(made.repo, 'src/caf\u00e9.py'), AFTER_THE_GRAPH);
+  assert.deepEqual(rebuildsAfterRefresh({ ...made, env: { ...made.env, PYTHONIOENCODING: 'ascii' } }), [made.repo]);
+});
+
 test('files under an output folder start no rebuild even where git does not ignore the folder', (t) => {
   const made = project(t, { 'src/app.py': 'print(1)\n' });
   writeAt(join(made.out, 'graph.html'), AFTER_THE_GRAPH);
@@ -151,6 +174,17 @@ test('a rebuild that prints nothing for the stall limit is ended with every proc
   assert.equal(health(made).status, 'stalled');
   assert.equal(health(made).stalled_at_commit, git(made.repo, ['rev-parse', 'HEAD']));
   assert.equal(existsSync(join(made.out, '.hook.lock')), false);
+});
+
+test('a silent rebuild that ignores the request to stop is ended all the same', (t) => {
+  const made = project(t, { 'src/app.py': 'print(1)\n' });
+  const started = join(made.dir, 'started');
+  made.standIn(HANGS_AND_IGNORES_A_REQUEST_TO_STOP);
+  const startedPid = () => Number(readFileSync(started, 'utf8').trim());
+  t.after(() => existsSync(started) && isRunning(startedPid()) && process.kill(-startedPid(), 'SIGKILL'));
+  launch(made, { GRAPHIFY_STALL_SECONDS: '1', STARTED: started });
+  assert.equal(isRunning(startedPid()), false, 'the rebuild outlived its stall limit');
+  assert.equal(health(made).status, 'stalled');
 });
 
 test('a rebuild that keeps printing runs past the stall limit to its end', (t) => {
@@ -183,4 +217,17 @@ test('the session-start summary says the graph is stale after a stalled rebuild'
   launch(made, { GRAPHIFY_STALL_SECONDS: '1', STARTED: join(made.dir, 'started') });
   const printed = JSON.parse(runHook(provisionPath, made.env).stdout);
   assert.match(printed.hookSpecificOutput.additionalContext, /WARNING: the last rebuild was stopped after it printed nothing/);
+});
+
+test('the session-start hook says so when the first build stalled and left no graph', (t) => {
+  const made = project(t, { 'src/app.py': 'print(1)\n' });
+  rmSync(join(made.out, 'graph.json'));
+  made.standIn(HANGS_SILENTLY_WITH_A_CHILD);
+  const stalling = { ...made.env, GRAPHIFY_STALL_SECONDS: '1', STARTED: join(made.dir, 'started') };
+  assert.equal(runHook(provisionPath, stalling).stdout, '');
+  assert.equal(health(made).status, 'stalled');
+  made.standIn(RECORDS_ITS_RUN);
+  const printed = JSON.parse(runHook(provisionPath, made.env).stdout);
+  assert.match(printed.hookSpecificOutput.additionalContext, /WARNING: this repository has no knowledge graph, because its build was stopped/);
+  assert.equal(existsSync(made.rebuilds), false, 'a build started at the commit that stalled');
 });
