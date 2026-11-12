@@ -12,15 +12,15 @@ Every request to create, change or fix something in a git repository picks one o
 ## Lanes
 
 - Direct: the change fits in one sentence, its cause is known, and it adds no dependency and changes no schema, stored-data format or auth. In a new worktree on a new branch cut from the synced upstream, make the edit, run the tests that cover it, commit, push, and open a pull request, ready for review and not a draft, assigned to the user with the title and body `pull-request render` prints. No spec, no mitosis and no review agent.
-- Standard: a small change that interphase's brief lane can carry. interphase writes a brief without an interview, mitosis builds it once, the reviewers review it once, and every confirmed blocker and confirmed advisory finding is fixed directly on the branch, with the fix's tests run and no second review round.
-- Full: everything else. interphase interviews the user up front: the intent (the goal, why, and what success looks like), then numbered rounds of questions, each with a recommended answer, then a read-back to approve. From the approval on, mitosis builds, independent reviewers judge, and confirmed blockers and confirmed advisory findings are fixed directly on the branch until review is green or a diagnosis classes a blocker blocked, which opens it as a draft pull request, or stops the run with nothing pushed when the blocked blocker is CRITICAL.
+- Standard: a small change that interphase's brief lane can carry. interphase writes a brief without an interview, mitosis builds it once, the reviewers review it once, and every confirmed blocker is fixed directly on the branch, with the fix's tests run and no second review round.
+- Full: everything else. interphase interviews the user up front: the intent (the goal, why, and what success looks like), then numbered rounds of questions, each with a recommended answer, then a read-back to approve. From the approval on, mitosis builds, independent reviewers judge, and confirmed blockers are fixed directly on the branch until review is green or a diagnosis classes a blocker blocked, which opens it as a draft pull request, or stops the run with nothing pushed when the blocked blocker is CRITICAL.
 
 When interphase writes a full spec for a request sent down the standard lane, because one of the brief lane's conditions fails, the request is in the full lane from then on, still without an interview.
 
 ## After the interview
 
 - A gap any stage finds later is filled with the reading the recorded intent best supports, and the pull request shows it as an assumption naming the intent line it relied on.
-- An advisory finding the validator confirms is fixed in the same pass as the blockers; one it rejects is dropped and appears in no comment or report.
+- An advisory finding is dropped whether the validator confirms or rejects it, and appears in no comment or report: only a blocker is fixed, since nothing would review an advisory's fix.
 - The spec is slim, reviewed once and disposable after merge. The glossary and decision records interphase writes ship with the first pull request.
 - Never merge a pull request.
 
