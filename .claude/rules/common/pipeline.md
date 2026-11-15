@@ -6,7 +6,7 @@ Every request to create, change or fix something in a git repository picks one o
 
 - The request changes nothing: a question, an explanation, a review or research.
 - The user says to skip the pipeline for this request, or names another workflow for it.
-- The session is itself part of a pipeline. A prompt that begins `Lane <n> of MSP`, a system prompt that names the session a mitosis Worker, and any agent the `pipeline:run` skill dispatches each do their own task directly and never start a pipeline.
+- The session is itself part of a pipeline. A mitosis Lane or Worker, a pipeline drive step, a lighthouse or interphase child session and any agent the `pipeline:run` skill dispatches each do their own task directly and never start a pipeline.
 - The request points at an interphase package whose record says `handed-off`: start the full or standard lane at stage 2.
 
 ## Lanes

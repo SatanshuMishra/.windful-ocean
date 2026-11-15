@@ -1,6 +1,6 @@
 # .claude/hooks/ (bash gate scope)
 
-Many hooks live in this directory; only `block-destructive-bash.sh` and `lib/` are the bash gate, and only those two are governed by `docs/security/bash-gate-threat-model.md`.
+Many hooks live in this directory; only `block-destructive-bash.sh` is the bash gate, and only it is governed by `docs/security/bash-gate-threat-model.md`.
 
 IMPORTANT: before starting a fix round on any finding against the gate, check it against that document's goals and non-goals first — a finding against a stated non-goal is logged there as an accepted risk, not a fix target.
 

@@ -59,7 +59,7 @@
       "Verified"
     ],
     "repo_name": "windful-ocean",
-    "receipts_version": "0.9.3",
+    "receipts_version": "0.9.5",
     "tripwires": {
       "g11_live": "off"
     }
