@@ -2,6 +2,8 @@
 # dep-audit.sh — SessionStart, non-blocking, surfaces high/critical vulns.
 set -e
 
+[ "${HARNESS_UNATTENDED:-}" = "1" ] && exit 0
+
 project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 
 if [ ! -f "$project_dir/package.json" ]; then
