@@ -50,8 +50,35 @@ const MERGE_DENY_REASON =
 const ACCEPTED_CREATE_FORM =
   "render the title and body with pull-request render --fields <file> --body-out <body file>, then run gh pr create --title '<printed title>' --body-file <body file> --base <base> --head <branch> as its own Bash command; the pull-request plugin's hook checks the title and body";
 
-const CREATION_DENY_REASON =
-  `opening a pull request takes one form: ${ACCEPTED_CREATE_FORM}. Title grammar and body fields: the pull-request:open skill.`;
+const CREATION_FORM_SENTENCES =
+  `Opening a pull request takes one form: ${ACCEPTED_CREATE_FORM}. Title grammar and body fields: the pull-request:open skill.`;
+
+const REFUSED_ANYWHERE = 'which this gate refuses anywhere in the command, a quoted title included';
+const NOT_THE_WHOLE_COMMAND = 'the whole command is not gh pr create followed by its flags';
+const NO_TITLE = 'it has no --title';
+const NO_BODY_FILE = 'its --body-file names no file';
+const MORE_THAN_ONE_LINE = 'it spans more than one line';
+
+function holds(...characters) {
+  return `it holds ${characters.map((character) => `'${character}'`).join(', ')}, ${REFUSED_ANYWHERE}`;
+}
+
+function holdsTheWord(word) {
+  return `it holds the word '${word}', ${REFUSED_ANYWHERE}`;
+}
+
+function creationDenyReason(cause) {
+  return `this pull-request command is refused because ${cause}. ${CREATION_FORM_SENTENCES}`;
+}
+
+const CREATION_DENY_REASON = new RegExp(
+  `^this pull-request command is refused because .+\\. ${CREATION_FORM_SENTENCES.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
+);
+
+function assertReason(actual, expected) {
+  if (expected instanceof RegExp) assert.match(actual, expected);
+  else assert.equal(actual, expected);
+}
 
 const PULLS_API_DENY_REASON =
   `gh api is not a way to open a pull request: a POST to the pulls endpoint and a createPullRequest or opaque GraphQL call are denied. Open one this way: ${ACCEPTED_CREATE_FORM}.`;
@@ -196,7 +223,7 @@ for (const [command, reason] of creationDenyCommands) {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'deny');
-    assert.equal(reasonOf(r), reason);
+    assertReason(reasonOf(r), reason);
   });
 }
 
@@ -214,34 +241,41 @@ for (const command of plainCreateAllowCommands) {
 }
 
 const plainCreateDenyCommands = [
-  'gh pr create --title x --body y',
-  'gh pr create --title x --body-file -',
-  "gh pr create --title x --body-file '-'",
-  'gh pr create --title x --body-file b.md --fill',
-  'gh pr create --title x -T tpl --body-file b.md',
-  'gh pr create --title x --body-file b.md; rm -rf y',
-  'gh pr create --title x --body-file b.md && echo ok',
-  'GH_TOKEN=z gh pr create --title x --body-file b.md',
-  '/opt/homebrew/bin/gh pr create --title x --body-file b.md',
-  'gh -R o/r pr create --title x --body-file b.md',
-  'gh pr create --body-file b.md',
-  'gh pr create --title x --body-file b.md --web',
-  'gh pr create --title x --body-file b.md --recover s.json',
-  'gh pr create --title x --body-file b.md -b y',
-  'gh pr create --title x --body-file b.md > out.txt',
-  'gh pr create --title x --body-file b.md\necho ok',
-  'gh pr create --title "$(cat t.txt)" --body-file b.md',
-  'gh pr create --title `cat t.txt` --body-file b.md',
-  'gh pr create --title x --body-file b\\.md',
-  'gh pr create --title x --body-file <(echo y)',
+  ['gh pr create --title x --body y', holdsTheWord('--body')],
+  ['gh pr create --title x --body-file -', NO_BODY_FILE],
+  ["gh pr create --title x --body-file '-'", NO_BODY_FILE],
+  ['gh pr create --title x --body-file b.md --fill', holdsTheWord('--fill')],
+  ['gh pr create --title x -T tpl --body-file b.md', holdsTheWord('-T')],
+  ['gh pr create --title x --body-file b.md; rm -rf y', holds(';')],
+  ['gh pr create --title x --body-file b.md && echo ok', holds('&')],
+  ['GH_TOKEN=z gh pr create --title x --body-file b.md', NOT_THE_WHOLE_COMMAND],
+  ['/opt/homebrew/bin/gh pr create --title x --body-file b.md', NOT_THE_WHOLE_COMMAND],
+  ['gh -R o/r pr create --title x --body-file b.md', NOT_THE_WHOLE_COMMAND],
+  ['gh pr create', NOT_THE_WHOLE_COMMAND],
+  ['gh pr create --body-file b.md', NO_TITLE],
+  ['gh pr create --title x --body-file b.md --web', holdsTheWord('--web')],
+  ['gh pr create --title x --body-file b.md --recover s.json', holdsTheWord('--recover')],
+  ['gh pr create --title x --body-file b.md -b y', holdsTheWord('-b')],
+  ['gh pr create --title x --body=y --body-file b.md', holdsTheWord('--body')],
+  ['gh pr create --title x --body-file b.md > out.txt', holds('>')],
+  ['gh pr create --title x --body-file b.md\necho ok', MORE_THAN_ONE_LINE],
+  ['gh pr create --title "$(cat t.txt)" --body-file b.md', holds('$(')],
+  ['gh pr create --title `cat t.txt` --body-file b.md', holds('`')],
+  ['gh pr create --title x --body-file b\\.md', holds('\\')],
+  ['gh pr create --title x --body-file <(echo y)', holds('<')],
+  ["gh pr create --title 'fix(render): keep a <b> tag' --body-file /tmp/b.md --base main --head feat/x", holds('<', '>')],
+  ["gh pr create --title 'fix(sync): read A & B together' --body-file /tmp/b.md --base main --head feat/x", holds('&')],
+  ["gh pr create --title 'fix(shell): split on a | pipe' --body-file /tmp/b.md --base main --head feat/x", holds('|')],
+  ["gh pr create --title 'fix(cli): accept -f as a flag' --body-file /tmp/b.md --base main --head feat/x", holdsTheWord('-f')],
+  ["gh pr create --title 'docs(pr): explain --body here' --body-file /tmp/b.md --base main --head feat/x", holdsTheWord('--body')],
 ];
 
-for (const command of plainCreateDenyCommands) {
-  test(`${goalsFor('plainCreateDenyCommands')}: denies every gh pr create form but the plain one: ${JSON.stringify(command)}`, () => {
+for (const [command, cause] of plainCreateDenyCommands) {
+  test(`${goalsFor('plainCreateDenyCommands')}: denies every gh pr create form but the plain one and names what it refused: ${JSON.stringify(command)}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'deny');
-    assert.equal(reasonOf(r), CREATION_DENY_REASON);
+    assert.equal(reasonOf(r), creationDenyReason(cause));
   });
 }
 
@@ -254,7 +288,7 @@ for (const command of g3FlaggedCreationDenyCommands) {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'deny');
-    assert.equal(reasonOf(r), CREATION_DENY_REASON);
+    assert.equal(reasonOf(r), creationDenyReason(NOT_THE_WHOLE_COMMAND));
   });
 }
 
@@ -343,7 +377,7 @@ const NUL = String.fromCharCode(0);
 
 const nulInsideTheWord = [
   ['G1: a merge', `g${NUL}h pr merge 1`, /^merging a PR is human-gated/],
-  ['G3: a create', `g${NUL}h pr create --fill`, /^opening a pull request takes one form/],
+  ['G3: a create', `g${NUL}h pr create --fill`, CREATION_DENY_REASON],
   ['G1: a merge behind 70 chained commands', 'true;'.repeat(70) + `g${NUL}h pr merge 1`, /more commands than the gate can judge inside its timeout/],
 ];
 
@@ -377,11 +411,11 @@ test('a long chain that names no gh is judged inside the timeout with no opinion
   assert.equal(decisionOf(r), null);
 });
 
-test('the creation deny reason names the one accepted gh pr create form and how to render its title and body', () => {
+test('the creation deny reason names what it refused, the one accepted gh pr create form and how to render its title and body', () => {
   const r = runHook('gh pr create --fill');
   assert.equal(decisionOf(r), 'deny');
   const reason = reasonOf(r);
-  assert.equal(reason, CREATION_DENY_REASON);
+  assert.equal(reason, creationDenyReason(holdsTheWord('--fill')));
   assert.match(reason, /pull-request render --fields <file> --body-out <body file>/);
   assert.ok(reason.includes("gh pr create --title '<printed title>' --body-file <body file> --base <base> --head <branch>"));
   assert.match(reason, /as its own Bash command/);
@@ -467,7 +501,7 @@ for (const command of allowCommands) {
 test('the wrapper loses its own exemption the moment anything is chained onto it', () => {
   const r = runHook(prRenderWrapperCommand);
   assert.equal(decisionOf(r), 'deny');
-  assert.equal(reasonOf(r), CREATION_DENY_REASON);
+  assert.equal(reasonOf(r), creationDenyReason(holds('&')));
 });
 
 test('round 3: every pull-request render example in the gate\'s tests uses only render flags', () => {
@@ -495,13 +529,13 @@ test('round 3: every pull-request render example in the gate\'s tests uses only 
   assert.ok(prRenderWrapperCommand.endsWith(' && gh pr create --fill'));
   const chained = runHook(prRenderWrapperCommand);
   assert.equal(decisionOf(chained), 'deny');
-  assert.equal(reasonOf(chained), CREATION_DENY_REASON);
+  assert.match(reasonOf(chained), CREATION_DENY_REASON);
 });
 
 test('the superseded superpowers-parallel path carries no exemption, so exactly one path is canonical', () => {
   const r = runHook('node /Users/satanshumishra/.claude/lib/example-parallel/example-git.mjs pr-create --repo o/r --head feature --base main --title "$(gh pr create --fill)" --origin human --why "w" --what "c" --not-verified "CI - not run"');
   assert.equal(decisionOf(r), 'deny');
-  assert.equal(reasonOf(r), CREATION_DENY_REASON);
+  assert.match(reasonOf(r), CREATION_DENY_REASON);
 });
 
 const commandPositionDenyCommands = [
@@ -523,7 +557,7 @@ for (const [command, reason] of commandPositionDenyCommands) {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'deny');
-    assert.equal(reasonOf(r), reason);
+    assertReason(reasonOf(r), reason);
   });
 }
 
@@ -539,7 +573,7 @@ for (const [command, reason] of multilineDenyCommands) {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'deny');
-    assert.equal(reasonOf(r), reason);
+    assertReason(reasonOf(r), reason);
   });
 }
 
