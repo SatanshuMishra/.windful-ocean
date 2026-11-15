@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -230,4 +230,41 @@ test('the session-start hook says so when the first build stalled and left no gr
   const printed = JSON.parse(runHook(provisionPath, made.env).stdout);
   assert.match(printed.hookSpecificOutput.additionalContext, /WARNING: this repository has no knowledge graph, because its build was stopped/);
   assert.equal(existsSync(made.rebuilds), false, 'a build started at the commit that stalled');
+});
+
+const UNATTENDED = Object.freeze({ HARNESS_UNATTENDED: '1' });
+
+function projectWithoutAGraph(t) {
+  const made = project(t, { 'src/app.py': 'print(1)\n' });
+  rmSync(made.out, { recursive: true });
+  return made;
+}
+
+test('an unattended session with no graph starts no build and writes nothing under graphify-out', (t) => {
+  const made = projectWithoutAGraph(t);
+  assert.equal(runHook(provisionPath, { ...made.env, ...UNATTENDED }).stdout, '');
+  assert.equal(existsSync(made.rebuilds), false, 'a build started in an unattended session');
+  assert.equal(existsSync(made.out), false, 'the unattended session wrote under graphify-out');
+});
+
+test('a session not marked unattended still builds the graph its repository lacks', (t) => {
+  for (const marker of [undefined, '', '0', 'true']) {
+    const made = projectWithoutAGraph(t);
+    runHook(provisionPath, marker === undefined ? made.env : { ...made.env, HARNESS_UNATTENDED: marker });
+    assert.deepEqual(readFileSync(made.rebuilds, 'utf8').trim().split('\n'), [made.repo]);
+  }
+});
+
+test('an unattended session is still told about a graph that already exists', (t) => {
+  const made = project(t, { 'src/app.py': 'print(1)\n' });
+  const printed = JSON.parse(runHook(provisionPath, { ...made.env, ...UNATTENDED }).stdout);
+  assert.match(printed.hookSpecificOutput.additionalContext, /^Graphify: knowledge graph at .*graph\.json, 1 nodes/);
+});
+
+test('an unattended session rebuilds no graph, however stale, and leaves graphify-out as it was', (t) => {
+  const made = project(t, { 'src/app.py': 'print(1)\n' });
+  utimesSync(join(made.repo, 'src/app.py'), AFTER_THE_GRAPH, AFTER_THE_GRAPH);
+  runHook(refreshPath, { ...made.env, ...UNATTENDED });
+  assert.equal(existsSync(made.rebuilds), false, 'a rebuild started in an unattended session');
+  assert.deepEqual(readdirSync(made.out), ['graph.json']);
 });

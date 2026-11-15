@@ -18,6 +18,7 @@ file_mtime() {
 }
 
 mode_sync() {
+  [ "${HARNESS_UNATTENDED:-}" = "1" ] && exit 0
   mkdir -p -m 700 "$CACHE_DIR" 2>/dev/null || true
 
   STATE_FILE="$STATE_FILE" SETTINGS_FILE="$SETTINGS_FILE" python3 -c '

@@ -16,6 +16,10 @@ print("deny" if (has_sleep and has_loop) else "allow")
 ' 2>/dev/null || echo allow)"
 
 if [ "$verdict" = "deny" ]; then
-  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Hold loops are denied. A subagent result is delivered to you automatically when it completes, and arrives whether you are idle or not. End your turn instead of holding it open."}}'
+  next_step="A subagent result is delivered to you automatically when it completes, and arrives whether you are idle or not. End your turn instead of holding it open."
+  if [ "${HARNESS_UNATTENDED:-}" = "1" ]; then
+    next_step="Run the command you are waiting on in the foreground with a long timeout and read its result from that call. Do not end your turn: in an unattended session that ends the work."
+  fi
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Hold loops are denied. %s"}}\n' "$next_step"
 fi
 exit 0

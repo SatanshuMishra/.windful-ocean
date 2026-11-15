@@ -55,8 +55,8 @@ export function syncRepo(top) {
   return `branch-sync: ${name} ${branch.out} fast-forwarded ${behind} commit${behind === 1 ? '' : 's'} to ${upstream.out}`;
 }
 
-export function run({ cwd, clone, source }) {
-  if (SKIPPED_SOURCES.has(source)) return [];
+export function run({ cwd, clone, source, unattended = false }) {
+  if (unattended || SKIPPED_SOURCES.has(source)) return [];
   const tops = [cwd, clone].filter(Boolean).map(topLevel).filter(Boolean);
   const unique = [...new Set(tops)];
   return unique.map(syncRepo).filter(Boolean);
@@ -84,7 +84,8 @@ if (isMainModule()) {
   try {
     const payload = readPayload();
     const clone = path.resolve(path.dirname(realpathSync(fileURLToPath(import.meta.url))), '..', '..');
-    const lines = run({ cwd: payload.cwd || process.cwd(), clone, source: payload.source });
+    const unattended = process.env.HARNESS_UNATTENDED === '1';
+    const lines = run({ cwd: payload.cwd || process.cwd(), clone, source: payload.source, unattended });
     if (lines.length > 0) process.stdout.write(lines.join('\n') + '\n');
   } catch (error) {
     const message = String(error && error.message).replace(/\s*\r?\n\s*/g, ' ');

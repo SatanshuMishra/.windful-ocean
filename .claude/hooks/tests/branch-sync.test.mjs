@@ -177,6 +177,47 @@ test('a compaction syncs nothing', () => {
   }
 });
 
+function hookEnv(unattended) {
+  const { HARNESS_UNATTENDED, ...rest } = process.env;
+  return unattended === undefined ? rest : { ...rest, HARNESS_UNATTENDED: unattended };
+}
+
+test('an unattended child session syncs nothing, because its run synced the checkout once', () => {
+  const repos = fixture();
+  const hookHome = path.join(repos.root, 'hookhome', '.claude', 'hooks');
+  try {
+    advanceOrigin(repos, 1);
+    const before = git(repos.work, 'rev-parse', 'HEAD');
+    assert.deepEqual(run({ cwd: repos.work, source: 'startup', unattended: true }), []);
+    fs.mkdirSync(hookHome, { recursive: true });
+    fs.copyFileSync(path.join(repoRoot, '.claude', 'hooks', 'branch-sync.mjs'), path.join(hookHome, 'branch-sync.mjs'));
+    const result = spawnSync(process.execPath, [path.join(hookHome, 'branch-sync.mjs')], {
+      input: JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', cwd: repos.work }),
+      encoding: 'utf8',
+      env: hookEnv('1'),
+    });
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, '');
+    assert.equal(git(repos.work, 'rev-parse', 'HEAD'), before);
+    for (const marker of ['', '0', 'true']) {
+      const attended = fixture();
+      try {
+        advanceOrigin(attended, 1);
+        const synced = spawnSync(process.execPath, [path.join(hookHome, 'branch-sync.mjs')], {
+          input: JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', cwd: attended.work }),
+          encoding: 'utf8',
+          env: hookEnv(marker),
+        });
+        assert.equal(synced.stdout, 'branch-sync: work main fast-forwarded 1 commit to origin/main\n');
+      } finally {
+        cleanup(attended);
+      }
+    }
+  } finally {
+    cleanup(repos);
+  }
+});
+
 test('the hook reads the session folder from its payload and always exits 0', () => {
   const repos = fixture();
   const hookHome = path.join(repos.root, 'hookhome', '.claude', 'hooks');
@@ -187,6 +228,7 @@ test('the hook reads the session folder from its payload and always exits 0', ()
     const result = spawnSync(process.execPath, [path.join(hookHome, 'branch-sync.mjs')], {
       input: JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', cwd: repos.work }),
       encoding: 'utf8',
+      env: hookEnv(),
     });
     assert.equal(result.status, 0);
     assert.equal(result.stdout, 'branch-sync: work main fast-forwarded 1 commit to origin/main\n');
@@ -194,6 +236,7 @@ test('the hook reads the session folder from its payload and always exits 0', ()
       input: 'not json',
       encoding: 'utf8',
       cwd: path.join(repos.root, 'hookhome'),
+      env: hookEnv(),
     });
     assert.equal(garbage.status, 0);
     assert.equal(garbage.stdout, '');

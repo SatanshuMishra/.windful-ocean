@@ -319,6 +319,7 @@ graphify_rebuild() {
 }
 
 graphify_launch() {
+  [ "${HARNESS_UNATTENDED:-}" = "1" ] && return 0
   local root="$1" log="$2" out="$3"
   [ -n "$root" ] && [ -n "$log" ] && [ -n "$out" ] || return 1
   if graphify_stalled_here "$root" "$out"; then return 0; fi

@@ -7,7 +7,7 @@ import { judge } from './db-gate.mjs';
 const DATABASE_MESSAGE = 'This is a live database change and no one can approve it during an unattended run. Do not make the change by this or any other route; put the statements and why they are needed in your result for the owner to approve, and continue with the rest of the task.';
 const GENERAL_MESSAGE = 'No one can answer this permission prompt during an unattended run. Split the command into simpler calls, or take another route to the same result; if no route exists, report that in your result and continue with the rest of the task.';
 
-const MAIN_THREAD_ANSWERABLE_TOOLS = new Set(['AskUserQuestion', 'ExitPlanMode']);
+const UNATTENDED_MARKER = 'HARNESS_UNATTENDED';
 const NO_VERDICT = Symbol('no verdict');
 
 function isPlainObject(value) {
@@ -35,14 +35,10 @@ function judgeOrNoVerdict(judgeDatabase, payload) {
   }
 }
 
-export function decide(payload, judgeDatabase = judge) {
-  if (!isPlainObject(payload) || payload.permission_mode !== 'bypassPermissions') return null;
+export function decide(payload, judgeDatabase = judge, environment = process.env) {
+  if (!isPlainObject(payload) || environment[UNATTENDED_MARKER] !== '1') return null;
   const verdict = judgeOrNoVerdict(judgeDatabase, payload);
-  const fromSubagent = typeof payload.agent_id === 'string' && payload.agent_id !== '';
-  if (fromSubagent) return refusal(isDatabaseAsk(verdict) ? DATABASE_MESSAGE : GENERAL_MESSAGE);
-  if (verdict === NO_VERDICT) return null;
-  if (MAIN_THREAD_ANSWERABLE_TOOLS.has(payload.tool_name) || isDatabaseAsk(verdict)) return null;
-  return refusal(GENERAL_MESSAGE);
+  return refusal(isDatabaseAsk(verdict) ? DATABASE_MESSAGE : GENERAL_MESSAGE);
 }
 
 function isMainModule() {

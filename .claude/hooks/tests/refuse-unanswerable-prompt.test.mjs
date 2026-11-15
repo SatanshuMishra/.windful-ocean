@@ -39,13 +39,17 @@ const databaseCall = { tool_name: 'mcp__supabase__execute_sql', tool_input: { qu
 const askUserQuestion = { tool_name: 'AskUserQuestion', tool_input: { questions: [] } };
 const exitPlanMode = { tool_name: 'ExitPlanMode', tool_input: { plan: 'ship it' } };
 
-function hookEnv() {
-  const { CLAUDE_CODE_SESSION_ID, SHIP, ...rest } = process.env;
-  return { ...rest, HOME: home };
+function hookEnv(unattended) {
+  const { CLAUDE_CODE_SESSION_ID, SHIP, HARNESS_UNATTENDED, ...rest } = process.env;
+  return unattended === undefined ? { ...rest, HOME: home } : { ...rest, HOME: home, HARNESS_UNATTENDED: unattended };
 }
 
-function runHook(input) {
-  return spawnSync(process.execPath, [hookPath], { input, env: hookEnv(), encoding: 'utf8' });
+function runUnattended(input) {
+  return spawnSync(process.execPath, [hookPath], { input, env: hookEnv('1'), encoding: 'utf8' });
+}
+
+function runAttended(input, marker) {
+  return spawnSync(process.execPath, [hookPath], { input, env: hookEnv(marker), encoding: 'utf8' });
 }
 
 function request(permissionMode, toolCall, agentId) {
@@ -67,56 +71,71 @@ function assertDatabaseCallIsAnAsk() {
   assert.equal(judge(databaseCall).decision, 'ask');
 }
 
-test('subagent Bash in bypass mode is refused', () => {
-  const result = runHook(request('bypassPermissions', compoundDelete, 'agent-1'));
+test('an unattended subagent Bash prompt is refused', () => {
+  const result = runUnattended(request('bypassPermissions', compoundDelete, 'agent-1'));
   assertRefused(result, GENERAL_REFUSAL);
   assert.match(JSON.parse(result.stdout).hookSpecificOutput.decision.message, /Split the command into simpler calls, or take another route/);
 });
 
-test('subagent database call in bypass mode is refused', () => {
+test('an unattended subagent database call is refused', () => {
   assertDatabaseCallIsAnAsk();
-  const result = runHook(request('bypassPermissions', databaseCall, 'agent-1'));
+  const result = runUnattended(request('bypassPermissions', databaseCall, 'agent-1'));
   assertRefused(result, DATABASE_REFUSAL);
   const { message } = JSON.parse(result.stdout).hookSpecificOutput.decision;
   assert.match(message, /Do not make the change by this or any other route/);
   assert.match(message, /put the statements and why they are needed in your result/);
 });
 
-test('subagent AskUserQuestion in bypass mode is refused', () => {
-  assertRefused(runHook(request('bypassPermissions', askUserQuestion, 'agent-1')), GENERAL_REFUSAL);
+test('an unattended subagent AskUserQuestion is refused', () => {
+  assertRefused(runUnattended(request('bypassPermissions', askUserQuestion, 'agent-1')), GENERAL_REFUSAL);
 });
 
-test('main-thread Bash in bypass mode is refused', () => {
-  assertRefused(runHook(request('bypassPermissions', compoundDelete)), GENERAL_REFUSAL);
+test('an unattended main-thread Bash prompt is refused', () => {
+  assertRefused(runUnattended(request('bypassPermissions', compoundDelete)), GENERAL_REFUSAL);
 });
 
-test('main-thread AskUserQuestion keeps asking', () => {
-  assertKeepsAsking(runHook(request('bypassPermissions', askUserQuestion)));
-});
-
-test('main-thread ExitPlanMode keeps asking', () => {
-  assertKeepsAsking(runHook(request('bypassPermissions', exitPlanMode)));
-});
-
-test('main-thread database ask keeps asking', () => {
+test('an unattended main-thread database ask is refused with the database message', () => {
   assertDatabaseCallIsAnAsk();
-  assertKeepsAsking(runHook(request('bypassPermissions', databaseCall)));
+  assertRefused(runUnattended(request('bypassPermissions', databaseCall)), DATABASE_REFUSAL);
 });
 
-test('other modes keep asking', () => {
-  assertKeepsAsking(runHook(request('default', compoundDelete, 'agent-1')));
+test('an unattended main-thread AskUserQuestion is refused', () => {
+  assertRefused(runUnattended(request('bypassPermissions', askUserQuestion)), GENERAL_REFUSAL);
+});
+
+test('an unattended main-thread ExitPlanMode is refused', () => {
+  assertRefused(runUnattended(request('bypassPermissions', exitPlanMode)), GENERAL_REFUSAL);
+});
+
+test('the permission mode does not decide: an unattended session in another mode is refused', () => {
+  assertRefused(runUnattended(request('default', compoundDelete, 'agent-1')), GENERAL_REFUSAL);
+  assertRefused(runUnattended(request('default', compoundDelete)), GENERAL_REFUSAL);
+});
+
+test('an attended session in bypass mode keeps asking, on the main thread and in a subagent', () => {
+  for (const toolCall of [compoundDelete, databaseCall, askUserQuestion, exitPlanMode]) {
+    assertKeepsAsking(runAttended(request('bypassPermissions', toolCall)));
+    assertKeepsAsking(runAttended(request('bypassPermissions', toolCall, 'agent-1')));
+  }
+});
+
+test('only the value 1 marks a session unattended', () => {
+  for (const marker of ['', '0', 'true']) {
+    assertKeepsAsking(runAttended(request('bypassPermissions', compoundDelete, 'agent-1'), marker));
+  }
 });
 
 test('a payload that is not JSON keeps asking', () => {
-  assertKeepsAsking(runHook('please approve this command'));
+  assertKeepsAsking(runUnattended('please approve this command'));
 });
 
-test('a judge that throws keeps asking', () => {
+test('a judge that throws leaves the general refusal in an unattended session and keeps asking in an attended one', () => {
   const throwingJudge = () => {
     throw new Error('gate fault');
   };
   const payload = { permission_mode: 'bypassPermissions', ...compoundDelete };
-  assert.equal(decide(payload, throwingJudge), null);
+  assert.deepEqual(decide(payload, throwingJudge, { HARNESS_UNATTENDED: '1' }), GENERAL_REFUSAL);
+  assert.equal(decide(payload, throwingJudge, {}), null);
 });
 
 test('settings register the hook for every tool', () => {
