@@ -31,4 +31,4 @@ Connect by pg service name and let the client read the credentials itself; setti
 
 ## Local containers
 
-This rule covers live databases. A local disposable container holding synthetic data, reached through `docker exec` or an explicit loopback host, falls outside it. A migration command run on the host asks even there.
+This rule covers live databases. A local disposable container holding synthetic data, reached through `docker exec` or an explicit loopback host, falls outside it. A migration command run on the host asks even there, unless it sets an inline loopback `DATABASE_URL` for the one tool the gate exempts, which `docs/security/db-gate-threat-model.md` names.
