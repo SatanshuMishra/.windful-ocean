@@ -26,4 +26,4 @@ When interphase writes a full spec for a request sent down the standard lane, be
 
 ## Run it
 
-For the standard and full lanes, invoke the `pipeline:run` skill before stage 1, or before stage 2 when the request starts there, and again after a compaction before acting. It holds every stage: Sync, the logbook continuity, interphase, mitosis, review, validation, the fix pass, ship and stop.
+For the standard and full lanes, invoke the `pipeline:run` skill before stage 1, or before stage 2 when the request starts there, and again after a compaction before acting.
