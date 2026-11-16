@@ -59,14 +59,14 @@
     },
     {
       "name": "permission prompt refusal hook",
-      "kind": "Claude Code PermissionRequest hook on every tool that, in bypassPermissions mode, refuses every prompt a subagent raises and every main-conversation prompt except AskUserQuestion, ExitPlanMode and the database gate's asks",
+      "kind": "Claude Code PermissionRequest hook on every tool that, in a session whose HARNESS_UNATTENDED is 1, refuses every prompt, with the database message for a database gate ask, and in any other session returns nothing, whatever the permission mode",
       "paths": [
         ".claude/hooks/refuse-unanswerable-prompt.mjs",
         ".claude/hooks/db-gate.mjs",
         ".claude/settings.json",
         ".claude/hooks/tests/refuse-unanswerable-prompt.test.mjs"
       ],
-      "driver": "node --test .claude/hooks/tests/refuse-unanswerable-prompt.test.mjs, then pipe PermissionRequest event JSON (permission_mode, tool_name, tool_input, and agent_id for a subagent) on stdin to node .claude/hooks/refuse-unanswerable-prompt.mjs with HOME set to a temporary directory, and read hookSpecificOutput.decision from stdout and the exit code",
+      "driver": "node --test .claude/hooks/tests/refuse-unanswerable-prompt.test.mjs, then pipe PermissionRequest event JSON (tool_name and tool_input) on stdin to node .claude/hooks/refuse-unanswerable-prompt.mjs with HOME set to a temporary directory, once with HARNESS_UNATTENDED=1 and once without it, and read hookSpecificOutput.decision from stdout and the exit code",
       "available": true,
       "sign_in": {
         "method": "none",
@@ -100,9 +100,11 @@
       "paths": [
         ".claude/hooks/deny-hold-loop.sh",
         ".claude/hooks/deny-task-output-read.sh",
-        ".claude/hooks/block-deep-research.sh"
+        ".claude/hooks/block-deep-research.sh",
+        ".claude/hooks/tests/deny-hold-loop.test.mjs",
+        ".claude/hooks/tests/deny-task-output-read.test.mjs"
       ],
-      "driver": "pipe PreToolUse event JSON on stdin to bash .claude/hooks/<hook>.sh (tool_name Bash with a command, Read with a file_path, Workflow or Skill with a name) with HOME set to a temporary directory, and read the permission decision on stdout and the exit code; these hooks have no test file of their own",
+      "driver": "node --test .claude/hooks/tests/deny-hold-loop.test.mjs .claude/hooks/tests/deny-task-output-read.test.mjs, then pipe PreToolUse event JSON on stdin to bash .claude/hooks/<hook>.sh (tool_name Bash with a command, Read with a file_path, Workflow or Skill with a name) with HOME set to a temporary directory, once with HARNESS_UNATTENDED=1 and once without it, and read the permission decision on stdout and the exit code; block-deep-research.sh has no test file of its own",
       "available": true,
       "sign_in": {
         "method": "none",

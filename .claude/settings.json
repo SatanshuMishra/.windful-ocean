@@ -27,7 +27,6 @@
       "Bash(graphify explain:*)",
       "Bash(graphify path:*)",
       "Bash(graphify query:*)",
-      "Bash(graphify update:*)",
       "Bash(jq:*)",
       "Bash(mkdir:*)",
       "Bash(mktemp:*)",

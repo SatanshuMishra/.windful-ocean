@@ -29,5 +29,3 @@ What to include, by type. A checklist for you, never headings in the output.
 | Explanation | the rule / an example from this repo / where it breaks / how they would spot it themselves |
 | Recommendation | the verdict / why / what it costs / what they give up |
 | Diagnosis | the cause / the evidence / the fix / how to catch it earlier |
-
-Worked examples and the rationale for each rule: ~/.claude/rules/common/writing-style.md

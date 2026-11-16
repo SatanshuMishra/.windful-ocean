@@ -17,25 +17,25 @@ The Claude Code configuration half of this repository. See the [root README](../
 
 In the order it takes effect:
 
-1. **`settings.json`** — loaded first. The file Claude Code reads is `~/.claude/settings.json`, a real file that `node scripts/dotfiles/cli.mjs sync` builds from this directory's `settings.json`: the base of hooks, tool permissions and environment, wiring the 9 hook events. Machine choices such as the model, the plugin list and the theme live only in `~/.claude/settings.json`.
+1. **`settings.json`** — loaded first. The file Claude Code reads is `~/.claude/settings.json`, a real file that `node scripts/dotfiles/cli.mjs sync` builds from this directory's `settings.json`: the base of hooks, tool permissions and environment. Machine choices such as the model, the plugin list and the theme live only in `~/.claude/settings.json`.
 2. **`CLAUDE.md`** — the small set of always-loaded invariants, injected into every turn's context. Deliberately short, because it is repeated on every turn (`CLAUDE.md:1-2`).
 3. **`rules/`** — the detail `CLAUDE.md` points to but does not inline. Loaded on demand when a rule is relevant, not unconditionally on every turn.
-4. **`agents/`** — subagent definitions. Read when the main thread dispatches work to a named subagent (an implementer, a code reviewer, and so on), never inline in the main thread's own context.
+4. **`agents/`** — subagent definitions. Read when the main thread dispatches work to a named subagent (a code reviewer, a validator, and so on), never inline in the main thread's own context.
 5. **`skills/`** — named procedures. Read when a session invokes one by name, either directly or through a skill router.
 6. **`hooks/`** — shell and Node scripts. Not "loaded" in the same sense as the above; they run at the moment their wired event fires (a tool call, a session start, a subagent finishing), as configured in `settings.json`.
 
 ## Directory reference
 
-| Path | Tracked files | Purpose |
-|---|---|---|
-| `agents/` | 13 | Subagent definitions — one file per role (implementer, code-reviewer, researcher, technical-writer, and others), each scoped to a lane. |
-| `hooks/` | 38 | Shell/Node scripts that fire on the 8 events wired in `settings.json`. |
-| `lib/` | 341 | Shared library code imported by hooks and skills. |
-| `rules/` | 29 | Standing invariants — coding style, testing, security, tool routing, and more — that `CLAUDE.md` points to. |
-| `skills/` | 165, across 18 directories | Named, invokable procedures. |
-| `settings.json` | 1 | The base of hooks, permissions and environment that `sync` merges into `~/.claude/settings.json`, which alone holds machine choices such as the model, the plugin list and the theme. Loaded first. |
-| `CLAUDE.md` | 1 | The always-loaded global invariants. |
-| `keybindings.json` | 1 | Keybinding configuration for the Claude Code CLI itself. |
+| Path | Purpose |
+|---|---|
+| `agents/` | Subagent definitions — one file per role (code-reviewer, validator, researcher, machinist, and others), each scoped to a lane. |
+| `hooks/` | Shell/Node scripts that fire on the events wired in `settings.json`. |
+| `lib/` | Shared library code imported by hooks and skills. |
+| `rules/` | Standing invariants — coding style, security, database access, the request pipeline, and more — that `CLAUDE.md` points to. |
+| `skills/` | Named, invokable procedures. |
+| `settings.json` | The base of hooks, permissions and environment that `sync` merges into `~/.claude/settings.json`, which alone holds machine choices such as the model, the plugin list and the theme. Loaded first. |
+| `CLAUDE.md` | The always-loaded global invariants. |
+| `keybindings.json` | Keybinding configuration for the Claude Code CLI itself. |
 
 `settings.local.json` also lives here at runtime but is untracked (`.claude/.gitignore:34`) — it holds machine-local overrides, never committed.
 

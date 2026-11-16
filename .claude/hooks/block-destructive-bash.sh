@@ -7,11 +7,12 @@ FAULT_FALLBACK="the gate could not classify this command"
 SEGMENT_LIMIT=64
 CHAIN_DENY_REASON="this command chains more commands than the gate can judge inside its timeout and names gh, so it is denied; run it as shorter commands"
 ACCEPTED_CREATE_FORM="render the title and body with pull-request render --fields <file> --body-out <body file>, then run gh pr create --title '<printed title>' --body-file <body file> --base <base> --head <branch> as its own Bash command; the pull-request plugin's hook checks the title and body"
+REFUSED_ANYWHERE="which this gate refuses anywhere in the command, a quoted title included"
 
 verdict=""
 reason_text=""
 fault_detail="no verdict was formed"
-whole_cmd="" cmd="" low="" matcher_fault=""
+whole_cmd="" cmd="" low="" matcher_fault="" create_cause=""
 seg_verdict="" seg_reason=""
 best_verdict="" best_reason=""
 
@@ -88,16 +89,35 @@ has_cs() { match_status "$1" "$cmd"; }
 
 has_whole() { match_status "$1" "$whole_cmd"; }
 
+name_refused_characters() {
+  local character="" found=""
+  for character in '`' '$(' ';' '&' '|' '<' '>' '\'; do
+    case "$whole_cmd" in
+      *"$character"*) found="${found:+${found}, }'${character}'" ;;
+    esac
+  done
+  create_cause="it holds ${found}, ${REFUSED_ANYWHERE}"
+}
+
 is_plain_create() {
   local flagend='([[:space:]=]|$)'
   local forbidden='--fill|--fill-first|--fill-verbose|-f|--web|-w|--editor|-e|--template|-T|--body|-b|--recover'
+  local refused_word="(^|[[:space:]])(${forbidden})${flagend}"
   case "$whole_cmd" in
-    *$'\n'* | *'`'* | *'$('* | *';'* | *'&'* | *'|'* | *'<'* | *'>'* | *'\'*) return 1 ;;
+    *$'\n'*) create_cause="it spans more than one line"; return 1 ;;
+    *'`'* | *'$('* | *';'* | *'&'* | *'|'* | *'<'* | *'>'* | *'\'*) name_refused_characters; return 1 ;;
   esac
-  has_whole '^[[:space:]]*gh[[:space:]]+pr[[:space:]]+create[[:space:]]' \
-    && has_whole "(^|[[:space:]])(--title|-t)${flagend}" \
-    && has_whole "(^|[[:space:]])(--body-file|-F)([[:space:]]+|=)[\"']?[^-[:space:]\"']" \
-    && ! has_whole "(^|[[:space:]])(${forbidden})${flagend}"
+  create_cause="the whole command is not gh pr create followed by its flags"
+  has_whole '^[[:space:]]*gh[[:space:]]+pr[[:space:]]+create[[:space:]]' || return 1
+  create_cause="it holds a flag word ${REFUSED_ANYWHERE}"
+  if has_whole "$refused_word"; then
+    [[ "$whole_cmd" =~ $refused_word ]] && create_cause="it holds the word '${BASH_REMATCH[2]}', ${REFUSED_ANYWHERE}"
+    return 1
+  fi
+  create_cause="it has no --title"
+  has_whole "(^|[[:space:]])(--title|-t)${flagend}" || return 1
+  create_cause="its --body-file names no file"
+  has_whole "(^|[[:space:]])(--body-file|-F)([[:space:]]+|=)[\"']?[^-[:space:]\"']"
 }
 
 set_deny() { seg_verdict="$VERDICT_DENY"; seg_reason="$1"; }
@@ -135,7 +155,7 @@ classify_segment() {
 
   if has "${ghtok}pr[[:space:]]+(create|new)([[:space:]]|$)"; then
     is_plain_create && return 0
-    set_deny "opening a pull request takes one form: ${ACCEPTED_CREATE_FORM}. Title grammar and body fields: the pull-request:open skill."
+    set_deny "this pull-request command is refused because ${create_cause}. Opening a pull request takes one form: ${ACCEPTED_CREATE_FORM}. Title grammar and body fields: the pull-request:open skill."
     return 0
   fi
 

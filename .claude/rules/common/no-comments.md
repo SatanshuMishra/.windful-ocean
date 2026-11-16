@@ -4,4 +4,4 @@ Put intent into names, types and structure, so every line you author, in any lan
 
 Derive what code does from the code alone, and read any existing comment as unreliable. When one contradicts the code you are changing, delete it rather than updating it; otherwise leave it as it is.
 
-Lines a tool needs are code, not comments: shebangs, tooling pragmas (`eslint-disable`, `@ts-expect-error`, `# noqa`, `# type: ignore`), and the codegen or SPDX license markers a tool requires. Give any tool-required reason string the minimum the tool demands.
+Lines a tool needs are code, not comments: shebangs, tooling pragmas (`eslint-disable`, `@ts-expect-error`, `# noqa`, `# type: ignore`), the codegen or SPDX license markers a tool requires, and the receipts gate's acknowledgement line (`RECEIPTS_ACK='<why>'` or `test-removal: <why>`). Give any tool-required reason string the minimum the tool demands.

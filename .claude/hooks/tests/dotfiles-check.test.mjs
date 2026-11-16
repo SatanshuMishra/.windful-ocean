@@ -33,10 +33,12 @@ function buildClone() {
   return { root, clone, home };
 }
 
-function runHook({ clone, home }) {
+function runHook({ clone, home }, unattended) {
   const env = { ...process.env, HOME: home };
   delete env.CLAUDE_CODE_SESSION_ID;
   delete env.SHIP;
+  delete env.HARNESS_UNATTENDED;
+  if (unattended !== undefined) env.HARNESS_UNATTENDED = unattended;
   return spawnSync(process.execPath, [path.join(clone, '.claude', 'hooks', 'dotfiles-check.mjs')], {
     input: JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup' }),
     encoding: 'utf8',
@@ -79,6 +81,35 @@ test('the dotfiles check hook reports a check that throws', () => {
     const lines = result.stdout.split('\n').filter((line) => line !== '');
     assert.equal(lines.length, 1);
     assert.ok(lines[0].startsWith('dotfiles check could not run: '));
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('an unattended session gets no notice, whether check finds problems or throws', () => {
+  const fixture = buildClone();
+  try {
+    const withProblems = runHook(fixture, '1');
+    assert.equal(withProblems.status, 0);
+    assert.equal(withProblems.stdout, '');
+    fs.rmSync(path.join(fixture.clone, 'scripts', 'dotfiles', 'links.json'));
+    const thrown = runHook(fixture, '1');
+    assert.equal(thrown.status, 0);
+    assert.equal(thrown.stdout, '');
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('only the value 1 marks a session unattended', () => {
+  const fixture = buildClone();
+  try {
+    for (const marker of ['', '0', 'true']) {
+      assert.equal(
+        runHook(fixture, marker).stdout,
+        'dotfiles check found problems:\ncheck: ~/.zshrc is missing; run install\n',
+      );
+    }
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
   }

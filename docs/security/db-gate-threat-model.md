@@ -41,6 +41,7 @@ In scope: a mistaken agent, an overreaching agent, and a prompt-injected agent t
 | 5 | A missing or unloadable gate file lets every call through, because Node hooks here are registered without `\|\| exit 2` (the lesson recorded in `docs/security/dotfiles-usability.md`). |
 | 6 | Approval fatigue: a user who approves every prompt approves the change too. |
 | 7 | The interactive prompt has been observed only through `claude -p`, not yet in the desktop app. |
+| 8 | A migration against a local disposable database asks like any other, by non-goal 4, so an unattended session, where no one can answer, is refused it: a project whose test setup runs a migration tool on the host cannot set up its database there. What passes is `docker exec` into the container, and `prisma` with an inline loopback `DATABASE_URL`. Logged 2026-11-15. |
 
 ## 7. Definition of done
 
