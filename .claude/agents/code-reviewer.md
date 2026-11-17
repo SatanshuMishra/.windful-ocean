@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: Reviews a diff it did not write, for correctness, quality and maintainability. Use when a diff exists and needs fresh eyes. Do NOT use when the review criteria live only in the calling conversation rather than in a file, when no diff exists yet, or when the finding is already known and only needs fixing.
-tools: Read, Grep, Glob, Bash, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, mcp__plugin_logbook_ledger__*, StructuredOutput
+tools: Read, Grep, Glob, Bash, mcp__plugin_logbook_ledger__*, StructuredOutput
 model: opus
 effort: high
 maxTurns: 300

@@ -1,7 +1,7 @@
 ---
 name: researcher
 description: Answers one question that requires sources outside this repository, returning cited findings written for a near-novice reader. Use when the answer depends on external documentation, standards, or vendor behaviour. Do NOT use for anything answerable from this repository, which is Explore's lane, and do NOT use for a fact already established in the calling conversation.
-tools: Read, Grep, Glob, Bash, WebSearch, WebFetch, mcp__plugin_context7_context7__resolve-library-id, mcp__plugin_context7_context7__query-docs, mcp__plugin_logbook_ledger__*, StructuredOutput
+tools: Read, Grep, Glob, Bash, WebSearch, WebFetch, mcp__context7__resolve-library-id, mcp__context7__query-docs, mcp__plugin_logbook_ledger__*, StructuredOutput
 model: opus
 maxTurns: 300
 skills: research-citations

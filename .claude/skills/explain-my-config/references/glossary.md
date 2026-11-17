@@ -20,7 +20,6 @@ inventory before asserting specifics.
 - **Memory (auto-memory)** — durable per-project notes Claude keeps so a later session remembers decisions that aren't written in the code.
 - **Logbook** — the plugin that remembers a project across sessions: threads with completion criteria, decisions, and session logs, stored on the project's `_ledger` git branch.
 - **graphify** — a locally-built "map" of a codebase (a knowledge graph) Claude queries to orient itself before drilling in.
-- **Serena** — an MCP server for precise code navigation (find every caller, every implementation) and symbol-level edits.
 - **Effort level** — a setting that tunes how much reasoning the model spends per turn.
 - **Permissions (allow / deny / ask)** — rules deciding which tool actions run automatically, which are blocked, and which prompt you first.
 - **Statusline** — the custom info bar shown at the bottom of the session.
