@@ -204,7 +204,7 @@ function sequelizeVerb(words) {
 function ask(change, label) {
   return {
     decision: 'ask',
-    reason: `database change: ${change} - ${label}. Approve only if Claude has explained above, in plain English, what each statement changes, the rows and data at risk, and how to undo it. Rule: ${RULE}`,
+    reason: `database change: ${change} - ${label}. Approve only if this command changes one database and Claude has explained above, in plain English, what the change does to it, the rows and data at risk, and how to undo it. Rule: ${RULE}`,
   };
 }
 

@@ -1,10 +1,13 @@
 # Schema design and migration authoring
 
-You produce files, and a statement that changes schema or data reaches a live database only through the approval flow:
+You produce files, and a change to schema or data reaches a live database only through the approval flow, which takes one approval per database however many statements the change holds:
 
-1. Explain each statement in plain English before it runs: what it changes; the objects and the rows it affects, with counts measured by a read through the reader service; the data it destroys or rewrites, or the words no data is lost; its lock and downtime impact; how to undo it; and the verification read you will run afterwards.
-2. Run it only through the user's approval at the permission prompt, then run the verification read and report it per `procedures/handback.md`.
-3. When approval is withheld, run nothing: hand over every statement or migration file in run order, per `procedures/handback.md`.
+1. Explain the change in plain English before the first database: what it changes; the objects and the rows it affects, with counts measured by a read through the reader service; the data it destroys or rewrites, or the words no data is lost; its lock and downtime impact; how to undo it; and the verification read you will run afterwards. Before each later database, give its own counts and anything else that differs.
+2. Apply the whole change to one database in one command, which raises that database's one permission prompt, as `~/.claude/rules/common/database-access.md` sets out. Then run the verification read and report it per `procedures/handback.md` before the next database, and stop at the first database that fails, leaving the rest unchanged.
+   - Run every file of the change in that command, in run order, stopping at the first error: `psql "service=<service>" -v ON_ERROR_STOP=1 -f <first file> -f <second file>`, or the project's migration tool applying everything pending to that one database.
+   - Add `--single-transaction` when every statement can run inside a transaction, so a failure leaves the database unchanged. Leave it off when one cannot, such as `CREATE INDEX CONCURRENTLY`, or when a backfill commits in batches, and say in the explanation what a failure can leave half-applied.
+   - Name one database per command. Two databases chained or looped in one command raise a single prompt for both, and the gate does not tell them apart.
+3. When approval is withheld, run nothing: hand over every migration file in run order and each database's command that applies them, per `procedures/handback.md`.
 
 Reads go through the reader service in `procedures/database-facts.md`, and credentials never enter the transcript.
 

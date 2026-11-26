@@ -8,9 +8,11 @@ Run reads, audits and exports without asking, through the project's reader servi
 
 Keep PII out of every query, export and paste, even through an approved connection, until the user asks for that data by name. Keep every export out of commits.
 
-## Changes wait for approval
+## Changes wait for approval, once per database
 
-Before any statement that changes schema or data, explain each one in plain English:
+A change is every statement applied for one purpose, such as a migration or a backfill. It takes one approval per database, however many statements it holds: six databases take six permission prompts, and one database takes one.
+
+Before the first database, explain the change in plain English:
 
 - what it changes;
 - the objects and rows it touches, with counts read first;
@@ -19,9 +21,11 @@ Before any statement that changes schema or data, explain each one in plain Engl
 - how to undo it;
 - the read that will verify it.
 
-Then make the call. The permission prompt is the approval: a change runs only once the user approves it, and a gate asks the user to approve every such command.
+Before each later database, give its counts and whatever else differs.
 
-When the user declines, or no one can approve, hand over the statements or migration files in run order, each with its pre-check, backup, verification read and rollback.
+Then apply the whole change to that one database in one command, stopping at the first error, in one transaction when every statement allows it. The permission prompt is the approval, and the gate asks once per command, so never name two databases in one command. Run the verification read before the next database; when one fails, stop and leave the rest unchanged. The commands are in the `platform-engineer` skill's `procedures/schema-migration.md`.
+
+When the user declines, or no one can approve, hand over the migration files in run order and, for each database, the command that applies them, with its pre-check, backup, verification read and rollback.
 
 Write SQL to the `platform-engineer` skill's `procedures/sql-standards.md`.
 
