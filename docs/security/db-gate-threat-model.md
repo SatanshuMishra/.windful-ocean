@@ -42,6 +42,7 @@ In scope: a mistaken agent, an overreaching agent, and a prompt-injected agent t
 | 6 | Approval fatigue: a user who approves every prompt approves the change too. |
 | 7 | The interactive prompt has been observed only through `claude -p`, not yet in the desktop app. |
 | 8 | A migration against a local disposable database asks like any other, by non-goal 4, so an unattended session, where no one can answer, is refused it: a project whose test setup runs a migration tool on the host cannot set up its database there. What passes is `docker exec` into the container, and `prisma` with an inline loopback `DATABASE_URL`. Logged 2026-11-15. |
+| 9 | The policy takes one approval per database, and the gate asks once per command: a command that changes two databases, chained or looped, raises one prompt for both. The policy's one-database-per-command line and the prompt's reason text keep them apart, not the gate. Logged 2026-11-26. |
 
 ## 7. Definition of done
 

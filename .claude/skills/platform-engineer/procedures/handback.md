@@ -27,11 +27,11 @@ Six things, in this order:
 1. **Files changed**, each by path, one line each on what it changes.
 2. **The behavioural change** in plain words: what will be different once a human applies this, and what will not.
 3. **Checks**, each named with its real result, in the three phrasings above.
-4. **The exact human step to apply it** - the literal command, or the literal dashboard action, in the order it must happen. If two steps must not be reordered, say why. When approval for a database change is withheld, list every statement or migration file in run order, each with its plain English explanation, its pre-check read, its backup step, its verification read and its rollback, so the human can run them in that order.
+4. **The exact human step to apply it** - the literal command, or the literal dashboard action, in the order it must happen. If two steps must not be reordered, say why. When approval for a database change is withheld, list every migration file in run order with its plain English explanation, then, for each database, the one command that applies them, with its pre-check read, its backup step, its verification read and its rollback, so the human can run them in that order.
 5. **Rollback**: the path to the paired rollback, or the exact steps to undo the change, or an explicit statement that the change is not reversible and what that costs.
 6. **Callouts**: anything destructive, anything that forces a replacement, anything that renames a required check, any credential exposure, and any assumption you made because a fact was unavailable.
 
-A database change that ran with the user's approval is reported with that approval, the exact command run, and the verification read with its result.
+A database change that ran with the user's approval is reported per database, with that approval, the exact command run, and the verification read with its result.
 
 ## 4. What the hand-back never contains
 

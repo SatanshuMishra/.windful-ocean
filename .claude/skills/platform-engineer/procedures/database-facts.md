@@ -214,7 +214,7 @@ If you cannot confirm all three, treat the database as live.
 
 ## What still needs approval
 
-Every other connection: an owner or service-role credential, a pasted connection string, a non-loopback host, a reader read spelled any other way than above, a database client with no reader convention, and every statement that changes schema or data. Each of these raises a permission prompt, and you explain it in plain English first, as `procedures/schema-migration.md` describes.
+Every other connection: an owner or service-role credential, a pasted connection string, a non-loopback host, a reader read spelled any other way than above, a database client with no reader convention, and every change to schema or data, which is applied one database per command. Each of these raises a permission prompt, and you explain it in plain English first, as `procedures/schema-migration.md` describes.
 
 ## Reporting an unknown
 
