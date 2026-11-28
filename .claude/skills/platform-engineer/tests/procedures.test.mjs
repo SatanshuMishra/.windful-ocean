@@ -7,7 +7,10 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SKILL_DIR = fileURLToPath(new URL('..', import.meta.url));
-const DOCKER_PROOF = fileURLToPath(new URL('./reader-role.docker.mjs', import.meta.url));
+const DOCKER_PROOFS = Object.freeze([
+  fileURLToPath(new URL('./reader-role.docker.mjs', import.meta.url)),
+  fileURLToPath(new URL('./reader-setup.docker.mjs', import.meta.url)),
+]);
 
 function read(relativePath) {
   return readFileSync(join(SKILL_DIR, relativePath), 'utf8');
@@ -53,20 +56,22 @@ test('migration and hand-back procedures describe approval', () => {
   }
 });
 
-test('reader role proof fails without docker', (t) => {
+test('every reader Docker proof fails without docker', (t) => {
   const emptyPath = mkdtempSync(join(tmpdir(), 'reader-role-no-docker-'));
   t.after(() => rmSync(emptyPath, { recursive: true, force: true }));
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([key]) => !['NODE_TEST_CONTEXT', 'NODE_OPTIONS', 'PATH'].includes(key)),
   );
-  const result = spawnSync(process.execPath, ['--test', '--test-reporter=tap', DOCKER_PROOF], {
-    encoding: 'utf8',
-    env: { ...env, PATH: emptyPath },
-  });
-  const output = `${result.stdout}${result.stderr}`;
-  assert.notEqual(result.status, 0, `the Docker proof passed with no docker on PATH: ${output}`);
-  assert.match(output, /Docker/, `the failure does not name Docker: ${output}`);
-  assert.match(output, /^# skipped 0$/m, `the Docker proof reported a skipped test: ${output}`);
-  assert.doesNotMatch(output, /# SKIP/, `the Docker proof marked a test skipped: ${output}`);
-  assert.match(output, /^# fail [1-9]/m, `the Docker proof reported no failing test: ${output}`);
+  for (const proof of DOCKER_PROOFS) {
+    const result = spawnSync(process.execPath, ['--test', '--test-reporter=tap', proof], {
+      encoding: 'utf8',
+      env: { ...env, PATH: emptyPath },
+    });
+    const output = `${result.stdout}${result.stderr}`;
+    assert.notEqual(result.status, 0, `${proof} passed with no docker on PATH: ${output}`);
+    assert.match(output, /Docker/, `${proof} does not name Docker in its failure: ${output}`);
+    assert.match(output, /^# skipped 0$/m, `${proof} reported a skipped test: ${output}`);
+    assert.doesNotMatch(output, /# SKIP/, `${proof} marked a test skipped: ${output}`);
+    assert.match(output, /^# fail [1-9]/m, `${proof} reported no failing test: ${output}`);
+  }
 });
