@@ -4,29 +4,39 @@ Reads, audits and exports from a live database run without asking, through one p
 
 ## The reader service, and why it is the only automatic path
 
-Each project gets a pg service named `<project>-reader`, for example `storefront-reader`, that logs in as the role `claude_reader`. The database itself keeps that role read-only and away from PII: it holds select on non-PII columns of the application's own tables and nothing else, so a mistaken or injected query can neither write nor return a private value. No other credential can promise that, which is why no other connection runs unprompted.
+Each database gets a pg service named `<database>-reader`, for example `storefront-reports-reader`, that logs in as the role `claude_reader`. The database itself keeps that role read-only and away from PII: it holds select on non-PII columns of the application's own tables and nothing else, so a mistaken or injected query can neither write nor return a private value. No other credential can promise that, which is why no other connection runs unprompted.
 
 The one invocation the database gate passes with no prompt:
 
 ```
-psql "service=<project>-reader" -X -c "<query>"
+psql "service=<database>-reader" -X -c "<query>"
 ```
 
 or the same with `-f <file>` naming a readable file in place of `-c`. Spell it exactly so: no `PG*` environment variable in front of it, no `-h`, `-U` or `-p`, and no psql meta-command or client escape in the query. The role's own defaults keep the session read-only, so nothing else is needed. Any other spelling raises a permission prompt.
 
+An SQL tool, such as an MCP server's `execute_sql`, raises a permission prompt on every call, a read included, because the gate cannot see which role it runs as. Never read through one while the database has a reader service. When it has none, say so once, name the setup below, and expect each read to prompt.
+
 Ask the smallest question that decides something specific, and never export a column the reader cannot already see. Credentials never enter the transcript: never print, paste or echo a password or a connection string.
 
-## Setting it up once per project
+## Setting it up once per database
 
-A human runs this once per database; you never see the password.
+The human runs this once per database, in their own terminal; you never see a password and never run the script, which needs the owner's.
 
-1. The human edits the two placeholder blocks below, runs the setup block as the database owner, then runs the gap check and closes every row it returns.
-2. The human adds a section `[<project>-reader]` to `~/.pg_service.conf` with `host`, `port`, `dbname`, `user=claude_reader` and `sslmode=require`. The gate trusts a reader service only when its user is `claude_reader`.
-3. The human puts the password in `~/.pgpass` at mode 600.
+1. You propose the PII list from the schema in the repository's migrations, as described under Declaring PII below, written to a file as one `schema.table.column` per line; the human confirms or corrects it.
+2. The human runs, for a Supabase project:
+
+   ```bash
+   node ~/.claude/skills/platform-engineer/scripts/reader-setup.mjs --service <database>-reader --supabase-ref <project ref> --pii-file <file>
+   ```
+
+   For any other Postgres, `--host`, `--port` and `--dbname` replace `--supabase-ref`; `--no-pii` replaces `--pii-file` only for a database that holds no PII. The script asks for the owner password with echo off, runs the setup block and the gap check below as the owner in one transaction, and commits only when the gap check returns no rows. It then adds a `[<database>-reader]` section with `user=claude_reader` to `~/.pg_service.conf`, puts a generated password in `~/.pgpass` at mode 600, and checks that the service logs in as read-only `claude_reader`. It prints no password. The gate trusts a reader service only when its user is `claude_reader`.
+3. After a migration adds tables or functions, the human runs the same command with `--refresh`, which re-grants the reader without a new password.
+
+Supabase's direct host, `db.<project ref>.supabase.co`, answers over IPv6 only. On a network without IPv6 the reader cannot connect, and a read then has to go through an SQL tool, which prompts.
 
 You never read or write `~/.pg_service.conf` or `~/.pgpass`.
 
-The placeholders, each replaced before running:
+The placeholders the script fills, which a human running the blocks by hand replaces before running:
 
 - `__APP_SCHEMAS__`: a comma-separated list of the application's own schemas; on Supabase normally `public` alone. System and platform schemas never go in it: `pg_catalog`, `information_schema`, `auth`, `storage`, `vault`, `realtime`, `net`, `cron`, `graphql`, `extensions`, `pgsodium`, and every schema whose name starts with `supabase_` or `pg_`. The setup refuses them and the gap check reports them.
 - `__PII_COLUMNS__`: a comma-separated list of `schema.table.column`, from Declaring PII below.
@@ -35,7 +45,7 @@ The placeholders, each replaced before running:
 
 The setup grants column-level select on ordinary and partitioned tables only, never on a view, materialized view or foreign table, because a view runs with its owner's rights and can expose a PII column under another name. The human may grant a reviewed PII-free view by hand, and the gap check then lists it so the grant stays deliberate. A table with row level security gets a select-only policy for the reader alone.
 
-The setup also changes who may call every `SECURITY DEFINER` function in those schemas: it revokes execute from PUBLIC and grants it to each role in `__APP_ROLES__`. A reader can switch its read-only default off, and Postgres cannot withhold from one role what PUBLIC holds, so this is the only way to keep a writing function out of its reach. The human reviews the role list before running it, because a role left off it loses access to those functions. Re-run the block from its second statement after a migration adds tables or functions.
+The setup also changes who may call every `SECURITY DEFINER` function in those schemas: it revokes execute from PUBLIC and grants it to each role in `__APP_ROLES__`. A reader can switch its read-only default off, and Postgres cannot withhold from one role what PUBLIC holds, so this is the only way to keep a writing function out of its reach. The human reviews the role list before running it, because a role left off it loses access to those functions. After a migration adds tables or functions, the block is re-run from its second statement, which is what the script's `--refresh` does.
 
 ```sql reader-setup
 CREATE ROLE claude_reader LOGIN PASSWORD '__READER_PASSWORD__' NOSUPERUSER NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 3;

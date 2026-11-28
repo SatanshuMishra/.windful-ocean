@@ -20,7 +20,7 @@ In scope: a mistaken agent, an overreaching agent, and a prompt-injected agent t
 |---|---|---|
 | DG1 | Every database change asks. | Per-segment command-word matching after wrapper removal: database clients, restores, migration apply verbs, remote or unknown Supabase and Railway commands, package scripts, make-style targets, Railway MCP change tools, SQL-named MCP tools. |
 | DG2 | Database credentials deny. | pg password and service files, `PGPASSFILE`, `PGSERVICEFILE` and `PGSYSCONFDIR` anywhere in the command, `railway variables` without a set, Railway credential MCP tools. |
-| DG3 | Reader reads pass with no prompt. | A `<project>-reader` service the user's service file maps to `claude_reader`, no other connection setting or PG variable, and all SQL visible, free of read-only overrides and limited to allowlisted psql meta-commands. |
+| DG3 | Reader reads pass with no prompt. | A `<database>-reader` service the user's service file maps to `claude_reader`, no other connection setting or PG variable, and all SQL visible, free of read-only overrides and limited to allowlisted psql meta-commands. |
 | DG4 | Faults deny. | Unparsable input, a malformed payload or a thrown error denies with a reason beginning `database gate fault`; the script always exits 0. |
 
 ## 5. Non-goals
@@ -43,6 +43,7 @@ In scope: a mistaken agent, an overreaching agent, and a prompt-injected agent t
 | 7 | The interactive prompt has been observed only through `claude -p`, not yet in the desktop app. |
 | 8 | A migration against a local disposable database asks like any other, by non-goal 4, so an unattended session, where no one can answer, is refused it: a project whose test setup runs a migration tool on the host cannot set up its database there. What passes is `docker exec` into the container, and `prisma` with an inline loopback `DATABASE_URL`. Logged 2026-11-15. |
 | 9 | The policy takes one approval per database, and the gate asks once per command: a command that changes two databases, chained or looped, raises one prompt for both. The policy's one-database-per-command line and the prompt's reason text keep them apart, not the gate. Logged 2026-11-26. |
+| 10 | An SQL-named MCP tool asks on every call, a read included, because the gate cannot see which role the tool connects as. A database with no reader service, or one whose reader host the network cannot reach, prompts on every read; the policy sends reads to the reader service and the platform-engineer `reader-setup.mjs` script creates one. Logged 2026-11-28. |
 
 ## 7. Definition of done
 
