@@ -99,6 +99,7 @@ const RAILWAY_READ = new Set([
   'status', 'whoami', 'list', 'logs', 'help', 'docs', 'open', 'completion',
 ]);
 const RAILWAY_INFO_FLAGS = new Set(['--help', '-h', '--version', '-V']);
+const POSTGRES_CLIENT_INFO_FLAGS = new Set(['--help', '-?', '--version', '-V']);
 const RAILWAY_VARIABLE_COMMANDS = new Set(['variables', 'variable', 'vars', 'var']);
 
 const RAILWAY_MCP_CREDENTIAL = new Set(['list-variables', 'get-bucket-credentials', 'reset-bucket-credentials']);
@@ -948,7 +949,13 @@ function urisAllLoopback(texts) {
     && part.hosts.every(isLoopback));
 }
 
+function onlyAsksForClientInfo(segment) {
+  return segment.args.length > 0
+    && segment.args.every((word) => !word.expands && POSTGRES_CLIENT_INFO_FLAGS.has(word.text));
+}
+
 function classifyPostgresClient(segment, context) {
+  if (onlyAsksForClientInfo(segment)) return null;
   const isDump = segment.command === 'pg_dump';
   const parsed = isDump
     ? parseClientOptions(segment.args, PG_DUMP_VALUE_OPTIONS, PG_DUMP_LONG_VALUE_OPTIONS, PG_DUMP_LONG_OPTIONS)

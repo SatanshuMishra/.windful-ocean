@@ -148,6 +148,19 @@ test('passes railway read commands', () => {
   ], null);
 });
 
+test('passes postgres client version and help checks, and nothing that rides with them', () => {
+  expectBash([
+    'psql --version',
+    'psql -V',
+    'psql --help',
+    'pg_dump --version',
+  ], null);
+  expectBash([
+    'psql --version -c "drop table t"',
+    'psql -V "service=app-prod"',
+  ], 'ask');
+});
+
 test('passes explicitly local targets', () => {
   expectBash([
     'psql -h localhost -U postgres -c "drop table t"',
